@@ -1,0 +1,5 @@
+/data/
+/config/config.yml
+.env
+*.exe
+/frigate-telegram
