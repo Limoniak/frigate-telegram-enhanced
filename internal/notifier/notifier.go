@@ -196,6 +196,16 @@ func (n *Notifier) Process(ctx context.Context, topic string, payload []byte) {
 		if msg, err = frigate.ParseEventMessage(payload); err == nil {
 			n.handleEvent(ctx, msg)
 		}
+	case n.topics.reviews:
+		var msg frigate.ReviewMessage
+		if msg, err = frigate.ParseReviewMessage(payload); err == nil {
+			n.handleReview(ctx, msg)
+		}
+	case n.topics.updates:
+		var u frigate.TrackedObjectUpdate
+		if u, err = frigate.ParseTrackedObjectUpdate(payload); err == nil {
+			n.handleUpdate(ctx, u)
+		}
 	}
 	if err != nil {
 		n.Log.Warn("message MQTT ignoré", "topic", topic, "err", err)
