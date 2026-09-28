@@ -1,7 +1,7 @@
 # Configuration de frigate-telegram.
 # Copier ce fichier vers config/config.yml puis l'adapter.
-# Les valeurs VARIABLE_NAME viennent des variables d'environnement (.env) ;
-# VARIABLE_NAME:-défaut utilise "défaut" si la variable n'est pas définie.
+# Les valeurs ${VAR} viennent des variables d'environnement (.env) ;
+# ${VAR:-défaut} utilise « défaut » si la variable n'est pas définie.
 
 timezone: Europe/Paris
 mode: events                     # events (un message par objet) ou reviews (alertes Frigate ≥ 0.14)

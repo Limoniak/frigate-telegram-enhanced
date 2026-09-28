@@ -150,6 +150,25 @@ func TestValidationErrors(t *testing.T) {
 	}
 }
 
+func TestEnvVarInCommentIsIgnored(t *testing.T) {
+	raw := minimal + "# adresse de secours ${NOT_SET}\n"
+	if _, err := Parse([]byte(raw), testEnv); err != nil {
+		t.Fatalf("Parse: %v, un ${VAR} en commentaire ne doit pas provoquer d'erreur", err)
+	}
+}
+
+func TestEnvVarPreservesSpecialCharacters(t *testing.T) {
+	raw := strings.Replace(minimal, "token: ${TG_TOKEN}", `token: "${TG_TOKEN}"`, 1)
+	value := `a\nb"c#d`
+	c, err := Parse([]byte(raw), env(map[string]string{"TG_TOKEN": value}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Telegram.Token != value {
+		t.Errorf("token = %q, attendu %q (identique octet pour octet)", c.Telegram.Token, value)
+	}
+}
+
 func TestTimeRangeContains(t *testing.T) {
 	night := TimeRange{From: 22 * 60, To: 7 * 60}
 	day := TimeRange{From: 9 * 60, To: 17 * 60}

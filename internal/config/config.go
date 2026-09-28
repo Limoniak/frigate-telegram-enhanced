@@ -223,25 +223,50 @@ func orDefault(v, def string) string {
 
 var envRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`)
 
-// expandEnv remplace ${VAR} et ${VAR:-défaut}. Une variable absente sans défaut est une erreur.
+// expandEnv remplace ${VAR} et ${VAR:-défaut} dans les valeurs scalaires du YAML (jamais
+// dans les commentaires ni les clés). On passe par un yaml.Node pour que la substitution
+// agisse sur la valeur Go décodée, pas sur le texte brut : un guillemet ou un antislash
+// dans la variable n'a donc pas besoin d'être ré-échappé pour rester valide.
 func expandEnv(raw []byte, lookup func(string) (string, bool)) ([]byte, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return raw, nil
+	}
+	var root yaml.Node
+	if err := yaml.Unmarshal(raw, &root); err != nil {
+		return nil, fmt.Errorf("config invalide: %w", err)
+	}
 	var missing []string
-	out := envRe.ReplaceAllFunc(raw, func(m []byte) []byte {
-		sub := envRe.FindSubmatch(m)
-		name := string(sub[1])
-		if v, ok := lookup(name); ok {
-			return []byte(v)
-		}
-		if len(sub[2]) > 0 {
-			return sub[3]
-		}
-		missing = append(missing, name)
-		return nil
-	})
+	expandScalarNodes(&root, lookup, &missing)
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("variables d'environnement manquantes: %s", strings.Join(missing, ", "))
 	}
+	out, err := yaml.Marshal(&root)
+	if err != nil {
+		return nil, fmt.Errorf("config invalide: %w", err)
+	}
 	return out, nil
+}
+
+// expandScalarNodes applique la substitution ${VAR} à la valeur de chaque nœud scalaire
+// de l'arbre (récursif : clés, valeurs, éléments de liste).
+func expandScalarNodes(n *yaml.Node, lookup func(string) (string, bool), missing *[]string) {
+	if n.Kind == yaml.ScalarNode {
+		n.Value = envRe.ReplaceAllStringFunc(n.Value, func(m string) string {
+			sub := envRe.FindStringSubmatch(m)
+			name := sub[1]
+			if v, ok := lookup(name); ok {
+				return v
+			}
+			if sub[2] != "" {
+				return sub[3]
+			}
+			*missing = append(*missing, name)
+			return ""
+		})
+	}
+	for _, c := range n.Content {
+		expandScalarNodes(c, lookup, missing)
+	}
 }
 
 func (c *Config) validate() error {
