@@ -290,7 +290,7 @@ avertissement et on démarre avec un état vide.
 
 ## 11. Livraison
 
-- `Dockerfile` multi-stage : `golang:1.25-alpine` avec
+- `Dockerfile` multi-stage : `golang:1.27-alpine` avec
   `CGO_ENABLED=0 -trimpath -ldflags="-s -w"`, puis
   `gcr.io/distroless/static-debian12:nonroot`. Données fuseau horaire
   embarquées (`-tags timetzdata`). Utilisateur non-root.
@@ -319,6 +319,5 @@ avertissement et on démarre avec un état vide.
 
 ## 13. Environnement de développement
 
-Go et Docker ne sont pas installés sur le poste de développement actuel.
-Il faudra soit installer Go 1.25 (`winget install GoLang.Go`), soit exécuter les
-tests dans un conteneur `golang:1.25`.
+Go 1.27 est installé sur le poste (tests et build locaux). Docker n'y est pas :
+l'image est construite par la CI ou sur le serveur cible.
