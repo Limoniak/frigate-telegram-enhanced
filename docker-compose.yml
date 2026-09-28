@@ -4,6 +4,7 @@ services:
     # image: ghcr.io/<utilisateur>/frigate-telegram:latest   # après publication par la CI
     container_name: frigate-telegram
     restart: unless-stopped
+    stop_grace_period: 20s    # laisse le temps de sauvegarder l'état et de finir les envois en cours
     env_file: .env
     volumes:
       - ./config:/config:ro
@@ -11,4 +12,5 @@ services:
     tmpfs:
       - /tmp:size=256m        # clips temporaires (50 Mo max chacun)
     ports:
-      - "8080:8080"           # optionnel : /healthz et /metrics
+      - "127.0.0.1:8080:8080" # /healthz et /metrics, accessible seulement depuis l'hôte ;
+                               # remplacer par "8080:8080" pour l'exposer sur toutes les interfaces

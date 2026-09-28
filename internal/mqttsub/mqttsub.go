@@ -51,11 +51,11 @@ func New(cfg config.MQTT, topics []string, h Handler, log *slog.Logger, onState 
 			tok.Wait()
 			if err := tok.Error(); err != nil {
 				log.Error("abonnement MQTT échoué", "err", err)
-				return
+				return // état laissé à false : pas sain tant que l'abonnement n'a pas réussi
 			}
 			log.Info("MQTT connecté", "broker", cfg.Broker, "topics", topics)
+			setState(true)
 		}()
-		setState(true)
 	})
 	opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) {
 		setState(false)

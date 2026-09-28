@@ -132,6 +132,9 @@ func run(configPath string) error {
 
 	log.Info("arrêt en cours…")
 	sub.Stop()
+	if err := st.Save(); err != nil {
+		log.Warn("sauvegarde de l'état échouée", "err", err)
+	}
 	<-runDone
 	if !notif.Shutdown(10 * time.Second) {
 		log.Warn("des envois ont été interrompus à l'arrêt")
