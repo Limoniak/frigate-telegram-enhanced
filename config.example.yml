@@ -1,0 +1,58 @@
+# Configuration de frigate-telegram.
+# Copier ce fichier vers config/config.yml puis l'adapter.
+# Les valeurs VARIABLE_NAME viennent des variables d'environnement (.env) ;
+# VARIABLE_NAME:-défaut utilise "défaut" si la variable n'est pas définie.
+
+timezone: Europe/Paris
+mode: events                     # events (un message par objet) ou reviews (alertes Frigate ≥ 0.14)
+
+frigate:
+  url: http://frigate:5000       # URL interne de l'API (5000 sans auth, 8971 avec auth)
+  external_url: ""               # URL publique pour les liens « Ouvrir dans Frigate » (optionnel)
+  username: ""                   # renseigner si l'authentification Frigate est activée
+  password: "${FRIGATE_PASSWORD:-}"
+  insecure_skip_verify: false    # true pour un certificat auto-signé
+
+mqtt:
+  broker: tcp://mosquitto:1883   # ssl://hôte:8883 pour du TLS
+  username: ""
+  password: "${MQTT_PASSWORD:-}"
+  client_id: frigate-telegram
+  topic_prefix: frigate          # doit correspondre à mqtt.topic_prefix de Frigate
+
+telegram:
+  token: "${TELEGRAM_TOKEN}"
+  admins: [123456789]            # identifiants des utilisateurs autorisés à piloter le bot
+  chats:                         # noms libres → identifiants de chat
+    moi: 123456789
+    # famille: -1001234567890    # un groupe a un identifiant négatif
+
+notify:                          # réglages globaux, surchargeables par caméra
+  chats: [moi]
+  labels: [person, car]          # vide = tous les objets
+  zones: []                      # vide = pas de contrainte de zone
+  min_score: 0.7                 # ou par label : {person: 0.7, car: 0.85}
+  cooldown: 60s                  # délai minimum entre deux notifications caméra+objet
+  ignore_stationary: true        # ignorer les objets immobiles (voitures garées…)
+  severity: [alert]              # mode reviews : alert et/ou detection
+  snapshot: true
+  clip: true
+  gif: false
+  genai_description: true        # ajoute la description GenAI de Frigate quand elle arrive
+  clip_delay: 5s                 # attente après la fin de l'événement avant de récupérer le clip
+  quiet_hours:                   # notifications sans son
+    - {from: "22:00", to: "07:00"}
+  off_hours: []                  # aucune notification
+
+cameras:
+  jardin:
+    zones: [allee, portail]
+  garage:
+    labels: [person]
+    min_score: 0.8
+  salon:
+    enabled: false
+
+state_file: /data/state.json
+http_listen: ":8080"
+log_level: info                  # debug, info, warn, error

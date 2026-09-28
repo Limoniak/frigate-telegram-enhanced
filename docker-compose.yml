@@ -1,0 +1,14 @@
+services:
+  frigate-telegram:
+    build: .
+    # image: ghcr.io/<utilisateur>/frigate-telegram:latest   # après publication par la CI
+    container_name: frigate-telegram
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./config:/config:ro
+      - ./data:/data
+    tmpfs:
+      - /tmp:size=256m        # clips temporaires (50 Mo max chacun)
+    ports:
+      - "8080:8080"           # optionnel : /healthz et /metrics

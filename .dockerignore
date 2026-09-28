@@ -1,0 +1,7 @@
+.git
+.github
+docs
+data
+config
+.env
+*.exe
