@@ -46,6 +46,10 @@ func (n *Notifier) clipPathFor(ctx context.Context, id string) (string, error) {
 }
 
 func (n *Notifier) sendClipFile(ctx context.Context, chatID int64, replyTo int, path string) error {
+	if err := n.acquireMedia(ctx); err != nil {
+		return err
+	}
+	defer n.releaseMedia()
 	file, err := n.download(ctx, path)
 	if errors.Is(err, frigate.ErrTooLarge) {
 		_, err = n.Telegram.SendMessage(ctx, chatID, n.tooLargeText(path), telegram.SendOptions{ReplyTo: replyTo})

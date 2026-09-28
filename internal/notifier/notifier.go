@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	maxPhotoSize   = 10 << 20
-	maxUploadSize  = 50 << 20
-	inboxSize      = 256
-	endedRetention = 10 * time.Minute // laisse le temps aux descriptions GenAI d'arriver
-	staleAfter     = time.Hour
+	maxPhotoSize        = 10 << 20
+	maxUploadSize       = 50 << 20
+	inboxSize           = 256
+	endedRetention      = 10 * time.Minute // laisse le temps aux descriptions GenAI d'arriver
+	staleAfter          = time.Hour
+	defaultMediaWorkers = 4 // pool de téléchargements clip/GIF concurrents (spec §2)
 )
 
 type Frigate interface {
@@ -52,6 +53,7 @@ type Deps struct {
 	Now                func() time.Time // défaut : time.Now
 	ClipRetryDelays    []time.Duration  // défaut : 5 s, 10 s, 20 s
 	SnapshotRetryDelay time.Duration    // défaut : 1 s
+	MediaWorkers       int              // défaut : 4 (téléchargements clip/GIF concurrents)
 }
 
 type Notifier struct {
@@ -61,6 +63,7 @@ type Notifier struct {
 	sendCtx     context.Context
 	cancelSends context.CancelFunc
 	wg          sync.WaitGroup
+	media       chan struct{} // sémaphore : limite les téléchargements clip/GIF concurrents
 
 	mu      sync.Mutex // protège tracked, sent et les champs des *tracked (sauf messages)
 	tracked map[string]*tracked
@@ -137,6 +140,9 @@ func New(d Deps) *Notifier {
 	if d.Log == nil {
 		d.Log = slog.Default()
 	}
+	if d.MediaWorkers == 0 {
+		d.MediaWorkers = defaultMediaWorkers
+	}
 	p := d.Config.MQTT.TopicPrefix
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Notifier{
@@ -146,6 +152,7 @@ func New(d Deps) *Notifier {
 		sendCtx:     ctx,
 		cancelSends: cancel,
 		tracked:     map[string]*tracked{},
+		media:       make(chan struct{}, d.MediaWorkers),
 	}
 }
 

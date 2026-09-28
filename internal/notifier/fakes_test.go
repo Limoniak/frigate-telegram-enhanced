@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +27,10 @@ type fakeFrigate struct {
 	calls    []string
 	events   []frigate.APIEvent
 	reviews  map[string]frigate.Review
+
+	downloadDelay time.Duration // pause simulée dans DownloadToFile, pour tester la concurrence
+	concurrent    int32         // téléchargements en cours (atomique)
+	maxConcurrent int32         // pic observé (atomique)
 }
 
 func newFakeFrigate() *fakeFrigate {
@@ -51,6 +56,17 @@ func (f *fakeFrigate) GetBytes(_ context.Context, path string, _ int64) ([]byte,
 }
 
 func (f *fakeFrigate) DownloadToFile(ctx context.Context, path string, max int64) (string, error) {
+	cur := atomic.AddInt32(&f.concurrent, 1)
+	defer atomic.AddInt32(&f.concurrent, -1)
+	for {
+		prev := atomic.LoadInt32(&f.maxConcurrent)
+		if cur <= prev || atomic.CompareAndSwapInt32(&f.maxConcurrent, prev, cur) {
+			break
+		}
+	}
+	if f.downloadDelay > 0 {
+		time.Sleep(f.downloadDelay)
+	}
 	b, err := f.GetBytes(ctx, path, max)
 	if err != nil {
 		return "", err
@@ -232,7 +248,9 @@ type harness struct {
 	m     *metrics.Metrics
 }
 
-func newHarness(t *testing.T, mode string) *harness {
+// newHarness construit un notifier de test. opts permet d'ajuster Deps avant New
+// (ex. MediaWorkers) sans changer les nombreux appels existants sans options.
+func newHarness(t *testing.T, mode string, opts ...func(*Deps)) *harness {
 	t.Helper()
 	cfg, err := config.Parse([]byte(fmt.Sprintf(testConfig, mode)), func(string) (string, bool) { return "", false })
 	if err != nil {
@@ -244,13 +262,17 @@ func newHarness(t *testing.T, mode string) *harness {
 		t.Fatal(err)
 	}
 	h := &harness{fr: newFakeFrigate(), tg: &fakeTelegram{}, clock: clk, m: metrics.New()}
-	h.n = New(Deps{
+	deps := Deps{
 		Config: cfg, Engine: filter.New(cfg, st), State: st,
 		Frigate: h.fr, Telegram: h.tg, Metrics: h.m,
 		Log: slog.New(slog.DiscardHandler), Now: clk.Now,
 		ClipRetryDelays:    []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond},
 		SnapshotRetryDelay: time.Millisecond,
-	})
+	}
+	for _, o := range opts {
+		o(&deps)
+	}
+	h.n = New(deps)
 	return h
 }
 

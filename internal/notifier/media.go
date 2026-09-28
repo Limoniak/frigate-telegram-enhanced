@@ -107,6 +107,10 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	if err := sleepCtx(ctx, delay); err != nil {
 		return
 	}
+	if err := n.acquireMedia(ctx); err != nil {
+		return
+	}
+	defer n.releaseMedia()
 	file, err := n.download(ctx, path)
 	if errors.Is(err, frigate.ErrTooLarge) {
 		text := n.tooLargeText(path)
@@ -160,6 +164,19 @@ func (n *Notifier) tooLargeText(path string) string {
 	}
 	return text
 }
+
+// acquireMedia bloque jusqu'à obtenir un slot du pool de téléchargement (clip/GIF),
+// ou jusqu'à l'annulation de ctx.
+func (n *Notifier) acquireMedia(ctx context.Context) error {
+	select {
+	case n.media <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (n *Notifier) releaseMedia() { <-n.media }
 
 func sleepCtx(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
