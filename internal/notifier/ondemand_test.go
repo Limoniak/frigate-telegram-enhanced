@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"frigate-telegram/internal/frigate"
@@ -74,5 +75,30 @@ func TestSendLastWithoutEvents(t *testing.T) {
 	}
 	if m := h.tg.byMethod("sendMessage"); len(m) != 1 || m[0].Text != "Aucun événement trouvé." {
 		t.Errorf("messages = %+v", m)
+	}
+}
+
+func TestSendTestUsesLiveSnapshotAndRecipients(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.LatestPath("garage")] = []byte("live")
+	if err := h.n.SendTest(context.Background(), "garage"); err != nil {
+		t.Fatal(err)
+	}
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) != 2 {
+		t.Fatalf("photos = %+v, attendu une par chat", photos)
+	}
+	if !strings.Contains(photos[0].Text, "Notification de test") || !strings.Contains(photos[0].Text, "clip vidéo suivra") {
+		t.Errorf("légende = %q", photos[0].Text)
+	}
+}
+
+func TestSendTestFallsBackToTextWithoutSnapshot(t *testing.T) {
+	h := newHarness(t, "events")
+	if err := h.n.SendTest(context.Background(), "garage"); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(h.tg.byMethod("sendMessage")); n != 2 {
+		t.Errorf("messages texte = %d, attendu 2", n)
 	}
 }

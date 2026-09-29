@@ -48,10 +48,13 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 	}
 	t.lastSeen = now
 	t.eventIDs = r.Data.Detections
-	if t.notified {
+	if t.notified || t.suppressed {
 		return
 	}
 	t.zones = r.Data.Zones
+	if len(r.Data.Objects) > 0 {
+		t.label = r.Data.Objects[0] // pour l'historique ; notify le remplace par le label retenu
+	}
 	t.subLabel = strings.Join(r.Data.SubLabels, ", ")
 	t.snapshotPath = frigate.LatestPath(r.Camera)
 	if len(r.Data.Detections) > 0 {
@@ -66,6 +69,7 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 	}, now)
 	if !d.Notify {
 		t.lastReason = d.Reason
+		t.suppressed = d.Reason == filter.ReasonCooldown
 		return
 	}
 	n.notify(ctx, t, d)

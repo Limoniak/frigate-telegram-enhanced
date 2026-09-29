@@ -8,14 +8,21 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
+	"maps"
+	"net"
 	"net/http"
 	"os"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"frigate-telegram/internal/config"
 	"frigate-telegram/internal/frigate"
+	"frigate-telegram/internal/notifier"
+	"frigate-telegram/internal/state"
 )
 
 //go:embed ui.html
@@ -30,29 +37,132 @@ type CameraLister interface {
 	CameraDetails(ctx context.Context) ([]frigate.CameraInfo, error)
 }
 
+// Tester envoie une notification d'exemple pour une caméra.
+type Tester interface {
+	SendTest(ctx context.Context, camera string) error
+}
+
+// State est l'état partagé avec les commandes Telegram : pause globale et caméras coupées.
+type State interface {
+	Status(now time.Time) state.Status
+	Pause(until time.Time) error
+	Resume() error
+	Unmute(camera string) error
+}
+
+// History donne les dernières détections et leurs miniatures.
+type History interface {
+	History() []notifier.HistoryEntry
+	HistoryThumb(id string) (string, bool)
+}
+
+// Media lit une image sur Frigate.
+type Media interface {
+	GetBytes(ctx context.Context, path string, max int64) ([]byte, error)
+}
+
+// maxThumb borne la taille d'une miniature relayée depuis Frigate.
+const maxThumb = 1 << 20
+
+// testInterval espace les notifications de test : un double clic ne doit pas
+// en envoyer deux.
+const testInterval = 3 * time.Second
+
 type Handler struct {
 	cfg     *config.Config
 	path    string // fichier de surcharge
 	cameras CameraLister
 	log     *slog.Logger
+	tester  Tester // nil : pas d'envoi de test
+	state   State  // nil : pas de pause depuis l'interface
+	history History
+	media   Media // nil : historique sans miniatures
+	now     func() time.Time
 
 	// save sérialise les enregistrements : deux onglets ouverts en même temps ne
 	// doivent pas entrelacer validation, écriture et application.
 	save sync.Mutex
+
+	testMu   sync.Mutex
+	lastTest time.Time
 }
 
-func New(cfg *config.Config, overlayPath string, cameras CameraLister, log *slog.Logger) *Handler {
-	return &Handler{cfg: cfg, path: overlayPath, cameras: cameras, log: log}
+type Option func(*Handler)
+
+// WithTester active le bouton « m'envoyer un exemple ».
+func WithTester(t Tester) Option { return func(h *Handler) { h.tester = t } }
+
+// WithState active l'affichage de la pause et les boutons pause/reprise.
+func WithState(s State) Option { return func(h *Handler) { h.state = s } }
+
+// WithHistory active l'activité récente ; media (facultatif) sert les miniatures.
+func WithHistory(h History, media Media) Option {
+	return func(x *Handler) { x.history, x.media = h, media }
+}
+
+// WithClock remplace l'horloge (tests).
+func WithClock(now func() time.Time) Option { return func(h *Handler) { h.now = now } }
+
+func New(cfg *config.Config, overlayPath string, cameras CameraLister, log *slog.Logger, opts ...Option) *Handler {
+	h := &Handler{cfg: cfg, path: overlayPath, cameras: cameras, log: log, now: time.Now}
+	for _, o := range opts {
+		o(h)
+	}
+	return h
 }
 
 // Mount enregistre l'interface et son API sur mux, protégées par mot de passe si la
 // configuration en définit un. /healthz et /metrics restent en dehors : la sonde du
-// conteneur et le scrape Prometheus ne s'authentifient pas.
+// conteneur et le scrape Prometheus ne s'authentifient pas (voir web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
-	mux.Handle("GET /{$}", h.auth(http.HandlerFunc(h.page)))
-	mux.Handle("GET /api/settings", h.auth(http.HandlerFunc(h.get)))
-	mux.Handle("PUT /api/settings", h.auth(sameOrigin(http.HandlerFunc(h.put))))
-	mux.Handle("POST /api/settings/reset", h.auth(sameOrigin(http.HandlerFunc(h.reset))))
+	mux.Handle("GET /{$}", h.guard(http.HandlerFunc(h.page)))
+	mux.Handle("GET /api/settings", h.guard(http.HandlerFunc(h.get)))
+	mux.Handle("PUT /api/settings", h.guard(sameOrigin(http.HandlerFunc(h.put))))
+	mux.Handle("POST /api/settings/reset", h.guard(sameOrigin(http.HandlerFunc(h.reset))))
+	mux.Handle("POST /api/test", h.guard(sameOrigin(http.HandlerFunc(h.test))))
+	mux.Handle("GET /api/state", h.guard(http.HandlerFunc(h.getState)))
+	mux.Handle("POST /api/pause", h.guard(sameOrigin(http.HandlerFunc(h.pause))))
+	mux.Handle("POST /api/resume", h.guard(sameOrigin(http.HandlerFunc(h.resume))))
+	mux.Handle("GET /api/history", h.guard(http.HandlerFunc(h.getHistory)))
+	mux.Handle("GET /api/history/{id}/thumb", h.guard(http.HandlerFunc(h.thumb)))
+}
+
+// guard applique le contrôle d'accès commun à toutes les routes de l'interface :
+// le mot de passe s'il y en a un, sinon la vérification de l'en-tête Host.
+func (h *Handler) guard(next http.Handler) http.Handler {
+	if h.cfg.Web.Password != "" {
+		return BasicAuth(h.cfg.Web.Password, next)
+	}
+	return checkHost(h.cfg.Web.AllowedHosts, next)
+}
+
+// checkHost refuse les requêtes dont l'en-tête Host n'est ni une adresse IP, ni
+// localhost, ni un nom listé dans allowed. Sans mot de passe, c'est ce qui bloque le
+// rebinding DNS : un site tiers qui fait pointer son propre domaine vers 127.0.0.1
+// devient « même origine » pour le navigateur — X-Requested-With ne l'arrête plus —
+// mais ses requêtes portent toujours son nom de domaine dans Host.
+func checkHost(allowed []string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !hostAllowed(r.Host, allowed) {
+			http.Error(w, "hôte non autorisé : ajouter ce nom à web.allowed_hosts, ou définir web.password", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func hostAllowed(host string, allowed []string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.ToLower(strings.Trim(host, "[]")), ".")
+	if host == "" {
+		return false
+	}
+	if net.ParseIP(host) != nil || host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	return slices.ContainsFunc(allowed, func(a string) bool { return strings.EqualFold(a, host) })
 }
 
 // requestedWith est l'en-tête que la page joint à ses écritures. Il ne vaut rien comme
@@ -71,11 +181,8 @@ func sameOrigin(next http.Handler) http.Handler {
 	})
 }
 
-func (h *Handler) auth(next http.Handler) http.Handler {
-	pass := h.cfg.Web.Password
-	if pass == "" {
-		return next
-	}
+// BasicAuth exige le mot de passe pass (nom d'utilisateur libre) avant next.
+func BasicAuth(pass string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, got, ok := r.BasicAuth()
 		if !ok || subtle.ConstantTimeCompare([]byte(got), []byte(pass)) != 1 {
@@ -107,6 +214,9 @@ type settings struct {
 	Overlay  config.Overlay       `json:"overlay"`
 	Custom   bool                 `json:"custom"`  // une surcharge est enregistrée
 	Warning  string               `json:"warning"` // Frigate injoignable, etc.
+	CanTest  bool                 `json:"can_test"`
+	CanPause bool                 `json:"can_pause"`
+	CanHist  bool                 `json:"can_history"`
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +225,9 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		Timezone: h.cfg.Timezone,
 		Chats:    h.cfg.ChatNames(),
 		Overlay:  h.cfg.CurrentOverlay(),
+		CanTest:  h.tester != nil,
+		CanPause: h.state != nil,
+		CanHist:  h.history != nil,
 	}
 	if _, err := os.Stat(h.path); err == nil {
 		s.Custom = true
@@ -178,6 +291,190 @@ func (h *Handler) reset(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Info("réglages de notification revenus à config.yml")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// decodeBody lit un petit corps JSON ; un corps vide laisse v à sa valeur zéro.
+func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
+}
+
+func (h *Handler) test(w http.ResponseWriter, r *http.Request) {
+	if h.tester == nil {
+		writeError(w, http.StatusNotFound, errors.New("envoi de test indisponible"))
+		return
+	}
+	var req struct {
+		Camera string `json:"camera"`
+	}
+	if err := decodeBody(w, r, &req); err != nil || req.Camera == "" {
+		writeError(w, http.StatusBadRequest, errors.New("caméra manquante"))
+		return
+	}
+	if !h.allowTest() {
+		writeError(w, http.StatusTooManyRequests, errors.New("un test vient d'être envoyé, patientez quelques secondes"))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	if err := h.tester.SendTest(ctx, req.Camera); err != nil {
+		h.log.Warn("notification de test échouée", "camera", req.Camera, "err", err)
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	h.log.Info("notification de test envoyée depuis l'interface web", "camera", req.Camera)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// allowTest réserve un créneau d'envoi de test ; false si le précédent date de
+// moins de testInterval.
+func (h *Handler) allowTest() bool {
+	h.testMu.Lock()
+	defer h.testMu.Unlock()
+	now := h.now()
+	if !h.lastTest.IsZero() && now.Sub(h.lastTest) < testInterval {
+		return false
+	}
+	h.lastTest = now
+	return true
+}
+
+// stateView est l'état de pause tel que l'interface l'affiche. Une échéance nulle
+// signifie « jusqu'à reprise ».
+type stateView struct {
+	Paused      bool       `json:"paused"`
+	PausedUntil *time.Time `json:"paused_until"`
+	Mutes       []muteView `json:"mutes"`
+}
+
+type muteView struct {
+	Camera string     `json:"camera"`
+	Until  *time.Time `json:"until"`
+}
+
+func until(t time.Time) *time.Time {
+	if !t.Before(state.Forever) {
+		return nil
+	}
+	return &t
+}
+
+func (h *Handler) writeState(w http.ResponseWriter) {
+	st := h.state.Status(h.now())
+	v := stateView{Paused: !st.PausedUntil.IsZero(), Mutes: []muteView{}}
+	if v.Paused {
+		v.PausedUntil = until(st.PausedUntil)
+	}
+	for _, cam := range slices.Sorted(maps.Keys(st.Mutes)) {
+		v.Mutes = append(v.Mutes, muteView{Camera: cam, Until: until(st.Mutes[cam])})
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+func (h *Handler) getState(w http.ResponseWriter, _ *http.Request) {
+	if h.state == nil {
+		writeError(w, http.StatusNotFound, errors.New("état indisponible"))
+		return
+	}
+	h.writeState(w)
+}
+
+func (h *Handler) pause(w http.ResponseWriter, r *http.Request) {
+	if h.state == nil {
+		writeError(w, http.StatusNotFound, errors.New("état indisponible"))
+		return
+	}
+	var req struct {
+		Minutes int `json:"minutes"`
+	}
+	if err := decodeBody(w, r, &req); err != nil || req.Minutes < 0 || req.Minutes > 7*24*60 {
+		writeError(w, http.StatusBadRequest, errors.New("durée invalide (0 = jusqu'à reprise, 7 jours au plus)"))
+		return
+	}
+	end := state.Forever
+	if req.Minutes > 0 {
+		end = h.now().Add(time.Duration(req.Minutes) * time.Minute)
+	}
+	if err := h.state.Pause(end); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.log.Info("notifications en pause depuis l'interface web", "minutes", req.Minutes)
+	h.writeState(w)
+}
+
+func (h *Handler) resume(w http.ResponseWriter, r *http.Request) {
+	if h.state == nil {
+		writeError(w, http.StatusNotFound, errors.New("état indisponible"))
+		return
+	}
+	var req struct {
+		Camera string `json:"camera"`
+	}
+	if err := decodeBody(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	var err error
+	if req.Camera == "" {
+		err = h.state.Resume()
+	} else {
+		err = h.state.Unmute(req.Camera)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.log.Info("notifications reprises depuis l'interface web", "camera", req.Camera)
+	h.writeState(w)
+}
+
+type historyView struct {
+	Entries []historyEntryView `json:"entries"`
+}
+
+type historyEntryView struct {
+	notifier.HistoryEntry
+	HasThumb bool `json:"has_thumb"`
+}
+
+func (h *Handler) getHistory(w http.ResponseWriter, _ *http.Request) {
+	if h.history == nil {
+		writeError(w, http.StatusNotFound, errors.New("historique indisponible"))
+		return
+	}
+	v := historyView{Entries: []historyEntryView{}}
+	for _, e := range h.history.History() {
+		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != ""})
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+func (h *Handler) thumb(w http.ResponseWriter, r *http.Request) {
+	if h.history == nil || h.media == nil {
+		http.NotFound(w, r)
+		return
+	}
+	path, ok := h.history.HistoryThumb(r.PathValue("id"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	img, err := h.media.GetBytes(ctx, path, maxThumb)
+	if err != nil {
+		http.Error(w, "miniature indisponible", http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.Write(img)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

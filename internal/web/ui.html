@@ -7,13 +7,15 @@
 <style>
 :root {
   --bg: #f5f6f8; --card: #fff; --fg: #16181d; --muted: #6b7280; --line: #dfe3e8;
-  --accent: #2b6cb0; --accent-fg: #fff; --danger: #b42318; --ok: #2f7a3e;
-  --radius: 10px;
+  --accent: #2b6cb0; --accent-fg: #fff; --accent-soft: #e8f0fa; --danger: #b42318; --ok: #2f7a3e;
+  --tg-bg: #dfe7d7; --tg-bubble: #fff; --tg-link: #2a7ab8; --tg-btn: rgba(0,0,0,.08); --tg-photo: #9aa7b4;
+  --radius: 12px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14161a; --card: #1c1f25; --fg: #e8eaed; --muted: #9aa3af; --line: #2c313a;
-    --accent: #5b9bd5; --accent-fg: #0d1014; --danger: #f07171; --ok: #6fbf73;
+    --accent: #5b9bd5; --accent-fg: #0d1014; --accent-soft: #1d2a38; --danger: #f07171; --ok: #6fbf73;
+    --tg-bg: #0e1621; --tg-bubble: #182533; --tg-link: #6ab2f2; --tg-btn: rgba(255,255,255,.09); --tg-photo: #3a4a5c;
   }
 }
 * { box-sizing: border-box; }
@@ -23,37 +25,106 @@ body {
 }
 header {
   position: sticky; top: 0; z-index: 10; background: var(--card);
-  border-bottom: 1px solid var(--line); padding: 12px 16px;
+  border-bottom: 1px solid var(--line); padding: 10px 16px;
   display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
 }
 header h1 { font-size: 17px; margin: 0; font-weight: 600; }
 header .spacer { flex: 1; }
-.badge {
-  font-size: 12px; color: var(--muted); border: 1px solid var(--line);
-  border-radius: 999px; padding: 2px 9px; white-space: nowrap;
-}
-main { max-width: 860px; margin: 0 auto; padding: 16px; }
+main { max-width: 900px; margin: 0 auto; padding: 16px; }
 section {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   margin-bottom: 16px; overflow: hidden;
 }
-section > h2 {
-  font-size: 15px; margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--line);
-  font-weight: 600;
+section > h2, details.advanced > summary {
+  font-size: 16px; margin: 0; padding: 14px 16px 4px; font-weight: 600;
 }
+section > .lead { margin: 0; padding: 0 16px 12px; color: var(--muted); font-size: 14px; }
 .body { padding: 4px 16px 16px; }
+.hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+
+/* ---- modèles de notification ---- */
+.styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 4px 16px 16px; }
+.style-card {
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  border: 2px solid var(--line); border-radius: var(--radius); background: var(--bg);
+  padding: 0; overflow: hidden; display: flex; flex-direction: column;
+}
+.style-card:hover { border-color: var(--accent); }
+.style-card[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
+.style-card .meta { padding: 10px 12px 12px; }
+.style-card .title { font-weight: 600; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.style-card .desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.tag { font-size: 11px; font-weight: 500; border-radius: 999px; padding: 1px 7px; background: var(--accent); color: var(--accent-fg); }
+.tag.soft { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.check { margin-left: auto; color: var(--accent); visibility: hidden; }
+.style-card[aria-pressed=true] .check { visibility: visible; }
+
+/* aperçu façon Telegram */
+.tg { background: var(--tg-bg); padding: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.35; min-height: 190px; }
+.bubble { background: var(--tg-bubble); border-radius: 10px; overflow: hidden; max-width: 100%; box-shadow: 0 1px 1px rgba(0,0,0,.12); }
+.photo { position: relative; height: 84px; background: linear-gradient(160deg, var(--tg-photo), #6b7a89); }
+.photo .bbox { position: absolute; left: 42%; top: 14%; width: 20%; height: 72%; border: 2px solid #ffd54a; border-radius: 3px; }
+.photo .who { position: absolute; left: 44%; top: 30%; font-size: 26px; }
+.photo .gif { position: absolute; left: 6px; top: 6px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; }
+.photo .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; }
+.photo .dur { position: absolute; left: 6px; bottom: 5px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 0 5px; border-radius: 4px; }
+.photo.small { height: 58px; }
+.cap { padding: 6px 8px; }
+.cap b { font-weight: 600; }
+.cap .link { color: var(--tg-link); }
+.kb { display: flex; gap: 3px; padding: 0 3px 3px; }
+.kb span { flex: 1; text-align: center; background: var(--tg-btn); border-radius: 6px; padding: 3px 0; font-size: 11px; white-space: nowrap; }
+.quote { border-left: 2px solid var(--tg-link); margin: 6px 8px 0; padding-left: 6px; color: var(--tg-link); font-size: 11px; }
+
+/* ---- questions à choix ---- */
+.question { padding: 12px 0; border-top: 1px solid var(--line); }
+.question:first-child { border-top: 0; }
+.question .q { font-weight: 500; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pill {
+  font: inherit; font-size: 14px; cursor: pointer; color: var(--fg);
+  border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 14px;
+}
+.pill:hover { border-color: var(--accent); }
+.pill[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.pill.custom { cursor: default; border-style: dashed; }
+.pill.custom[aria-pressed=true] { background: var(--accent-soft); color: var(--fg); border-color: var(--accent); }
+
+/* ---- caméras ---- */
+details.camera { border-top: 1px solid var(--line); }
+details.camera > summary {
+  padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; list-style: none;
+}
+details.camera > summary::-webkit-details-marker { display: none; }
+details.camera > summary::after { content: "▸"; color: var(--muted); margin-left: 4px; }
+details.camera[open] > summary::after { content: "▾"; }
+summary .cam-name { font-weight: 500; }
+summary .cam-state { font-size: 13px; color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+details.camera.off .cam-name { color: var(--muted); }
+.toggle { position: relative; width: 40px; height: 22px; flex: none; }
+.toggle input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; position: absolute; z-index: 1; }
+.toggle span { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: background .15s; }
+.toggle span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.toggle input:checked + span { background: var(--ok); }
+.toggle input:checked + span::after { transform: translateX(18px); }
+.toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- réglages avancés (éditeur détaillé) ---- */
+details.advanced { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 16px; }
+details.advanced > summary { cursor: pointer; padding-bottom: 14px; }
+details.more { margin-top: 8px; }
+details.more > summary { cursor: pointer; color: var(--accent); font-size: 14px; padding: 6px 0; }
 .field { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .field:last-child { border-bottom: 0; }
 .field-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .field-head > .name { font-weight: 500; }
 .field-head > .spacer { flex: 1; }
-.hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 .control { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .control.off { opacity: .45; }
 .override { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
 input[type=text], input[type=number], input[type=time], select {
   font: inherit; color: inherit; background: var(--bg);
-  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px;
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; max-width: 100%;
 }
 input[type=number] { width: 7em; }
 input[type=text].dur { width: 7em; }
@@ -67,31 +138,19 @@ input:invalid { border-color: var(--danger); }
 .chip[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .control.off .chip { cursor: default; }
 .rows { display: flex; flex-direction: column; gap: 6px; width: 100%; }
-.row { display: flex; gap: 8px; align-items: center; }
-.row .grow { flex: 1; min-width: 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row .lbl { min-width: 6em; }
 button {
   font: inherit; font-size: 14px; cursor: pointer; border-radius: 7px;
   border: 1px solid var(--line); background: var(--bg); color: inherit; padding: 6px 12px;
 }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 500; }
-button.link { border: 0; background: none; color: var(--accent); padding: 4px 6px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 500; padding: 7px 16px; }
+button.link { border: 0; background: none; color: var(--accent); padding: 4px 0; }
+button.danger { color: var(--danger); }
 button:disabled { opacity: .5; cursor: default; }
 button.icon { padding: 4px 9px; line-height: 1; }
 .switch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .switch input { width: 18px; height: 18px; accent-color: var(--accent); }
-details.camera { border-bottom: 1px solid var(--line); }
-details.camera:last-child { border-bottom: 0; }
-details.camera > summary {
-  padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;
-  list-style: none;
-}
-details.camera > summary::-webkit-details-marker { display: none; }
-details.camera > summary::before { content: "▸"; color: var(--muted); }
-details.camera[open] > summary::before { content: "▾"; }
-summary .cam-name { font-weight: 500; }
-summary .cam-state { font-size: 12px; color: var(--muted); }
-summary .off-tag { color: var(--danger); }
 .notice { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
 .notice.warn { background: #fdf3cd; color: #6b4e00; }
 .notice.err { background: #fde4e1; color: var(--danger); white-space: pre-wrap; }
@@ -102,28 +161,87 @@ summary .off-tag { color: var(--danger); }
 .status { font-size: 13px; color: var(--muted); }
 .status.saved { color: var(--ok); }
 .status.dirty { color: var(--fg); }
+/* ---- bandeau d'état ---- */
+.live { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 16px; }
+.live .state { font-weight: 600; margin-right: auto; }
+.live.paused { background: #fdf3cd; }
+.live .sub { width: 100%; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.live .sub .row { gap: 6px; }
+@media (prefers-color-scheme: dark) { .live.paused { background: #3a3116; } }
+
+/* ---- essai ---- */
+.try { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 16px 16px; }
+.try .result { font-size: 13px; }
+.try .result.ok { color: var(--ok); }
+.try .result.err { color: var(--danger); }
+/* ---- activité récente ---- */
+.activity { list-style: none; margin: 0; padding: 0; }
+.activity li { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line); }
+.activity .thumb { width: 56px; height: 42px; border-radius: 6px; object-fit: cover; background: var(--bg); flex: none;
+  display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.activity .what { flex: 1; min-width: 0; }
+.activity .what .t { font-weight: 500; }
+.activity .what .d { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity .out { text-align: right; font-size: 13px; flex: none; max-width: 45%; }
+.activity .out .ok { color: var(--ok); font-weight: 500; }
+.activity .out .no { color: var(--muted); }
+.activity-foot { display: flex; gap: 12px; align-items: center; padding: 8px 16px 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.warn-line { color: #8a5a00; font-size: 13px; margin: 6px 0 0; }
+@media (prefers-color-scheme: dark) { .warn-line { color: #f0d68a; } }
+footer { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 13px; padding: 0 4px 24px; }
+footer .spacer { flex: 1; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Notifications</h1>
-  <span class="badge" id="mode"></span>
-  <span class="badge" id="tz"></span>
+  <h1>Notifications Frigate</h1>
   <span class="spacer"></span>
   <span class="status" id="status"></span>
-  <button id="reset">Revenir à config.yml</button>
   <button class="primary" id="save" disabled>Enregistrer</button>
 </header>
 <main>
   <div id="messages"></div>
+
+  <section id="live-box" hidden><div class="live" id="live"></div></section>
+
   <section>
-    <h2>Réglages par défaut</h2>
-    <div class="body" id="global"></div>
+    <h2>À quoi ressemblent vos notifications ?</h2>
+    <p class="lead">Choisissez un modèle : toutes les caméras l'utiliseront, sauf celles que vous réglez autrement plus bas.</p>
+    <div class="styles" id="styles"></div>
+    <div class="try" id="try"></div>
   </section>
+
+  <section>
+    <h2>Quand être prévenu ?</h2>
+    <div class="body" id="questions"></div>
+  </section>
+
   <section>
     <h2>Caméras</h2>
+    <p class="lead">Activez ou coupez une caméra, ou ouvrez-la pour lui donner un autre modèle.</p>
     <div id="cameras"></div>
   </section>
+
+  <section id="activity-box" hidden>
+    <h2>Activité récente</h2>
+    <p class="lead">Les dernières détections de Frigate et ce qu'il en est advenu — pratique pour comprendre pourquoi une notification n'est pas arrivée.</p>
+    <ul class="activity" id="activity"></ul>
+    <div class="activity-foot" id="activity-foot"></div>
+  </section>
+
+  <details class="advanced" id="advanced">
+    <summary>Réglages avancés</summary>
+    <div class="body">
+      <p class="hint">Tous les réglages, pour les cas que les choix ci-dessus ne couvrent pas. Ils s'appliquent à toutes les caméras, sauf réglage propre.</p>
+      <div id="global"></div>
+    </div>
+  </details>
+
+  <footer>
+    <span id="mode"></span><span>·</span><span id="tz"></span>
+    <span class="spacer"></span>
+    <button class="link danger" id="reset">Revenir aux réglages de config.yml</button>
+  </footer>
 </main>
 
 <script>
@@ -136,11 +254,57 @@ const DUR = /^(\d+(\.\d+)?(ns|us|ms|s|m|h))+$/;
 // peut pas franchir — il ne peut donc pas faire écrire l'interface à notre place.
 const TOKEN = "frigate-telegram";
 
-// Chaque réglage est décrit une fois et rendu deux fois : dans les réglages par
-// défaut, et dans chaque caméra où il devient une surcharge optionnelle.
+// ---- modèles et questions simples ------------------------------------------
+//
+// Chaque choix est un petit patch de réglages. Il est « actif » quand les réglages
+// effectifs lui correspondent ; si aucun ne correspond, la question affiche
+// « Personnalisé » et renvoie aux réglages avancés.
+
+const STYLES = [
+  {id: "clip", label: "Photo + vidéo", tag: "Recommandé",
+   desc: "L'image tout de suite, puis le clip vidéo à la fin de l'événement.",
+   patch: {snapshot: true, clip: true, gif: false}},
+  {id: "photo", label: "Photo seule",
+   desc: "Léger. Le clip reste à portée du bouton 🎬.",
+   patch: {snapshot: true, clip: false, gif: false}},
+  {id: "gif", label: "Photo + GIF",
+   desc: "Un court aperçu animé au lieu de la vidéo.",
+   patch: {snapshot: true, clip: false, gif: true}},
+  {id: "text", label: "Texte seul",
+   desc: "Le plus discret : juste le message et les boutons.",
+   patch: {snapshot: false, clip: false, gif: false}},
+];
+
+const NIGHT = [{from: "22:00", to: "07:00"}];
+
+const QUESTIONS = [
+  {title: "Quoi signaler ?", options: [
+    {label: "🚶 Personnes", patch: {labels: ["person"]}},
+    {label: "🚶🚗 Personnes et voitures", patch: {labels: ["car", "person"]}},
+    {label: "Tout ce que Frigate détecte", patch: {labels: []}},
+  ]},
+  {title: "Quelles revues ?", mode: "reviews", options: [
+    {label: "Alertes seulement", patch: {severity: ["alert"]}},
+    {label: "Alertes et détections", patch: {severity: ["alert", "detection"]}},
+  ]},
+  {title: "À quelle fréquence, au plus ?", hint: "Par caméra et par type d'objet : les détections suivantes sont ignorées pendant ce délai.",
+   options: [
+    {label: "À chaque détection", patch: {cooldown: "0s"}},
+    {label: "1 par minute", patch: {cooldown: "1m"}},
+    {label: "1 toutes les 10 min", patch: {cooldown: "10m"}},
+  ]},
+  {title: "La nuit (22 h – 7 h)", options: [
+    {label: "Comme le jour", patch: {quiet_hours: [], off_hours: []}},
+    {label: "🔕 Sans son", patch: {quiet_hours: NIGHT, off_hours: []}},
+    {label: "🌙 Aucune notification", patch: {quiet_hours: [], off_hours: NIGHT}},
+  ]},
+];
+
+// Chaque réglage détaillé est décrit une fois et rendu deux fois : dans les réglages
+// avancés globaux, et dans chaque caméra où il devient une surcharge optionnelle.
 const FIELDS = [
   {key: "enabled", type: "bool", name: "Notifications activées",
-   hint: "Décoché, la caméra est totalement ignorée."},
+   hint: "Décoché, plus aucune notification (ou plus rien pour cette caméra)."},
   {key: "chats", type: "chips", name: "Destinataires", source: "chats",
    hint: "Chats déclarés dans telegram.chats de config.yml."},
   {key: "labels", type: "chips", name: "Objets", source: "labels", free: true,
@@ -158,7 +322,7 @@ const FIELDS = [
   {key: "clip", type: "bool", name: "Envoyer le clip vidéo"},
   {key: "gif", type: "bool", name: "Envoyer un GIF animé"},
   {key: "genai_description", type: "bool", name: "Ajouter la description GenAI",
-   hint: "Quand Frigate la publie, elle arrive en message complémentaire."},
+   hint: "Quand Frigate la publie, elle est ajoutée à la légende de la notification."},
   {key: "clip_delay", type: "duration", name: "Attente avant récupération du clip",
    hint: "Laisse à Frigate le temps de finaliser l'enregistrement."},
   {key: "quiet_hours", type: "ranges", name: "Heures calmes",
@@ -166,6 +330,7 @@ const FIELDS = [
   {key: "off_hours", type: "ranges", name: "Heures coupées",
    hint: "Aucune notification pendant ces plages."},
 ];
+const TYPES = Object.fromEntries(FIELDS.map((f) => [f.key, f.type]));
 
 let data = null;      // réponse de /api/settings
 let overlay = null;   // ce que l'on enregistrera
@@ -183,6 +348,8 @@ function touched() {
   if (dirty()) { s.textContent = "Modifications non enregistrées"; s.className = "status dirty"; }
   else { s.textContent = ""; s.className = "status"; }
 }
+
+function changed() { touched(); render(); }
 
 function message(text, kind) {
   const box = $("messages");
@@ -206,7 +373,326 @@ function el(tag, attrs, ...kids) {
   return n;
 }
 
-// ---- valeurs par défaut d'un champ, quand une caméra commence à le surcharger ----
+// ---- comparaison des réglages ---------------------------------------------
+
+// seconds convertit une durée Go ("1m0s", "90s", "1h30m") en secondes, pour que
+// "1m" et "1m0s" soient reconnus comme identiques.
+function seconds(d) {
+  const unit = {ns: 1e-9, us: 1e-6, ms: 1e-3, s: 1, m: 60, h: 3600};
+  let total = 0;
+  for (const [, n, u] of String(d || "0s").matchAll(/(\d+(?:\.\d+)?)(ns|us|ms|s|m|h)/g)) total += Number(n) * unit[u];
+  return Math.round(total * 1000) / 1000;
+}
+
+function norm(key, v) {
+  switch (TYPES[key]) {
+    case "duration": return seconds(v);
+    case "chips": return (v || []).slice().sort();
+    case "ranges": return v || [];
+    case "bool": return !!v;
+    default: return v;
+  }
+}
+
+function same(key, a, b) { return JSON.stringify(norm(key, a)) === JSON.stringify(norm(key, b)); }
+
+// effective renvoie les réglages effectifs du global, ou d'une caméra.
+function effective(camera) {
+  return camera ? Object.assign({}, overlay.notify, overlay.cameras[camera]) : overlay.notify;
+}
+
+function matches(patch, values) {
+  return Object.entries(patch).every(([k, v]) => same(k, v, values[k]));
+}
+
+// apply pose un choix. Pour une caméra, un choix identique au global efface la
+// surcharge plutôt que de la dupliquer : la caméra suit alors le global.
+function apply(patch, camera) {
+  if (!camera) {
+    Object.assign(overlay.notify, clone(patch));
+    return;
+  }
+  const cam = overlay.cameras[camera];
+  if (matches(patch, overlay.notify)) for (const k of Object.keys(patch)) delete cam[k];
+  else Object.assign(cam, clone(patch));
+}
+
+function inheritsAll(patch, camera) {
+  return Object.keys(patch).every((k) => !(k in overlay.cameras[camera]));
+}
+
+// ---- aperçus façon Telegram -------------------------------------------------
+
+function sampleCamera() {
+  const cams = data.cameras || [];
+  return cams.length ? cams[0].name : "entrée";
+}
+
+function preview(style) {
+  const cam = sampleCamera();
+  const p = style.patch;
+  const tg = el("div", {class: "tg", "aria-hidden": "true"});
+
+  const caption = el("div", {class: "cap"},
+    el("b", {text: "🚶 Personne"}), document.createTextNode(" — " + cam),
+    el("br"), document.createTextNode("📍 allée · 87 %"),
+    el("br"), document.createTextNode("🕑 14:32:05"),
+    el("br"), el("span", {class: "link", text: "🔗 Ouvrir dans Frigate"}));
+  const kb = el("div", {class: "kb"}, el("span", {text: "🔇 1 h"}), el("span", {text: "⏸️ 30 min"}), el("span", {text: "🎬 Clip"}));
+
+  const first = el("div", {class: "bubble"});
+  if (p.snapshot) first.append(el("div", {class: "photo"}, el("div", {class: "bbox"}), el("div", {class: "who", text: "🚶"})));
+  first.append(caption, kb);
+  tg.append(first);
+
+  if (p.clip || p.gif) {
+    const media = el("div", {class: "photo small"});
+    if (p.clip) media.append(el("div", {class: "play", text: "▶"}), el("div", {class: "dur", text: "0:14"}));
+    else media.append(el("div", {class: "who", text: "🚶"}), el("div", {class: "gif", text: "GIF"}));
+    tg.append(el("div", {class: "bubble"}, el("div", {class: "quote", text: "🚶 Personne — " + cam}), el("div", {style: "height:4px"}), media));
+  }
+  return tg;
+}
+
+// ---- notification d'essai ----------------------------------------------------
+
+// Le test part avec les réglages enregistrés côté serveur : tant que la page a des
+// modifications en attente, on invite à enregistrer d'abord.
+function testButton(camera, label) {
+  const wrap = el("span", {class: "try-one"});
+  const result = el("span", {class: "result"});
+  const btn = el("button", {type: "button", text: label || "📨 M'envoyer un exemple"});
+  btn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const cam = typeof camera === "function" ? camera() : camera;
+    btn.disabled = true;
+    result.className = "result"; result.textContent = "Envoi…";
+    try {
+      const resp = await fetch("api/test", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "X-Requested-With": TOKEN},
+        body: JSON.stringify({camera: cam}),
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(body.error || "HTTP " + resp.status);
+      result.className = "result ok"; result.textContent = "Envoyé ✓ — regardez Telegram";
+    } catch (err) {
+      result.className = "result err"; result.textContent = "Échec : " + err.message;
+    } finally {
+      setTimeout(() => { btn.disabled = dirty(); }, 3000);
+    }
+  });
+  btn.disabled = dirty();
+  if (dirty()) { result.textContent = "Enregistrez d'abord pour essayer ces réglages."; }
+  wrap.append(btn, result);
+  return el("span", {class: "row"}, wrap);
+}
+
+function enabledCameras() {
+  return (data.cameras || []).map((c) => c.name).filter((n) => effective(n).enabled !== false);
+}
+
+function renderTry() {
+  const box = $("try");
+  box.innerHTML = "";
+  if (!data.can_test) return;
+  const cams = enabledCameras();
+  if (!cams.length) return;
+  let pick = () => cams[0];
+  if (cams.length > 1) {
+    const sel = el("select", {"aria-label": "Caméra de l'exemple"});
+    for (const c of cams) sel.append(el("option", {value: c, text: c}));
+    pick = () => sel.value;
+    box.append(testButton(() => pick(), "📨 M'envoyer un exemple"), el("span", {class: "hint", text: "depuis"}), sel);
+  } else {
+    box.append(testButton(pick));
+  }
+}
+
+// ---- rendu des choix simples ----------------------------------------------
+
+function renderStyles() {
+  const box = $("styles");
+  box.innerHTML = "";
+  const eff = effective(null);
+  for (const st of STYLES) {
+    const active = matches(st.patch, eff);
+    box.append(el("button", {
+      type: "button", class: "style-card", "aria-pressed": String(active),
+      onclick: () => { apply(st.patch, null); changed(); },
+    },
+      preview(st),
+      el("div", {class: "meta"},
+        el("div", {class: "title"}, el("span", {text: st.label}),
+          st.tag ? el("span", {class: "tag", text: st.tag}) : null,
+          el("span", {class: "check", text: "✓"})),
+        el("div", {class: "desc", text: st.desc}))));
+  }
+  if (!STYLES.some((st) => matches(st.patch, eff))) {
+    box.append(el("p", {class: "hint", text: "Réglage actuel personnalisé (voir Réglages avancés)."}));
+  }
+}
+
+// pills rend un groupe de choix exclusifs. Pour une caméra, « Par défaut » en
+// tête retire la surcharge.
+function pills(options, camera) {
+  const eff = effective(camera);
+  const wrap = el("div", {class: "pills"});
+  let any = false;
+  if (camera) {
+    const keys = Object.assign({}, ...options.map((o) => o.patch));
+    const inherit = inheritsAll(keys, camera);
+    any = inherit;
+    wrap.append(el("button", {
+      type: "button", class: "pill", "aria-pressed": String(inherit), text: "Par défaut",
+      onclick: () => { for (const k of Object.keys(keys)) delete overlay.cameras[camera][k]; changed(); },
+    }));
+  }
+  for (const o of options) {
+    const active = !any && matches(o.patch, eff);
+    any = any || active;
+    wrap.append(el("button", {
+      type: "button", class: "pill", "aria-pressed": String(active), text: o.label,
+      onclick: () => { apply(o.patch, camera); changed(); },
+    }));
+  }
+  if (!any) wrap.append(el("span", {class: "pill custom", "aria-pressed": "true", text: "Personnalisé"}));
+  return wrap;
+}
+
+// zonePills : « Partout » ou une sélection de zones de la caméra (choix multiple).
+function zonePills(camera, zones) {
+  const cam = overlay.cameras[camera];
+  const current = effective(camera).zones || [];
+  const set = (next) => {
+    if (same("zones", next, overlay.notify.zones)) delete cam.zones;
+    else cam.zones = next;
+    changed();
+  };
+  const wrap = el("div", {class: "pills"});
+  wrap.append(el("button", {type: "button", class: "pill", "aria-pressed": String(!current.length),
+    text: "Partout", onclick: () => set([])}));
+  for (const z of zones) {
+    const on = current.includes(z);
+    wrap.append(el("button", {type: "button", class: "pill", "aria-pressed": String(on), text: "📍 " + z,
+      onclick: () => set(on ? current.filter((x) => x !== z) : current.concat([z]))}));
+  }
+  for (const z of current) if (!zones.includes(z)) {
+    wrap.append(el("button", {type: "button", class: "pill", "aria-pressed": "true", text: "📍 " + z + " (inconnue)",
+      title: "Zone absente de Frigate : cliquer pour la retirer",
+      onclick: () => set(current.filter((x) => x !== z))}));
+  }
+  return wrap;
+}
+
+function question(title, hint, content) {
+  const q = el("div", {class: "question"}, el("div", {class: "q", text: title}), content);
+  if (hint) q.append(el("p", {class: "hint", text: hint}));
+  return q;
+}
+
+function renderQuestions() {
+  const box = $("questions");
+  box.innerHTML = "";
+  if ((data.chats || []).length > 1) {
+    box.append(question("Qui reçoit les notifications ?", null,
+      CONTROLS.chips(FIELDS[1], overlay.notify.chats, (v) => { overlay.notify.chats = v; changed(); },
+        {disabled: false, options: data.chats})));
+  }
+  for (const q of QUESTIONS) {
+    if (q.mode && q.mode !== data.mode) continue;
+    box.append(question(q.title, q.hint, pills(q.options, null)));
+  }
+}
+
+// ---- caméras ----------------------------------------------------------------
+
+function cameraSummary(name) {
+  const eff = effective(name);
+  if (eff.enabled === false) return "désactivée";
+  const n = Object.keys(overlay.cameras[name]).length;
+  const st = STYLES.find((s) => matches(s.patch, eff));
+  const bits = [st ? st.label : "modèle personnalisé"];
+  const labels = eff.labels || [];
+  bits.push(labels.length ? labels.join(", ") : "tous les objets");
+  if ((eff.zones || []).length) bits.push("📍 " + eff.zones.join(", "));
+  if (!n) bits.push("par défaut");
+  if (untracked(name).length) bits.unshift("⚠️ objet non suivi par Frigate");
+  const mute = live && live.mutes.find((m) => m.camera === name);
+  if (mute) bits.unshift("🔇 coupée " + untilText(mute.until));
+  return bits.join(" · ");
+}
+
+// untracked liste les objets demandés que Frigate ne suit pas sur la caméra. Vide
+// si Frigate n'a pas donné sa liste (injoignable) : on ne sait pas, on ne dit rien.
+function untracked(name) {
+  const info = (data.cameras || []).find((c) => c.name === name);
+  if (!info || !info.labels || !info.labels.length) return [];
+  return (effective(name).labels || []).filter((l) => !info.labels.includes(l));
+}
+
+function renderCameras() {
+  const box = $("cameras");
+  const open = new Set([...box.querySelectorAll("details[open]")].map((d) => d.dataset.name));
+  const openMore = new Set([...box.querySelectorAll("details.more[open]")].map((d) => d.dataset.name));
+  box.innerHTML = "";
+  const names = (data.cameras || []).map((c) => c.name);
+  for (const name of Object.keys(overlay.cameras)) if (!names.includes(name)) names.push(name);
+  if (!names.length) {
+    box.append(el("div", {class: "body"}, el("p", {class: "hint", text: "Aucune caméra connue."})));
+    return;
+  }
+  for (const name of names.sort()) {
+    if (!overlay.cameras[name]) overlay.cameras[name] = {};
+    const eff = effective(name);
+    const on = eff.enabled !== false;
+
+    const input = el("input", {type: "checkbox", "aria-label": "Notifications de " + name});
+    input.checked = on;
+    input.addEventListener("click", (e) => e.stopPropagation()); // ne pas ouvrir/fermer la caméra
+    input.addEventListener("change", () => { apply({enabled: input.checked}, name); changed(); });
+    const toggle = el("label", {class: "toggle", onclick: (e) => e.stopPropagation()}, input, el("span"));
+
+    const d = el("details", {class: "camera" + (on ? "" : " off"), "data-name": name});
+    if (open.has(name)) d.open = true;
+    d.append(el("summary", {}, toggle, el("span", {class: "cam-name", text: name}),
+      el("span", {class: "cam-state", text: cameraSummary(name)})));
+
+    const body = el("div", {class: "body"});
+    body.append(question("Modèle de notification", null,
+      pills(STYLES.map((s) => ({label: s.label, patch: s.patch})), name)));
+    const q = question("Quoi signaler ?", null, pills(QUESTIONS[0].options, name));
+    const missing = untracked(name);
+    if (missing.length) {
+      q.append(el("p", {class: "warn-line", text: "⚠️ Frigate ne suit pas " + missing.map((l) => "« " + l + " »").join(", ") +
+        " sur cette caméra : ces objets ne seront jamais signalés. Ajoutez-les à objects.track dans la configuration de Frigate."}));
+    }
+    body.append(q);
+    const zones = unionOf("zones", name);
+    if (zones.length) {
+      body.append(question("Où ?", "Seulement quand l'objet entre dans une des zones choisies (définies dans Frigate).",
+        zonePills(name, zones)));
+    }
+    if (data.can_test && on) body.append(el("div", {class: "question"}, testButton(name, "📨 Tester cette caméra")));
+
+    const more = el("details", {class: "more", "data-name": name});
+    if (openMore.has(name)) more.open = true;
+    more.append(el("summary", {text: "Tous les réglages de " + name}));
+    for (const f of FIELDS) {
+      if (f.key === "enabled") continue; // déjà l'interrupteur
+      const node = renderField(f, name);
+      if (node) more.append(node);
+    }
+    more.append(el("div", {class: "row"},
+      el("button", {type: "button", class: "link", text: "Tout remettre par défaut",
+        onclick: () => { overlay.cameras[name] = {}; changed(); }})));
+    body.append(more);
+    d.append(body);
+    box.append(d);
+  }
+}
+
+// ---- éditeur détaillé (réglages avancés) -----------------------------------
 
 // Valeur vide par type. Elle sert quand le global n'a rien à hériter : envoyer null
 // reviendrait à ne rien surcharger du tout, le serveur traitant null comme « absent ».
@@ -215,8 +701,6 @@ const EMPTY = {bool: false, chips: [], ranges: [], duration: "0s", score: {defau
 function defaultFor(field, inherited) {
   return clone(inherited === undefined || inherited === null ? EMPTY[field.type] : inherited);
 }
-
-// ---- rendu d'un contrôle ---------------------------------------------------
 
 // Chaque constructeur renvoie un élément ; `on(v)` remonte la nouvelle valeur.
 const CONTROLS = {
@@ -397,8 +881,7 @@ function renderField(field, camera) {
     box.addEventListener("change", () => {
       if (box.checked) patch[field.key] = defaultFor(field, inherited);
       else delete patch[field.key];
-      render();
-      touched();
+      changed();
     });
     head.append(el("label", {class: "override"}, box, el("span", {text: "personnaliser"})));
   }
@@ -406,8 +889,7 @@ function renderField(field, camera) {
   const ctx = {disabled: !custom, options: optionsFor(field, camera)};
   const control = CONTROLS[field.type](field, value, (v) => {
     patch[field.key] = v;
-    render();
-    touched();
+    changed();
   }, ctx);
 
   const wrap = el("div", {class: "field"}, head, el("div", {class: "control" + (custom ? "" : " off")}, control));
@@ -415,52 +897,194 @@ function renderField(field, camera) {
   return wrap;
 }
 
-function cameraSummary(name) {
-  const patch = overlay.cameras[name];
-  const eff = Object.assign({}, overlay.notify, patch);
-  const bits = [];
-  if (eff.enabled === false) return el("span", {class: "cam-state off-tag", text: "désactivée"});
-  const n = Object.keys(patch).length;
-  bits.push(n ? n + " réglage" + (n > 1 ? "s" : "") + " personnalisé" + (n > 1 ? "s" : "") : "réglages par défaut");
-  const labels = eff.labels || [];
-  bits.push(labels.length ? labels.join(", ") : "tous les objets");
-  return el("span", {class: "cam-state", text: bits.join(" · ")});
-}
-
-function render() {
+function renderAdvanced() {
   const g = $("global");
   g.innerHTML = "";
   for (const f of FIELDS) {
     const node = renderField(f, null);
     if (node) g.append(node);
   }
+}
 
-  const box = $("cameras");
-  const open = new Set([...box.querySelectorAll("details[open]")].map((d) => d.dataset.name));
-  box.innerHTML = "";
-  const names = (data.cameras || []).map((c) => c.name);
-  for (const name of Object.keys(overlay.cameras)) if (!names.includes(name)) names.push(name);
-  if (!names.length) {
-    box.append(el("div", {class: "body"}, el("p", {class: "hint", text: "Aucune caméra connue."})));
-    return;
-  }
-  for (const name of names.sort()) {
-    if (!overlay.cameras[name]) overlay.cameras[name] = {};
-    const d = el("details", {class: "camera", "data-name": name});
-    if (open.has(name)) d.open = true;
-    d.append(el("summary", {}, el("span", {class: "cam-name", text: name}), cameraSummary(name)));
-    const body = el("div", {class: "body"});
-    for (const f of FIELDS) {
-      const node = renderField(f, name);
-      if (node) body.append(node);
-    }
-    body.append(el("div", {class: "row"},
-      el("button", {type: "button", class: "link", text: "Tout remettre par défaut",
-        onclick: () => { overlay.cameras[name] = {}; render(); touched(); }})));
-    d.append(body);
-    box.append(d);
+function render() {
+  renderStyles();
+  renderTry();
+  renderQuestions();
+  renderCameras();
+  renderAdvanced();
+}
+
+// ---- pause et reprise ---------------------------------------------------------
+
+let live = null; // réponse de /api/state
+
+function untilText(iso) {
+  if (!iso) return "jusqu'à reprise";
+  const d = new Date(iso);
+  const opts = {timeZone: data.timezone, hour: "2-digit", minute: "2-digit"};
+  const day = (x) => x.toLocaleDateString("fr-FR", {timeZone: data.timezone});
+  if (day(d) !== day(new Date())) Object.assign(opts, {weekday: "long", day: "numeric", month: "long"});
+  return "jusqu'à " + d.toLocaleString("fr-FR", opts);
+}
+
+async function stateCall(path, body) {
+  try {
+    const resp = await fetch(path, {
+      method: body ? "POST" : "GET",
+      headers: body ? {"Content-Type": "application/json", "X-Requested-With": TOKEN} : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const v = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(v.error || "HTTP " + resp.status);
+    // Les résumés des caméras affichent les coupures : on ne les redessine que si
+    // elles ont changé, pour ne pas perturber une saisie en cours.
+    const mutesChanged = JSON.stringify(live && live.mutes) !== JSON.stringify(v.mutes);
+    live = v;
+    renderLive();
+    if (mutesChanged && overlay) renderCameras();
+  } catch (e) {
+    if (body) message("Action impossible :\n" + e.message, "err");
   }
 }
+
+function renderLive() {
+  const box = $("live");
+  $("live-box").hidden = !live;
+  if (!live) return;
+  box.innerHTML = "";
+  box.className = "live" + (live.paused ? " paused" : "");
+  if (live.paused) {
+    box.append(el("span", {class: "state", text: "⏸️ Notifications en pause " + untilText(live.paused_until)}),
+      el("button", {type: "button", class: "primary", text: "▶ Reprendre",
+        onclick: () => stateCall("api/resume", {})}));
+  } else {
+    box.append(el("span", {class: "state", text: "✅ Notifications actives"}),
+      el("span", {class: "hint", text: "Pause :"}));
+    for (const [label, minutes] of [["30 min", 30], ["1 h", 60], ["8 h", 480], ["jusqu'à reprise", 0]]) {
+      box.append(el("button", {type: "button", text: label,
+        onclick: () => stateCall("api/pause", {minutes})}));
+    }
+  }
+  if (live.mutes.length) {
+    const sub = el("div", {class: "sub"});
+    for (const m of live.mutes) {
+      sub.append(el("div", {class: "row"},
+        el("span", {text: "🔇 " + m.camera + " coupée " + untilText(m.until)}),
+        el("button", {type: "button", class: "link", text: "Réactiver",
+          onclick: () => stateCall("api/resume", {camera: m.camera})})));
+    }
+    box.append(sub);
+  }
+}
+
+// ---- activité récente ---------------------------------------------------------
+
+const LABELS = {
+  person: ["🚶", "Personne"], car: ["🚗", "Voiture"], dog: ["🐕", "Chien"], cat: ["🐈", "Chat"],
+  bicycle: ["🚲", "Vélo"], motorcycle: ["🏍️", "Moto"], bird: ["🐦", "Oiseau"], package: ["📦", "Colis"],
+};
+
+function labelText(l) {
+  const x = LABELS[l];
+  return x ? x[0] + " " + x[1] : "🔔 " + (l || "Détection");
+}
+
+// Raison d'un filtrage en clair ; `fix` indique si un réglage de la caméra y peut quelque chose.
+const REASONS = {
+  camera_disabled: {text: "caméra désactivée", fix: true},
+  false_positive: {text: "faux positif selon Frigate"},
+  stationary: {text: "objet immobile", fix: true},
+  severity: {text: "sévérité non retenue", fix: true},
+  label: {text: "type d'objet non suivi", fix: true},
+  score: {text: "score trop bas", fix: true},
+  zone: {text: "hors des zones choisies", fix: true},
+  paused: {text: "notifications en pause"},
+  muted: {text: "caméra coupée"},
+  off_hours: {text: "pendant les heures coupées", fix: true},
+  cooldown: {text: "déjà signalé il y a peu", fix: true},
+};
+
+let history = null;
+let historyAll = false;
+
+function whenText(iso) {
+  const d = new Date(iso);
+  const tz = {timeZone: data.timezone};
+  const day = (x) => x.toLocaleDateString("fr-FR", tz);
+  const time = d.toLocaleTimeString("fr-FR", Object.assign({hour: "2-digit", minute: "2-digit"}, tz));
+  if (day(d) === day(new Date())) return time;
+  const yesterday = new Date(Date.now() - 86400000);
+  if (day(d) === day(yesterday)) return "hier " + time;
+  return d.toLocaleDateString("fr-FR", Object.assign({day: "numeric", month: "short"}, tz)) + " " + time;
+}
+
+// openCamera déplie une caméra et y amène la page.
+function openCamera(name) {
+  const d = document.querySelector('details.camera[data-name="' + CSS.escape(name) + '"]');
+  if (!d) return;
+  d.open = true;
+  d.scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+async function loadHistory() {
+  try {
+    const resp = await fetch("api/history");
+    if (!resp.ok) return;
+    history = (await resp.json()).entries;
+    renderHistory();
+  } catch (e) { /* l'activité est un plus : on n'interrompt rien */ }
+}
+
+function renderHistory() {
+  $("activity-box").hidden = !history;
+  if (!history) return;
+  const list = $("activity");
+  list.innerHTML = "";
+  const shown = historyAll ? history : history.slice(0, 8);
+  if (!history.length) {
+    list.append(el("li", {}, el("span", {class: "hint", text: "Aucune détection depuis le démarrage du service."})));
+  }
+  for (const e of shown) {
+    let thumb;
+    if (e.has_thumb) {
+      thumb = el("img", {class: "thumb", loading: "lazy", alt: "", src: "api/history/" + encodeURIComponent(e.id) + "/thumb"});
+      thumb.addEventListener("error", () => thumb.replaceWith(el("span", {class: "thumb", text: (LABELS[e.label] || ["🔔"])[0]})));
+    } else {
+      thumb = el("span", {class: "thumb", text: (LABELS[e.label] || ["🔔"])[0]});
+    }
+    const details = [e.camera];
+    if (e.zones && e.zones.length) details.push("📍 " + e.zones.join(", "));
+    if (e.score) details.push(Math.round(e.score * 100) + " %");
+    details.push(whenText(e.at));
+
+    const out = el("div", {class: "out"});
+    if (e.sent) {
+      out.append(el("span", {class: "ok", text: "✅ Envoyée"}));
+    } else {
+      const r = REASONS[e.reason] || {text: e.reason || "ignorée"};
+      out.append(el("span", {class: "no", text: "⛔ " + r.text}));
+      if (r.fix && overlay && overlay.cameras[e.camera]) {
+        out.append(el("br"), el("button", {type: "button", class: "link", text: "Régler " + e.camera,
+          onclick: () => openCamera(e.camera)}));
+      }
+    }
+    list.append(el("li", {}, thumb,
+      el("div", {class: "what"}, el("div", {class: "t", text: labelText(e.label)}), el("div", {class: "d", text: details.join(" · ")})),
+      out));
+  }
+  const foot = $("activity-foot");
+  foot.innerHTML = "";
+  if (history.length) {
+    const sent = history.filter((e) => e.sent).length;
+    foot.append(el("span", {text: `Sur les ${history.length} dernières détections : ${sent} envoyée${sent > 1 ? "s" : ""}, ${history.length - sent} ignorée${history.length - sent > 1 ? "s" : ""}.`}));
+    if (history.length > 8) {
+      foot.append(el("button", {type: "button", class: "link", text: historyAll ? "Afficher moins" : "Tout afficher",
+        onclick: () => { historyAll = !historyAll; renderHistory(); }}));
+    }
+  }
+}
+
+// ---- chargement et enregistrement -------------------------------------------
 
 // toSend retire les caméras sans aucune surcharge : elles suivent les réglages
 // par défaut et n'ont rien à faire dans le fichier enregistré.
@@ -477,12 +1101,17 @@ async function load() {
   if (!resp.ok) throw new Error("HTTP " + resp.status + " : " + (await resp.text()));
   data = await resp.json();
   overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}};
+  // Chaque caméra connue a une entrée (vide = suit le global) avant la mémorisation
+  // de l'état enregistré, sinon la page se croirait modifiée dès l'ouverture.
+  for (const c of data.cameras || []) if (!overlay.cameras[c.name]) overlay.cameras[c.name] = {};
   $("mode").textContent = "mode " + data.mode;
   $("tz").textContent = data.timezone;
-  $("reset").disabled = !data.custom;
+  $("reset").hidden = !data.custom;
   message(data.warning || "", "warn");
-  render();
   saved = JSON.stringify(overlay);
+  if (data.can_pause) await stateCall("api/state");
+  if (data.can_history) await loadHistory();
+  render();
   touched();
 }
 
@@ -500,10 +1129,11 @@ async function save() {
     saved = JSON.stringify(overlay);
     message("", "");
     data.custom = true;
-    $("reset").disabled = false;
-    $("status").textContent = "Enregistré";
+    $("reset").hidden = false;
+    render(); // réactive les boutons d'essai
+    $("status").textContent = "Enregistré ✓ — appliqué immédiatement";
     $("status").className = "status saved";
-    setTimeout(touched, 2500);
+    setTimeout(touched, 3000);
   } catch (e) {
     message("Enregistrement refusé :\n" + e.message, "err");
     btn.disabled = false;
@@ -529,6 +1159,12 @@ $("reset").addEventListener("click", reset);
 window.addEventListener("beforeunload", (e) => { if (dirty()) e.preventDefault(); });
 
 load().catch((e) => message("Chargement impossible :\n" + e.message, "err"));
+// La pause peut aussi changer depuis Telegram : on rafraîchit le bandeau.
+setInterval(() => {
+  if (!data || document.hidden) return;
+  if (data.can_pause) stateCall("api/state");
+  if (data.can_history) loadHistory();
+}, 30000);
 </script>
 </body>
 </html>

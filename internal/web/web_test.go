@@ -12,11 +12,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"frigate-telegram/internal/config"
 	"frigate-telegram/internal/frigate"
+	"frigate-telegram/internal/notifier"
+	"frigate-telegram/internal/state"
 )
 
 const testConfig = `
@@ -50,7 +53,7 @@ func (f fakeCameras) CameraDetails(context.Context) ([]frigate.CameraInfo, error
 
 // setup monte l'interface sur un serveur de test et renvoie la config vivante,
 // le chemin du fichier de surcharge et le serveur.
-func setup(t *testing.T, password string, cams fakeCameras) (*config.Config, string, *httptest.Server) {
+func setup(t *testing.T, password string, cams fakeCameras, opts ...Option) (*config.Config, string, *httptest.Server) {
 	t.Helper()
 	cfg, err := config.Parse([]byte(testConfig), func(string) (string, bool) { return "", false })
 	if err != nil {
@@ -58,7 +61,7 @@ func setup(t *testing.T, password string, cams fakeCameras) (*config.Config, str
 	}
 	cfg.Web.Password = password
 	path := filepath.Join(t.TempDir(), "notify.yml")
-	h := New(cfg, path, cams, slog.New(slog.DiscardHandler))
+	h := New(cfg, path, cams, slog.New(slog.DiscardHandler), opts...)
 	mux := http.NewServeMux()
 	h.Mount(mux)
 	ts := httptest.NewServer(mux)
@@ -273,6 +276,60 @@ func TestWritesRequireTheRequestedWithHeader(t *testing.T) {
 	}
 }
 
+// Sans mot de passe, un nom de domaine inconnu dans Host signe un rebinding DNS :
+// la requête est refusée même si elle porte X-Requested-With.
+func TestHostCheckBlocksDNSRebinding(t *testing.T) {
+	_, path, ts := setup(t, "", fakeCameras{})
+	for _, tc := range []struct {
+		host string
+		want int
+	}{
+		{"evil.example.com", http.StatusForbidden},
+		{"evil.example.com:8080", http.StatusForbidden},
+		{"localhost:8080", http.StatusOK},
+		{"192.168.1.10:8080", http.StatusOK},
+		{"[::1]:8080", http.StatusOK},
+	} {
+		req, err := http.NewRequest("PUT", ts.URL+"/api/settings", strings.NewReader(`{"notify":{"labels":["car"]}}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Host = tc.host
+		req.Header.Set("X-Requested-With", requestedWith)
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != tc.want {
+			t.Errorf("Host %q : statut = %d, attendu %d", tc.host, resp.StatusCode, tc.want)
+		}
+		if tc.want == http.StatusForbidden {
+			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("Host %q : une écriture refusée ne doit rien laisser sur disque", tc.host)
+			}
+		}
+	}
+}
+
+func TestHostAllowed(t *testing.T) {
+	allowed := []string{"nas.lan"}
+	for host, want := range map[string]bool{
+		"NAS.lan:8080":       true,
+		"nas.lan.":           true,
+		"frigate.localhost":  true,
+		"127.0.0.1":          true,
+		"autre.lan":          false,
+		"":                   false,
+		"nas.lan.evil.com":   false,
+		"localhost.evil.com": false,
+	} {
+		if got := hostAllowed(host, allowed); got != want {
+			t.Errorf("hostAllowed(%q) = %v, attendu %v", host, got, want)
+		}
+	}
+}
+
 // Ouvrir l'interface puis enregistrer sans rien toucher doit laisser les réglages
 // effectifs identiques : c'est l'aller-retour que fait le premier enregistrement,
 // celui qui bascule une installation de config.yml vers le fichier de surcharge.
@@ -328,5 +385,162 @@ func TestEmptyOverrideIsDistinctFromNoOverride(t *testing.T) {
 	}
 	if got := cfg.ForCamera("garage").Zones; len(got) != 1 || got[0] != "allee" {
 		t.Errorf("garage.zones = %v, sans surcharge elle suit le global", got)
+	}
+}
+
+type fakeTester struct {
+	mu      sync.Mutex
+	cameras []string
+	err     error
+}
+
+func (f *fakeTester) SendTest(_ context.Context, camera string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cameras = append(f.cameras, camera)
+	return f.err
+}
+
+func TestSendTestNotification(t *testing.T) {
+	clock := time.Date(2026, 9, 28, 14, 0, 0, 0, time.UTC)
+	tester := &fakeTester{}
+	_, _, ts := setup(t, "", fakeCameras{}, WithTester(tester), WithClock(func() time.Time { return clock }))
+
+	if resp := do(t, ts, "POST", "/api/test", `{"camera":"garage"}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("statut = %d", resp.StatusCode)
+	}
+	if resp := do(t, ts, "POST", "/api/test", `{"camera":"garage"}`); resp.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("second test immédiat : statut = %d, attendu 429", resp.StatusCode)
+	}
+	clock = clock.Add(testInterval)
+	if resp := do(t, ts, "POST", "/api/test", `{}`); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("sans caméra : statut = %d, attendu 400", resp.StatusCode)
+	}
+	tester.err = errors.New("chat introuvable")
+	resp := do(t, ts, "POST", "/api/test", `{"camera":"salon"}`)
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusBadGateway || !strings.Contains(string(body), "chat introuvable") {
+		t.Errorf("échec d'envoi : %d %s", resp.StatusCode, body)
+	}
+	if !reflect.DeepEqual(tester.cameras, []string{"garage", "salon"}) {
+		t.Errorf("tests envoyés = %v", tester.cameras)
+	}
+}
+
+func TestPauseAndResume(t *testing.T) {
+	clock := time.Date(2026, 9, 28, 14, 0, 0, 0, time.UTC)
+	st, _ := state.Load(filepath.Join(t.TempDir(), "state.json"), clock)
+	if err := st.Mute("garage", clock.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	_, _, ts := setup(t, "", fakeCameras{}, WithState(st), WithClock(func() time.Time { return clock }))
+
+	read := func(resp *http.Response) stateView {
+		t.Helper()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("statut = %d", resp.StatusCode)
+		}
+		var v stateView
+		if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+
+	v := read(do(t, ts, "GET", "/api/state", ""))
+	if v.Paused || len(v.Mutes) != 1 || v.Mutes[0].Camera != "garage" {
+		t.Fatalf("état initial = %+v", v)
+	}
+	v = read(do(t, ts, "POST", "/api/pause", `{"minutes":30}`))
+	if !v.Paused || v.PausedUntil == nil || !v.PausedUntil.Equal(clock.Add(30*time.Minute)) {
+		t.Errorf("après pause 30 min = %+v", v)
+	}
+	v = read(do(t, ts, "POST", "/api/pause", `{"minutes":0}`))
+	if !v.Paused || v.PausedUntil != nil {
+		t.Errorf("pause sans échéance = %+v", v)
+	}
+	v = read(do(t, ts, "POST", "/api/resume", `{"camera":"garage"}`))
+	if !v.Paused || len(v.Mutes) != 0 {
+		t.Errorf("après reprise de garage = %+v", v)
+	}
+	v = read(do(t, ts, "POST", "/api/resume", ""))
+	if v.Paused {
+		t.Errorf("après reprise globale = %+v", v)
+	}
+	if resp := do(t, ts, "POST", "/api/pause", `{"minutes":-5}`); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("durée négative : statut = %d", resp.StatusCode)
+	}
+}
+
+func TestOptionalFeaturesAreAdvertised(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{})
+	var s settings
+	json.NewDecoder(do(t, ts, "GET", "/api/settings", "").Body).Decode(&s)
+	if s.CanTest || s.CanPause {
+		t.Errorf("sans options : can_test=%v can_pause=%v", s.CanTest, s.CanPause)
+	}
+	if resp := do(t, ts, "POST", "/api/test", `{"camera":"garage"}`); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("test sans Tester : statut = %d", resp.StatusCode)
+	}
+}
+
+type fakeHistory struct{ entries []notifier.HistoryEntry }
+
+func (f fakeHistory) History() []notifier.HistoryEntry { return f.entries }
+func (f fakeHistory) HistoryThumb(id string) (string, bool) {
+	for _, e := range f.entries {
+		if e.ID == id && e.Thumb != "" {
+			return e.Thumb, true
+		}
+	}
+	return "", false
+}
+
+type fakeMedia map[string][]byte
+
+func (f fakeMedia) GetBytes(_ context.Context, path string, _ int64) ([]byte, error) {
+	if b, ok := f[path]; ok {
+		return b, nil
+	}
+	return nil, errors.New("absent")
+}
+
+func TestHistoryAndThumbnails(t *testing.T) {
+	hist := fakeHistory{entries: []notifier.HistoryEntry{
+		{ID: "b", Camera: "garage", Label: "dog", Reason: "label", Thumb: "/api/events/b/thumbnail.jpg"},
+		{ID: "a", Camera: "garage", Label: "person", Sent: true},
+	}}
+	media := fakeMedia{"/api/events/b/thumbnail.jpg": []byte("jpeg")}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(hist, media))
+
+	var v struct {
+		Entries []struct {
+			ID       string `json:"id"`
+			Sent     bool   `json:"sent"`
+			Reason   string `json:"reason"`
+			HasThumb bool   `json:"has_thumb"`
+			Thumb    string `json:"Thumb"`
+		} `json:"entries"`
+	}
+	resp := do(t, ts, "GET", "/api/history", "")
+	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Entries) != 2 || v.Entries[0].Reason != "label" || !v.Entries[0].HasThumb || v.Entries[1].HasThumb || !v.Entries[1].Sent {
+		t.Errorf("historique = %+v", v.Entries)
+	}
+	if v.Entries[0].Thumb != "" {
+		t.Error("le chemin Frigate ne doit pas être exposé")
+	}
+
+	resp = do(t, ts, "GET", "/api/history/b/thumb", "")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || string(body) != "jpeg" || resp.Header.Get("Content-Type") != "image/jpeg" {
+		t.Errorf("miniature : %d %q", resp.StatusCode, body)
+	}
+	for _, id := range []string{"a", "inconnu"} {
+		if resp := do(t, ts, "GET", "/api/history/"+id+"/thumb", ""); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("miniature de %s : statut = %d, attendu 404", id, resp.StatusCode)
+		}
 	}
 }

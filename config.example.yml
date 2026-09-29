@@ -30,6 +30,11 @@ telegram:
 web:                             # interface de réglage des notifications, sur http_listen
   enabled: true
   password: "${WEB_PASSWORD:-}"  # vide = aucune authentification (ne l'exposer alors que sur 127.0.0.1)
+  # Sans mot de passe, l'interface n'accepte que les adresses IP et localhost dans
+  # l'URL (protection contre le rebinding DNS). Pour l'ouvrir par un nom d'hôte
+  # (http://nas.lan:8080), l'ajouter ici — ou définir un mot de passe.
+  allowed_hosts: []
+  protect_metrics: false         # true = /metrics exige aussi le mot de passe (à renseigner côté Prometheus)
 
 # Les sections notify et cameras ci-dessous sont celles que l'interface web modifie.
 # Dès le premier enregistrement, elle écrit /data/notify.yml, qui les remplace toutes

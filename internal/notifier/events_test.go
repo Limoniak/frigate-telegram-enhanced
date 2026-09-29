@@ -127,6 +127,38 @@ func TestCooldownBlocksSecondEvent(t *testing.T) {
 	}
 }
 
+// Un événement refusé pour cooldown ne doit pas être notifié à l'expiration du
+// cooldown, au milieu de l'événement, avec un snapshot sans rapport avec son début.
+func TestCooldownRejectionIsFinal(t *testing.T) {
+	h := newHarness(t, "events")
+	for _, id := range []string{"a", "b"} {
+		h.fr.files[frigate.EventSnapshotPath(id)] = []byte("jpeg")
+	}
+	h.send(t, "frigate/events", eventMsg("new", "a", "garage", "person", nil))
+	h.clock.Add(30 * time.Second)
+	h.send(t, "frigate/events", eventMsg("new", "b", "garage", "person", nil))
+	h.clock.Add(2 * time.Minute)
+	h.send(t, "frigate/events", eventMsg("update", "b", "garage", "person", nil))
+	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
+		t.Fatalf("photos = %d : b, refusé pour cooldown, ne doit pas être notifié plus tard", n)
+	}
+	h.send(t, "frigate/events", eventMsg("end", "b", "garage", "person", nil))
+	if got := testutil.ToFloat64(h.m.EventsFiltered.WithLabelValues("cooldown")); got != 1 {
+		t.Errorf("filtered{cooldown} = %v, attendu 1", got)
+	}
+}
+
+// Un événement filtré dont la fin n'arrive jamais est compté quand sweep l'oublie.
+func TestSweptFilteredEventIsCounted(t *testing.T) {
+	h := newHarness(t, "events")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "dog", nil))
+	h.clock.Add(staleAfter + time.Minute)
+	h.n.sweep()
+	if got := testutil.ToFloat64(h.m.EventsFiltered.WithLabelValues("label")); got != 1 {
+		t.Errorf("filtered{label} = %v, attendu 1", got)
+	}
+}
+
 func TestFilteredEventIsCountedOnce(t *testing.T) {
 	h := newHarness(t, "events")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "dog", nil))

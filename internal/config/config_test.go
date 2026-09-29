@@ -139,6 +139,7 @@ func TestValidationErrors(t *testing.T) {
 		{"champ inconnu", "notfy:\n  labels: [x]\n", "notfy"},
 		{"heure", "notify:\n  quiet_hours: [{from: \"25:00\", to: \"07:00\"}]\n", "25:00"},
 		{"log level", "log_level: verbose\n", "log_level"},
+		{"metrics sans mot de passe", "web:\n  protect_metrics: true\n", "protect_metrics"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

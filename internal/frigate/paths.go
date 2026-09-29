@@ -25,3 +25,8 @@ func RecordingClipPath(camera string, start, end float64) string {
 	return fmt.Sprintf("/api/%s/start/%d/end/%d/clip.mp4",
 		url.PathEscape(camera), int64(math.Floor(start)), int64(math.Ceil(end)))
 }
+
+// EventThumbnailPath renvoie la miniature (petite, recadrée sur l'objet) d'un événement.
+func EventThumbnailPath(id string) string {
+	return "/api/events/" + url.PathEscape(id) + "/thumbnail.jpg"
+}

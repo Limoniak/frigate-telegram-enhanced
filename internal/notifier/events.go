@@ -36,7 +36,7 @@ func (n *Notifier) handleEvent(ctx context.Context, msg frigate.EventMessage) {
 		n.Metrics.EventsReceived.WithLabelValues(ev.Camera, ev.Label).Inc()
 	}
 	t.lastSeen = now
-	if t.notified {
+	if t.notified || t.suppressed {
 		return
 	}
 	t.label, t.subLabel, t.zones = ev.Label, string(ev.SubLabel), ev.EnteredZones
@@ -52,6 +52,7 @@ func (n *Notifier) handleEvent(ctx context.Context, msg frigate.EventMessage) {
 	}, now)
 	if !d.Notify {
 		t.lastReason = d.Reason
+		t.suppressed = d.Reason == filter.ReasonCooldown
 		return
 	}
 	n.notify(ctx, t, d)

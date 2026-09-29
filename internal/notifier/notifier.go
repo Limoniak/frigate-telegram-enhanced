@@ -68,6 +68,7 @@ type Notifier struct {
 	mu      sync.Mutex // protège tracked, sent et les champs des *tracked (sauf messages)
 	tracked map[string]*tracked
 	sent    []time.Time
+	history []HistoryEntry
 }
 
 type inMsg struct {
@@ -101,8 +102,12 @@ type tracked struct {
 	lastReason   string
 
 	notified, silent, ended bool
-	chats                   []string
-	endedAt, lastSeen       time.Time
+	// suppressed : refusé pour cooldown. On ne le réévalue plus, sinon un objet qui
+	// reste dans le champ serait notifié à l'expiration du cooldown, en plein milieu
+	// de l'événement, avec un snapshot sans rapport avec son début.
+	suppressed        bool
+	chats             []string
+	endedAt, lastSeen time.Time
 
 	ready    chan struct{} // fermé quand le snapshot a été envoyé à tous les chats
 	msgMu    sync.Mutex
@@ -280,6 +285,12 @@ func (n *Notifier) sweep() {
 	now := n.Now()
 	for id, t := range n.tracked {
 		if (t.ended && now.Sub(t.endedAt) > endedRetention) || now.Sub(t.lastSeen) > staleAfter {
+			// Un événement filtré dont la fin n'est jamais arrivée doit tout de même
+			// compter dans les métriques de filtrage (finish ne le verra pas).
+			if !t.notified && t.lastReason != "" {
+				n.Metrics.EventsFiltered.WithLabelValues(t.lastReason).Inc()
+				n.record(t, false)
+			}
 			delete(n.tracked, id)
 		}
 	}
@@ -308,6 +319,7 @@ func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 	t.messages = map[string]sentMsg{}
 	n.State.MarkNotified(filter.CooldownKey(t.camera, d.Label), now)
 	n.recordSent(now)
+	n.record(t, true)
 
 	path := ""
 	if n.Config.ForCamera(t.camera).Snapshot {
@@ -328,6 +340,7 @@ func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool) {
 	if !t.notified {
 		if t.lastReason != "" {
 			n.Metrics.EventsFiltered.WithLabelValues(t.lastReason).Inc()
+			n.record(t, false)
 		}
 		delete(n.tracked, t.id)
 		return

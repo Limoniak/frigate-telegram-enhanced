@@ -7,15 +7,12 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// New construit le serveur HTTP. Chaque fonction de mount reçoit le routeur pour y
-// ajouter ses propres routes — l'interface web s'y greffe sans que ce paquet ait à
-// la connaître.
-func New(addr string, health func() error, reg *prometheus.Registry, mount ...func(*http.ServeMux)) *http.Server {
+// New construit le serveur HTTP. metrics sert /metrics (éventuellement déjà protégé
+// par mot de passe). Chaque fonction de mount reçoit le routeur pour y ajouter ses
+// propres routes — l'interface web s'y greffe sans que ce paquet ait à la connaître.
+func New(addr string, health func() error, metrics http.Handler, mount ...func(*http.ServeMux)) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		if err := health(); err != nil {
@@ -24,7 +21,7 @@ func New(addr string, health func() error, reg *prometheus.Registry, mount ...fu
 		}
 		io.WriteString(w, "ok\n")
 	})
-	mux.Handle("GET /metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+	mux.Handle("GET /metrics", metrics)
 	for _, m := range mount {
 		m(mux)
 	}

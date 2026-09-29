@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func TestHealthzAndCheck(t *testing.T) {
@@ -20,7 +21,7 @@ func TestHealthzAndCheck(t *testing.T) {
 			return nil
 		}
 		return errors.New("MQTT déconnecté")
-	}, prometheus.NewRegistry())
+	}, http.NotFoundHandler())
 	ts := httptest.NewServer(srv.Handler)
 	defer ts.Close()
 
@@ -39,7 +40,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	c := prometheus.NewCounter(prometheus.CounterOpts{Name: "ft_test_total", Help: "test"})
 	reg.MustRegister(c)
 	c.Inc()
-	ts := httptest.NewServer(New(":0", func() error { return nil }, reg).Handler)
+	ts := httptest.NewServer(New(":0", func() error { return nil }, promhttp.HandlerFor(reg, promhttp.HandlerOpts{})).Handler)
 	defer ts.Close()
 	resp, err := http.Get(ts.URL + "/metrics")
 	if err != nil {

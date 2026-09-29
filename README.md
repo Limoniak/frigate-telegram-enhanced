@@ -64,11 +64,29 @@ Tout est documenté dans [`config.example.yml`](config.example.yml). Points clé
 
 ## Interface web
 
-`http://127.0.0.1:8080/` sert une page de réglage des notifications : destinataires,
-objets, zones, score minimal, cooldown, médias envoyés, heures calmes et heures coupées,
-en global puis caméra par caméra. Les zones et les objets proposés viennent de l'API de
-Frigate ; chaque réglage d'une caméra se coche pour la personnaliser, sinon elle suit le
-global.
+`http://127.0.0.1:8080/` sert une page de réglage des notifications, pensée pour se
+régler en quelques clics :
+
+- **Modèles de notification** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou
+  *Texte seul*, chacun avec un aperçu du message tel qu'il arrivera dans Telegram.
+- **Questions simples** : quoi signaler (personnes, personnes et voitures, tout), à
+  quelle fréquence au plus, et quoi faire la nuit (comme le jour, sans son, rien).
+- **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle
+  ou d'autres objets, sinon elle suit les choix du haut.
+- **Où ?** : pour une caméra qui a des zones dans Frigate, « Partout » ou seulement
+  certaines zones, en un clic.
+- **Essai** : *M'envoyer un exemple* envoie une vraie notification de test aux
+  destinataires, avec l'image en direct de la caméra et les réglages enregistrés.
+- **Pause** : un bandeau indique si les notifications sont actives ; pause de 30 min,
+  1 h, 8 h ou jusqu'à reprise, et réactivation des caméras coupées depuis Telegram.
+- **Activité récente** : les 50 dernières détections avec leur miniature et leur
+  issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone, score trop bas,
+  déjà signalé il y a peu…) et un lien pour régler la caméra concernée.
+- **Alertes de cohérence** : une caméra réglée pour signaler un objet que Frigate n'y
+  suit pas (absent de `objects.track`) est signalée.
+- **Réglages avancés** (repliés) : tous les réglages en détail — zones, scores,
+  plages horaires sur mesure, délais… — en global puis caméra par caméra. Les zones et
+  les objets proposés viennent de l'API de Frigate.
 
 Un enregistrement prend effet **immédiatement**, sans redémarrage, et n'est accepté que
 s'il est valide — un réglage refusé laisse le service sur les précédents.
@@ -83,13 +101,26 @@ le monte en lecture seule.
 web:
   enabled: true                  # false pour ne pas servir l'interface du tout
   password: "${WEB_PASSWORD:-}"  # vide = aucune authentification
+  allowed_hosts: []              # noms d'hôte acceptés sans mot de passe (ex. [nas.lan])
+  protect_metrics: false         # true = /metrics exige aussi le mot de passe
 ```
 
 Sans mot de passe, l'interface est ouverte à quiconque atteint le port : le
 `docker-compose.yml` fourni ne publie `8080` que sur `127.0.0.1`. Pour y accéder depuis
-le réseau ou un reverse proxy, renseigner `WEB_PASSWORD` dans `.env`. L'authentification
-ne couvre que l'interface : `/healthz` et `/metrics` restent libres pour la sonde du
-conteneur et pour Prometheus.
+le réseau ou un reverse proxy, renseigner `WEB_PASSWORD` dans `.env`.
+
+Sans mot de passe, l'interface n'accepte en outre que les requêtes adressées à une
+adresse IP ou à `localhost` (`http://192.168.1.10:8080/` fonctionne,
+`http://nas.lan:8080/` est refusé en 403). Cela bloque le *rebinding DNS*, où un site
+malveillant ouvert dans votre navigateur fait pointer son propre domaine vers
+`127.0.0.1` pour piloter l'interface à votre insu. Pour passer par un nom d'hôte,
+l'ajouter à `web.allowed_hosts`, ou définir un mot de passe (qui lève ce contrôle).
+
+L'authentification ne couvre que l'interface : `/healthz` reste toujours libre pour la
+sonde du conteneur, et `/metrics` aussi, sauf avec `protect_metrics: true`. Si le port
+est exposé au réseau, pensez-y : les compteurs par caméra et par objet révèlent quand
+il y a de l'activité chez vous. Prometheus s'authentifie alors avec `basic_auth`
+(nom d'utilisateur libre, mot de passe `WEB_PASSWORD`).
 
 ## Commandes
 
@@ -108,7 +139,7 @@ Seuls les utilisateurs listés dans `telegram.admins` peuvent utiliser les comma
 
 - `GET /healthz` : 200 si MQTT est connecté et Telegram joignable (utilisé par le `HEALTHCHECK` Docker)
 - `GET /metrics` : métriques Prometheus préfixées par `ft_`
-- Ces deux routes ne sont jamais protégées par `web.password`
+- `/healthz` n'est jamais protégée ; `/metrics` l'est par `web.password` si `web.protect_metrics: true`
 
 ## Dépannage
 

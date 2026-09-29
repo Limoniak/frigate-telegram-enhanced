@@ -3,8 +3,10 @@ package notifier
 import (
 	"context"
 	"errors"
+	"html"
 	"net/url"
 	"os"
+	"sync"
 
 	"frigate-telegram/internal/config"
 	"frigate-telegram/internal/frigate"
@@ -101,6 +103,65 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 	}
 	if ev.HasClip && ev.EndTime != nil {
 		return n.sendClipFile(ctx, chatID, msg.MessageID, frigate.EventClipPath(ev.ID))
+	}
+	return nil
+}
+
+// ErrNoRecipient signale une caméra dont les réglages n'ont aucun destinataire.
+var ErrNoRecipient = errors.New("aucun destinataire pour cette caméra")
+
+// SendTest envoie une notification d'exemple pour camera, telle qu'un vrai
+// événement la produirait avec les réglages en vigueur : destinataires, image en
+// direct ou texte seul. Les médias de suivi (clip, GIF) n'existent pas pour un test :
+// la légende signale seulement qu'ils suivraient. Renvoie une erreur si aucun
+// destinataire n'a reçu le message.
+func (n *Notifier) SendTest(ctx context.Context, camera string) error {
+	cfg := n.Config.ForCamera(camera)
+	if len(cfg.Chats) == 0 {
+		return ErrNoRecipient
+	}
+	caption := "🧪 <b>Notification de test</b> — " + html.EscapeString(camera) +
+		"\n🕑 " + n.Now().In(n.Config.Location).Format("02/01 15:04:05")
+	switch {
+	case cfg.Clip:
+		caption += "\n🎬 Lors d'un vrai événement, le clip vidéo suivra en réponse."
+	case cfg.GIF:
+		caption += "\n🎞 Lors d'un vrai événement, un GIF animé suivra en réponse."
+	}
+	if link := n.uiLink("/#" + url.PathEscape(camera)); link != "" {
+		caption += "\n🔗 <a href=\"" + html.EscapeString(link) + "\">Ouvrir dans Frigate</a>"
+	}
+
+	var photo []byte
+	if cfg.Snapshot {
+		photo = n.fetchSnapshot(ctx, frigate.LatestPath(camera))
+	}
+	var mu sync.Mutex
+	var sent int
+	var lastErr error
+	record := func(m telegram.Message, err error) (telegram.Message, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			lastErr = err
+		} else {
+			sent++
+		}
+		return m, err
+	}
+	if photo == nil {
+		n.deliver(ctx, cfg.Chats, "text", telegram.InputFile{},
+			func(ctx context.Context, chatID int64, _ string, _ telegram.InputFile) (telegram.Message, error) {
+				return record(n.Telegram.SendMessage(ctx, chatID, caption, telegram.SendOptions{}))
+			}, nil)
+	} else {
+		n.deliver(ctx, cfg.Chats, "photo", telegram.InputFile{Name: "test.jpg", Data: photo},
+			func(ctx context.Context, chatID int64, _ string, f telegram.InputFile) (telegram.Message, error) {
+				return record(n.Telegram.SendPhoto(ctx, chatID, f, telegram.SendOptions{Caption: caption}))
+			}, nil)
+	}
+	if sent == 0 && lastErr != nil {
+		return lastErr
 	}
 	return nil
 }

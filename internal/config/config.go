@@ -50,6 +50,11 @@ type Telegram struct {
 type Web struct {
 	Enabled  bool
 	Password string // vide = pas d'authentification
+	// AllowedHosts liste les noms d'hôte acceptés, en plus des adresses IP et de
+	// localhost, quand aucun mot de passe n'est défini (protection anti-rebinding DNS).
+	AllowedHosts []string
+	// ProtectMetrics soumet aussi /metrics au mot de passe de l'interface.
+	ProtectMetrics bool
 }
 
 // Notify est la configuration de notification effective d'une caméra.
@@ -144,8 +149,10 @@ type fileYAML struct {
 }
 
 type webYAML struct {
-	Enabled  *bool  `yaml:"enabled"`
-	Password string `yaml:"password"`
+	Enabled        *bool    `yaml:"enabled"`
+	Password       string   `yaml:"password"`
+	AllowedHosts   []string `yaml:"allowed_hosts"`
+	ProtectMetrics bool     `yaml:"protect_metrics"`
 }
 
 // NotifyPatch est une surcharge partielle de Notify : les champs absents laissent
@@ -296,12 +303,17 @@ func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 	}
 
 	c := &Config{
-		Timezone:   orDefault(f.Timezone, "UTC"),
-		Mode:       orDefault(f.Mode, ModeEvents),
-		Frigate:    f.Frigate,
-		MQTT:       f.MQTT,
-		Telegram:   f.Telegram,
-		Web:        Web{Enabled: f.Web.Enabled == nil || *f.Web.Enabled, Password: f.Web.Password},
+		Timezone: orDefault(f.Timezone, "UTC"),
+		Mode:     orDefault(f.Mode, ModeEvents),
+		Frigate:  f.Frigate,
+		MQTT:     f.MQTT,
+		Telegram: f.Telegram,
+		Web: Web{
+			Enabled:        f.Web.Enabled == nil || *f.Web.Enabled,
+			Password:       f.Web.Password,
+			AllowedHosts:   f.Web.AllowedHosts,
+			ProtectMetrics: f.Web.ProtectMetrics,
+		},
 		StateFile:  orDefault(f.StateFile, "/data/state.json"),
 		HTTPListen: orDefault(f.HTTPListen, ":8080"),
 		LogLevel:   orDefault(f.LogLevel, "info"),
@@ -404,6 +416,9 @@ func (c *Config) validate() error {
 	}
 	if len(c.Telegram.Admins) == 0 {
 		add("telegram.admins doit contenir au moins un utilisateur")
+	}
+	if c.Web.ProtectMetrics && c.Web.Password == "" {
+		add("web.protect_metrics exige web.password")
 	}
 	switch c.LogLevel {
 	case "debug", "info", "warn", "error":

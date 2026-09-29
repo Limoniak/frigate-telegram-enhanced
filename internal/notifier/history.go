@@ -1,0 +1,71 @@
+package notifier
+
+import (
+	"slices"
+	"time"
+
+	"frigate-telegram/internal/frigate"
+)
+
+// historySize borne l'historique gardé en mémoire pour l'interface web.
+const historySize = 50
+
+// HistoryEntry décrit l'issue d'une détection : notifiée, ou ignorée et pourquoi.
+type HistoryEntry struct {
+	ID     string    `json:"id"`
+	At     time.Time `json:"at"`
+	Camera string    `json:"camera"`
+	Label  string    `json:"label"`
+	Zones  []string  `json:"zones"`
+	Score  float64   `json:"score,omitempty"`
+	Sent   bool      `json:"sent"`
+	Reason string    `json:"reason,omitempty"` // raison du filtrage (voir filter.Reason*)
+	Thumb  string    `json:"-"`                // chemin Frigate de la miniature, vide si aucune
+}
+
+// record ajoute l'issue d'un suivi à l'historique. Appelé sous n.mu.
+func (n *Notifier) record(t *tracked, sent bool) {
+	e := HistoryEntry{
+		ID: t.id, At: t.start, Camera: t.camera, Label: t.label,
+		Zones: slices.Clone(t.zones), Sent: sent,
+	}
+	if !sent {
+		e.Reason = t.lastReason
+	}
+	if t.hasScore {
+		e.Score = t.score
+	}
+	if len(t.eventIDs) > 0 {
+		e.Thumb = frigate.EventThumbnailPath(t.eventIDs[0])
+	}
+	if e.At.IsZero() {
+		e.At = n.Now()
+	}
+	n.history = append(n.history, e)
+	if len(n.history) > historySize {
+		n.history = slices.Delete(n.history, 0, len(n.history)-historySize)
+	}
+}
+
+// History renvoie les dernières détections, de la plus récente à la plus ancienne.
+func (n *Notifier) History() []HistoryEntry {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	out := slices.Clone(n.history)
+	slices.Reverse(out)
+	return out
+}
+
+// HistoryThumb renvoie le chemin Frigate de la miniature d'une entrée de
+// l'historique. Seuls les identifiants présents dans l'historique sont acceptés :
+// l'interface ne peut pas s'en servir pour lire n'importe quoi sur Frigate.
+func (n *Notifier) HistoryThumb(id string) (string, bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, e := range n.history {
+		if e.ID == id && e.Thumb != "" {
+			return e.Thumb, true
+		}
+	}
+	return "", false
+}
