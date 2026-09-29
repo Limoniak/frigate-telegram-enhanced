@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"frigate-telegram/internal/config"
+	"frigate-telegram-enhanced/internal/config"
 )
 
 func newTestClient(t *testing.T, url, user, pass string) *Client {

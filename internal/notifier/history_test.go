@@ -3,7 +3,7 @@ package notifier
 import (
 	"testing"
 
-	"frigate-telegram/internal/frigate"
+	"frigate-telegram-enhanced/internal/frigate"
 )
 
 func TestHistoryRecordsSentAndFiltered(t *testing.T) {

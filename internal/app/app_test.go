@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"frigate-telegram/internal/telegram"
+	"frigate-telegram-enhanced/internal/telegram"
 )
 
 // fakeTelegram répond à l'API Bot : le premier getUpdates livre une commande /pause,

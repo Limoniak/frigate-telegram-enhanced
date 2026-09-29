@@ -4,7 +4,7 @@ import (
 	"slices"
 	"time"
 
-	"frigate-telegram/internal/frigate"
+	"frigate-telegram-enhanced/internal/frigate"
 )
 
 // historySize borne l'historique gardé en mémoire pour l'interface web.

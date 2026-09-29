@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"frigate-telegram/internal/actions"
-	"frigate-telegram/internal/i18n"
-	"frigate-telegram/internal/telegram"
+	"frigate-telegram-enhanced/internal/actions"
+	"frigate-telegram-enhanced/internal/i18n"
+	"frigate-telegram-enhanced/internal/telegram"
 )
 
 const maxCaption = 1024

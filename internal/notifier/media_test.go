@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"frigate-telegram/internal/frigate"
+	"frigate-telegram-enhanced/internal/frigate"
 )
 
 // TestMediaPoolBoundsConcurrentDownloads vérifie que le pool limite le nombre de

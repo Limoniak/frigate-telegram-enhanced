@@ -8,10 +8,10 @@ import (
 	"os"
 	"sync"
 
-	"frigate-telegram/internal/config"
-	"frigate-telegram/internal/frigate"
-	"frigate-telegram/internal/i18n"
-	"frigate-telegram/internal/telegram"
+	"frigate-telegram-enhanced/internal/config"
+	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/i18n"
+	"frigate-telegram-enhanced/internal/telegram"
 )
 
 // SendClipTo envoie le clip d'un événement ou d'une review à un chat, en réponse à replyTo.

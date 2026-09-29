@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"frigate-telegram/internal/config"
-	"frigate-telegram/internal/frigate"
-	"frigate-telegram/internal/notifier"
-	"frigate-telegram/internal/state"
+	"frigate-telegram-enhanced/internal/config"
+	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/notifier"
+	"frigate-telegram-enhanced/internal/state"
 )
 
 const testConfig = `

@@ -1,4 +1,4 @@
-# Configuration avancée de frigate-telegram — FACULTATIVE.
+# Configuration avancée de frigate-telegram-enhanced — FACULTATIVE.
 #
 # L'installation normale n'en a pas besoin : tout se règle par les variables
 # d'environnement de docker-compose.yml, puis dans l'interface web.
@@ -25,7 +25,7 @@ mqtt:
   broker: tcp://mosquitto:1883   # ssl://hôte:8883 pour du TLS
   username: ""
   password: "${MQTT_PASSWORD:-}"
-  client_id: frigate-telegram
+  client_id: frigate-telegram-enhanced
   topic_prefix: frigate          # doit correspondre à mqtt.topic_prefix de Frigate
 
 telegram:

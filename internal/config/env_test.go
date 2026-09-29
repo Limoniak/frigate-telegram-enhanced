@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"frigate-telegram/internal/i18n"
+	"frigate-telegram-enhanced/internal/i18n"
 )
 
 func TestFromEnvMinimal(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"frigate-telegram/internal/config"
+	"frigate-telegram-enhanced/internal/config"
 )
 
 type fakeState struct {

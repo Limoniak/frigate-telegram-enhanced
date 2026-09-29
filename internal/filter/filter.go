@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"frigate-telegram/internal/config"
+	"frigate-telegram-enhanced/internal/config"
 )
 
 const (

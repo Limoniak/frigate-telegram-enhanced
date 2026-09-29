@@ -1,4 +1,4 @@
-# frigate-telegram
+# frigate-telegram-enhanced
 
 [English](README.md) · **Français**
 
@@ -78,7 +78,7 @@ score trop bas, déjà signalé il y a peu…), avec un lien direct vers la cam�
 1. Télécharger le fichier `docker-compose.yml` :
 
    ```bash
-   curl -O https://raw.githubusercontent.com/Limoniak/frigate-telegram/main/docker-compose.yml
+   curl -O https://raw.githubusercontent.com/Limoniak/frigate-telegram-enhanced/main/docker-compose.yml
    ```
 
 2. Modifier les variables d'environnement dans `docker-compose.yml` — au minimum les
@@ -97,10 +97,10 @@ aucune variable n'est nécessaire pour eux.
 
 > Si Frigate et son broker MQTT tournent dans Docker sur la même machine, utilisez
 > l'adresse IP de la machine dans `FRIGATE_URL` et `MQTT_BROKER` — `localhost`
-> désignerait le conteneur frigate-telegram lui-même.
+> désignerait le conteneur frigate-telegram-enhanced lui-même.
 
 L'image est construite par GitHub Actions et publiée sur GitHub Container Registry :
-`ghcr.io/limoniak/frigate-telegram` (amd64 et arm64).
+`ghcr.io/limoniak/frigate-telegram-enhanced` (amd64 et arm64).
 
 - `:latest` et `:main` — la dernière version de `main`
 - `:X.Y.Z` — publiés à chaque tag `v*`
@@ -125,7 +125,7 @@ Pour mettre à jour : `docker compose pull && docker compose up -d`.
 | `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` pour un certificat auto-signé |
 | `MQTT_USERNAME` / `MQTT_PASSWORD` | | Identifiants MQTT |
 | `MQTT_TOPIC_PREFIX` | | Doit correspondre à `mqtt.topic_prefix` de Frigate (défaut : `frigate`) |
-| `MQTT_CLIENT_ID` | | Défaut : `frigate-telegram` |
+| `MQTT_CLIENT_ID` | | Défaut : `frigate-telegram-enhanced` |
 | `MQTT_INSECURE_SKIP_VERIFY` | | `true` pour un certificat auto-signé |
 | `MODE` | | `events` (un message par objet, défaut) ou `reviews` (alertes Frigate ≥ 0.14) |
 | `WEB_ENABLED` | | `false` pour désactiver l'interface web |
@@ -249,5 +249,5 @@ Seuls les utilisateurs listés dans `telegram.admins` peuvent utiliser les comma
 
 ```bash
 go test ./...
-go build ./cmd/frigate-telegram
+go build ./cmd/frigate-telegram-enhanced
 ```

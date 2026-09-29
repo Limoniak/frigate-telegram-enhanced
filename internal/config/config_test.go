@@ -49,7 +49,7 @@ func TestParseMinimalAppliesDefaults(t *testing.T) {
 	if c.Mode != ModeEvents || c.Location.String() != "UTC" {
 		t.Errorf("mode=%q location=%q", c.Mode, c.Location)
 	}
-	if c.MQTT.ClientID != "frigate-telegram" || c.MQTT.TopicPrefix != "frigate" {
+	if c.MQTT.ClientID != "frigate-telegram-enhanced" || c.MQTT.TopicPrefix != "frigate" {
 		t.Errorf("mqtt = %+v", c.MQTT)
 	}
 	if c.StateFile != "/data/state.json" || c.HTTPListen != ":8431" || c.LogLevel != "info" {

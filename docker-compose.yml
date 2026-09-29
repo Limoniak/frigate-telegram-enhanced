@@ -1,14 +1,14 @@
-# frigate-telegram — Telegram notifications for Frigate NVR
-# Documentation: https://github.com/Limoniak/frigate-telegram
+# frigate-telegram-enhanced — Telegram notifications for Frigate NVR
+# Documentation: https://github.com/Limoniak/frigate-telegram-enhanced
 #
 # 1. Replace the values below (at least the four required ones).
 # 2. docker compose up -d
 # 3. Open http://<server-ip>:8431/ to set up notifications.
 
 services:
-  frigate-telegram:
-    image: ghcr.io/limoniak/frigate-telegram:latest
-    container_name: frigate-telegram
+  frigate-telegram-enhanced:
+    image: ghcr.io/limoniak/frigate-telegram-enhanced:latest
+    container_name: frigate-telegram-enhanced
     restart: unless-stopped
     stop_grace_period: 20s   # time to finish the notifications being sent
     environment:
@@ -35,11 +35,11 @@ services:
       # WEB_ALLOWED_HOSTS: "nas.lan"           # host names accepted without a password
       # LOG_LEVEL: "info"
     volumes:
-      - frigate-telegram-data:/data            # web interface settings and state (pauses, cooldowns)
+      - frigate-telegram-enhanced-data:/data            # web interface settings and state (pauses, cooldowns)
     tmpfs:
       - /tmp:size=256m                         # temporary clips (50 MB max each)
     ports:
       - "8431:8431"                            # web interface, /healthz and /metrics
 
 volumes:
-  frigate-telegram-data:
+  frigate-telegram-enhanced-data:

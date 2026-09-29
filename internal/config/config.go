@@ -15,7 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"frigate-telegram/internal/i18n"
+	"frigate-telegram-enhanced/internal/i18n"
 )
 
 const (
@@ -356,7 +356,7 @@ func build(f fileYAML) (*Config, error) {
 	}
 	c.Frigate.URL = strings.TrimRight(c.Frigate.URL, "/")
 	c.Frigate.ExternalURL = strings.TrimRight(c.Frigate.ExternalURL, "/")
-	c.MQTT.ClientID = orDefault(c.MQTT.ClientID, "frigate-telegram")
+	c.MQTT.ClientID = orDefault(c.MQTT.ClientID, "frigate-telegram-enhanced")
 	c.MQTT.TopicPrefix = orDefault(c.MQTT.TopicPrefix, "frigate")
 	c.notify = f.Notify.ApplyTo(defaultNotify(c.Telegram.Chats))
 	c.cameras = make(map[string]Notify, len(f.Cameras))

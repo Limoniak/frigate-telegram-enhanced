@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frigate-telegram — notifications</title>
+<title>frigate-telegram-enhanced — notifications</title>
 <style>
 :root {
   --bg: #f5f6f8; --card: #fff; --fg: #16181d; --muted: #6b7280; --line: #dfe3e8;
@@ -259,7 +259,7 @@ const DUR = /^(\d+(\.\d+)?(ns|us|ms|s|m|h))+$/;
 // En-tête exigé par le serveur sur les écritures. Ce n'est pas un secret : un en-tête
 // non standard force le navigateur à un contrôle préalable CORS, qu'un site tiers ne
 // peut pas franchir — il ne peut donc pas faire écrire l'interface à notre place.
-const TOKEN = "frigate-telegram";
+const TOKEN = "frigate-telegram-enhanced";
 
 // ---- langue -------------------------------------------------------------------
 //
@@ -267,7 +267,7 @@ const TOKEN = "frigate-telegram";
 // le sélecteur EN / FR est retenu dans ce navigateur. Chaque texte est écrit
 // T("anglais", "français") ; les textes fixes de la page portent data-t="en|fr".
 
-const LANG_KEY = "frigate-telegram-lang";
+const LANG_KEY = "frigate-telegram-enhanced-lang";
 
 function initialLang() {
   try {
@@ -284,7 +284,7 @@ const locale = () => (lang === "fr" ? "fr-FR" : "en-GB");
 
 function applyStatic() {
   document.documentElement.lang = lang;
-  document.title = T("frigate-telegram — notifications", "frigate-telegram — notifications");
+  document.title = T("frigate-telegram-enhanced — notifications", "frigate-telegram-enhanced — notifications");
   for (const n of document.querySelectorAll("[data-t]")) {
     const [en, fr] = n.dataset.t.split("|");
     n.textContent = T(en, fr);

@@ -1,4 +1,4 @@
-module frigate-telegram
+module frigate-telegram-enhanced
 
 go 1.27.0
 

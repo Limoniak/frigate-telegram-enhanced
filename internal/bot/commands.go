@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"frigate-telegram/internal/actions"
-	"frigate-telegram/internal/frigate"
-	"frigate-telegram/internal/i18n"
-	"frigate-telegram/internal/state"
-	"frigate-telegram/internal/telegram"
+	"frigate-telegram-enhanced/internal/actions"
+	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/i18n"
+	"frigate-telegram-enhanced/internal/state"
+	"frigate-telegram-enhanced/internal/telegram"
 )
 
 func helpText(l i18n.Lang) string {

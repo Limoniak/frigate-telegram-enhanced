@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"frigate-telegram/internal/frigate"
+	"frigate-telegram-enhanced/internal/frigate"
 )
 
 const revID = "1790604000.5-rev"

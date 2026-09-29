@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"frigate-telegram/internal/config"
-	"frigate-telegram/internal/i18n"
-	"frigate-telegram/internal/state"
-	"frigate-telegram/internal/telegram"
+	"frigate-telegram-enhanced/internal/config"
+	"frigate-telegram-enhanced/internal/i18n"
+	"frigate-telegram-enhanced/internal/state"
+	"frigate-telegram-enhanced/internal/telegram"
 )
 
 type fakeTG struct {

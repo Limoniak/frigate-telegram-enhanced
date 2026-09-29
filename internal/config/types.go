@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"frigate-telegram/internal/i18n"
+	"frigate-telegram-enhanced/internal/i18n"
 )
 
 // Duration est une durée sérialisée en texte ("60s", "1h30m") aussi bien en YAML

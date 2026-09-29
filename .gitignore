@@ -2,4 +2,4 @@
 /config/config.yml
 .env
 *.exe
-/frigate-telegram
+/frigate-telegram-enhanced

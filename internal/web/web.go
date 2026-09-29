@@ -19,11 +19,11 @@ import (
 	"sync"
 	"time"
 
-	"frigate-telegram/internal/config"
-	"frigate-telegram/internal/frigate"
-	"frigate-telegram/internal/i18n"
-	"frigate-telegram/internal/notifier"
-	"frigate-telegram/internal/state"
+	"frigate-telegram-enhanced/internal/config"
+	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/i18n"
+	"frigate-telegram-enhanced/internal/notifier"
+	"frigate-telegram-enhanced/internal/state"
 )
 
 //go:embed ui.html
@@ -172,7 +172,7 @@ func hostAllowed(host string, allowed []string) bool {
 // secret : il sert à rendre la requête « non simple » au sens CORS, pour qu'un site
 // tiers ouvert dans le même navigateur ne puisse pas la déclencher à notre insu — le
 // contrôle préalable qu'elle impose échouera, faute d'en-têtes CORS de notre part.
-const requestedWith = "frigate-telegram"
+const requestedWith = "frigate-telegram-enhanced"
 
 func sameOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +190,7 @@ func BasicAuth(pass string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, got, ok := r.BasicAuth()
 		if !ok || subtle.ConstantTimeCompare([]byte(got), []byte(pass)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="frigate-telegram", charset="UTF-8"`)
+			w.Header().Set("WWW-Authenticate", `Basic realm="frigate-telegram-enhanced", charset="UTF-8"`)
 			http.Error(w, requestLang(r, i18n.Default).T("authentication required", "authentification requise"), http.StatusUnauthorized)
 			return
 		}

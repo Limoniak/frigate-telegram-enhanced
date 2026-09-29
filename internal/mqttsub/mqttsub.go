@@ -9,7 +9,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"frigate-telegram/internal/config"
+	"frigate-telegram-enhanced/internal/config"
 )
 
 type Handler func(topic string, payload []byte)

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"frigate-telegram/internal/frigate"
+	"frigate-telegram-enhanced/internal/frigate"
 )
 
 func TestSendClipToTrackedEvent(t *testing.T) {

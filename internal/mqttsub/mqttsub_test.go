@@ -10,7 +10,7 @@ import (
 	"github.com/mochi-mqtt/server/v2/hooks/auth"
 	"github.com/mochi-mqtt/server/v2/listeners"
 
-	"frigate-telegram/internal/config"
+	"frigate-telegram-enhanced/internal/config"
 )
 
 func startBroker(t *testing.T) (*mochi.Server, string) {

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"frigate-telegram/internal/filter"
-	"frigate-telegram/internal/frigate"
+	"frigate-telegram-enhanced/internal/filter"
+	"frigate-telegram-enhanced/internal/frigate"
 )
 
 // handleReview traite frigate/reviews. Appelé sous n.mu.

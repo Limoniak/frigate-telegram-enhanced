@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"frigate-telegram/internal/i18n"
+	"frigate-telegram-enhanced/internal/i18n"
 )
 
 // Overlay est l'ensemble des réglages de notification enregistrés par l'interface
@@ -22,7 +22,7 @@ type Overlay struct {
 	Cameras map[string]NotifyPatch `yaml:"cameras,omitempty" json:"cameras"`
 }
 
-const overlayHeader = `# Réglages de notification enregistrés par l'interface web de frigate-telegram.
+const overlayHeader = `# Réglages de notification enregistrés par l'interface web de frigate-telegram-enhanced.
 # Ce fichier remplace les sections notify et cameras de config.yml.
 # Il est réécrit à chaque enregistrement : les commentaires ajoutés à la main seront perdus.
 `

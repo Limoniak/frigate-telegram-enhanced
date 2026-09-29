@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/url"
 
-	"frigate-telegram/internal/filter"
-	"frigate-telegram/internal/frigate"
+	"frigate-telegram-enhanced/internal/filter"
+	"frigate-telegram-enhanced/internal/frigate"
 )
 
 // handleEvent traite frigate/events. Appelé sous n.mu.

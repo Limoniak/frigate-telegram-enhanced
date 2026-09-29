@@ -1,4 +1,4 @@
-// Commande frigate-telegram : notifications Telegram pour Frigate NVR.
+// Commande frigate-telegram-enhanced : notifications Telegram pour Frigate NVR.
 package main
 
 import (
@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"frigate-telegram/internal/app"
-	"frigate-telegram/internal/config"
-	"frigate-telegram/internal/server"
+	"frigate-telegram-enhanced/internal/app"
+	"frigate-telegram-enhanced/internal/config"
+	"frigate-telegram-enhanced/internal/server"
 )
 
 func main() {

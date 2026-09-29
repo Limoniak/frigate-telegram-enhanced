@@ -13,17 +13,17 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"frigate-telegram/internal/bot"
-	"frigate-telegram/internal/config"
-	"frigate-telegram/internal/filter"
-	"frigate-telegram/internal/frigate"
-	"frigate-telegram/internal/metrics"
-	"frigate-telegram/internal/mqttsub"
-	"frigate-telegram/internal/notifier"
-	"frigate-telegram/internal/server"
-	"frigate-telegram/internal/state"
-	"frigate-telegram/internal/telegram"
-	"frigate-telegram/internal/web"
+	"frigate-telegram-enhanced/internal/bot"
+	"frigate-telegram-enhanced/internal/config"
+	"frigate-telegram-enhanced/internal/filter"
+	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/metrics"
+	"frigate-telegram-enhanced/internal/mqttsub"
+	"frigate-telegram-enhanced/internal/notifier"
+	"frigate-telegram-enhanced/internal/server"
+	"frigate-telegram-enhanced/internal/state"
+	"frigate-telegram-enhanced/internal/telegram"
+	"frigate-telegram-enhanced/internal/web"
 )
 
 // Run démarre le service et le fait tourner jusqu'à l'annulation de ctx, puis
@@ -121,7 +121,7 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 		close(botDone)
 	}()
 	sub.Start()
-	log.Info("frigate-telegram démarré", "configuration", cfg.Source, "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
+	log.Info("frigate-telegram-enhanced démarré", "configuration", cfg.Source, "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
 	if cfg.Web.Enabled {
 		log.Info("interface web disponible", "adresse", cfg.HTTPListen,
 			"authentification", cfg.Web.Password != "")

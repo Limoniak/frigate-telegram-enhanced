@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"frigate-telegram/internal/frigate"
-	"frigate-telegram/internal/telegram"
+	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/telegram"
 )
 
 type sendFunc func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error)

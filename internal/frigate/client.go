@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"frigate-telegram/internal/config"
+	"frigate-telegram-enhanced/internal/config"
 )
 
 // ErrTooLarge signale un média plus gros que la limite demandée.

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"frigate-telegram/internal/i18n"
+	"frigate-telegram-enhanced/internal/i18n"
 )
 
 // FromEnv construit la configuration depuis les variables d'environnement, pour une

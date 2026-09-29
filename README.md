@@ -1,4 +1,4 @@
-# frigate-telegram
+# frigate-telegram-enhanced
 
 **English** · [Français](README.fr.md)
 
@@ -78,7 +78,7 @@ the camera to adjust.
 1. Download the `docker-compose.yml` file:
 
    ```bash
-   curl -O https://raw.githubusercontent.com/Limoniak/frigate-telegram/main/docker-compose.yml
+   curl -O https://raw.githubusercontent.com/Limoniak/frigate-telegram-enhanced/main/docker-compose.yml
    ```
 
 2. Change the environment variables in `docker-compose.yml` — at least the four
@@ -97,10 +97,10 @@ interface — no variable needed for those.
 
 > If Frigate and its MQTT broker run in Docker on the same machine, use the machine's
 > IP address in `FRIGATE_URL` and `MQTT_BROKER` — `localhost` would point to the
-> frigate-telegram container itself.
+> frigate-telegram-enhanced container itself.
 
 The image is built by GitHub Actions and published to GitHub Container Registry:
-`ghcr.io/limoniak/frigate-telegram` (amd64 and arm64).
+`ghcr.io/limoniak/frigate-telegram-enhanced` (amd64 and arm64).
 
 - `:latest` and `:main` — the latest version of `main`
 - `:X.Y.Z` — published on every `v*` tag
@@ -125,7 +125,7 @@ To update: `docker compose pull && docker compose up -d`.
 | `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` for a self-signed certificate |
 | `MQTT_USERNAME` / `MQTT_PASSWORD` | | MQTT credentials |
 | `MQTT_TOPIC_PREFIX` | | Must match Frigate's `mqtt.topic_prefix` (default: `frigate`) |
-| `MQTT_CLIENT_ID` | | Default: `frigate-telegram` |
+| `MQTT_CLIENT_ID` | | Default: `frigate-telegram-enhanced` |
 | `MQTT_INSECURE_SKIP_VERIFY` | | `true` for a self-signed certificate |
 | `MODE` | | `events` (one message per object, default) or `reviews` (Frigate ≥ 0.14 alerts) |
 | `WEB_ENABLED` | | `false` to disable the web interface |
@@ -250,5 +250,5 @@ Only the users listed in `telegram.admins` can use the commands and buttons.
 
 ```bash
 go test ./...
-go build ./cmd/frigate-telegram
+go build ./cmd/frigate-telegram-enhanced
 ```

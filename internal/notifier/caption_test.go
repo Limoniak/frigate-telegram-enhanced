@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"frigate-telegram/internal/i18n"
+	"frigate-telegram-enhanced/internal/i18n"
 )
 
 func paris(t *testing.T) *time.Location {
