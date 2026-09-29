@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -269,5 +270,72 @@ func TestCallbackUnauthorized(t *testing.T) {
 	e.callback("p:1800", 999)
 	if e.st.IsPaused(now) || len(e.tg.answers) != 1 || !strings.Contains(e.tg.answers[0], "Non autorisé") {
 		t.Errorf("answers = %v", e.tg.answers)
+	}
+}
+
+// slowFR bloque Cameras jusqu'à la fermeture de release et compte les appels.
+type slowFR struct {
+	fakeFR
+	release chan struct{}
+	calls   *int32
+}
+
+func (f slowFR) Cameras(ctx context.Context) ([]string, error) {
+	atomic.AddInt32(f.calls, 1)
+	<-f.release
+	return f.fakeFR.Cameras(ctx)
+}
+
+// Une commande qui attend Frigate ne doit pas bloquer la boucle de polling, et les
+// réponses doivent garder l'ordre des commandes.
+func TestCommandsDoNotBlockPollingAndKeepOrder(t *testing.T) {
+	e := newEnv(t)
+	var calls int32
+	fr := slowFR{release: make(chan struct{}), calls: &calls}
+	e.b.Frigate = fr
+	send := func(text string) {
+		e.b.HandleUpdate(context.Background(), telegram.Update{Message: &telegram.Message{
+			MessageID: 10, From: &telegram.User{ID: 1}, Chat: telegram.Chat{ID: 1}, Text: text}})
+	}
+
+	returned := make(chan struct{})
+	go func() {
+		send("/cameras")
+		send("/help")
+		close(returned)
+	}()
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("HandleUpdate attend Frigate")
+	}
+	close(fr.release)
+	e.b.Wait()
+
+	e.tg.mu.Lock()
+	defer e.tg.mu.Unlock()
+	if len(e.tg.messages) != 2 || !strings.Contains(e.tg.messages[0], "Caméras") || !strings.Contains(e.tg.messages[1], "Commandes") {
+		t.Errorf("réponses = %q, attendu /cameras puis /help", e.tg.messages)
+	}
+}
+
+func TestCameraListIsCached(t *testing.T) {
+	e := newEnv(t)
+	var calls int32
+	release := make(chan struct{})
+	close(release)
+	e.b.Frigate = slowFR{release: release, calls: &calls}
+	clock := now
+	e.b.Now = func() time.Time { return clock }
+
+	e.cmd("/cameras", 1)
+	e.cmd("/pause garage", 1)
+	if calls != 1 {
+		t.Errorf("appels à Frigate = %d, attendu 1 (cache)", calls)
+	}
+	clock = clock.Add(camerasTTL + time.Second)
+	e.cmd("/cameras", 1)
+	if calls != 2 {
+		t.Errorf("appels à Frigate = %d, attendu 2 après expiration du cache", calls)
 	}
 }

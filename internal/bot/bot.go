@@ -4,6 +4,7 @@ package bot
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -43,10 +44,21 @@ type Deps struct {
 	MQTTConnected func() bool
 }
 
+// camerasTTL borne la fraîcheur de la liste des caméras : elle change rarement, et
+// /cameras, /snapshot et /pause <caméra> la consultent à chaque appel.
+const camerasTTL = 30 * time.Second
+
 type Bot struct {
 	Deps
 	lastPoll atomic.Int64
 	wg       sync.WaitGroup
+
+	serialMu sync.Mutex
+	tail     chan struct{} // fermé quand la dernière commande mise en file est terminée
+
+	camMu    sync.Mutex
+	camList  []string
+	camUntil time.Time
 }
 
 func New(d Deps) *Bot {
@@ -76,6 +88,39 @@ func (b *Bot) async(f func()) {
 		defer b.wg.Done()
 		f()
 	}()
+}
+
+// serial exécute f en arrière-plan, après toutes les commandes mises en file avant
+// elle : la boucle de long polling n'attend jamais Frigate, et « /pause » puis
+// « /resume » s'appliquent toujours dans cet ordre.
+func (b *Bot) serial(f func()) {
+	b.serialMu.Lock()
+	prev, done := b.tail, make(chan struct{})
+	b.tail = done
+	b.serialMu.Unlock()
+	b.async(func() {
+		defer close(done)
+		if prev != nil {
+			<-prev
+		}
+		f()
+	})
+}
+
+// cameras renvoie la liste des caméras de Frigate, gardée en cache camerasTTL.
+func (b *Bot) cameras(ctx context.Context) ([]string, error) {
+	b.camMu.Lock()
+	defer b.camMu.Unlock()
+	now := b.Now()
+	if b.camList != nil && now.Before(b.camUntil) {
+		return slices.Clone(b.camList), nil
+	}
+	cams, err := b.Frigate.Cameras(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b.camList, b.camUntil = cams, now.Add(camerasTTL)
+	return slices.Clone(cams), nil
 }
 
 var commands = []telegram.BotCommand{

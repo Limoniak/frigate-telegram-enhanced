@@ -127,3 +127,16 @@ func TestStatus(t *testing.T) {
 		t.Errorf("status = %+v", st)
 	}
 }
+
+func TestMarkNotifiedForgetsOldCooldowns(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 0, 0, 0, time.UTC)
+	s, _ := Load(filepath.Join(t.TempDir(), "state.json"), now)
+	s.MarkNotified("garage/person", now)
+	s.MarkNotified("jardin/cat", now.Add(cooldownRetention))
+	if !s.LastNotified("garage/person").IsZero() {
+		t.Error("un cooldown de plus de 24 h doit être oublié")
+	}
+	if s.LastNotified("jardin/cat").IsZero() {
+		t.Error("le cooldown qui vient d'être posé doit rester")
+	}
+}

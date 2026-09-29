@@ -84,9 +84,11 @@ func (s *Store) LastNotified(key string) time.Time {
 }
 
 // MarkNotified enregistre une notification pour le cooldown ; écrit sur disque au prochain FlushIfDirty.
+// Les entrées de plus de cooldownRetention sont oubliées au passage.
 func (s *Store) MarkNotified(key string, at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	maps.DeleteFunc(s.cooldowns, func(_ string, t time.Time) bool { return at.Sub(t) >= cooldownRetention })
 	s.cooldowns[key] = at
 	s.dirty = true
 }

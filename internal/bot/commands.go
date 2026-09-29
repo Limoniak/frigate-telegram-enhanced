@@ -72,13 +72,13 @@ func (b *Bot) handleCommand(ctx context.Context, m telegram.Message) {
 	chat := m.Chat.ID
 	switch name {
 	case "pause":
-		b.reply(ctx, chat, b.cmdPause(ctx, args))
+		b.serial(func() { b.reply(ctx, chat, b.cmdPause(ctx, args)) })
 	case "resume":
-		b.reply(ctx, chat, b.cmdResume(args))
+		b.serial(func() { b.reply(ctx, chat, b.cmdResume(args)) })
 	case "status":
-		b.reply(ctx, chat, b.cmdStatus())
+		b.serial(func() { b.reply(ctx, chat, b.cmdStatus()) })
 	case "cameras":
-		b.reply(ctx, chat, b.cmdCameras(ctx))
+		b.serial(func() { b.reply(ctx, chat, b.cmdCameras(ctx)) })
 	case "snapshot":
 		b.async(func() { b.cmdSnapshot(ctx, chat, args) })
 	case "last":
@@ -92,9 +92,9 @@ func (b *Bot) handleCommand(ctx context.Context, m telegram.Message) {
 			}
 		})
 	case "help", "start":
-		b.reply(ctx, chat, helpText)
+		b.serial(func() { b.reply(ctx, chat, helpText) })
 	default:
-		b.reply(ctx, chat, "Commande inconnue. /help")
+		b.serial(func() { b.reply(ctx, chat, "Commande inconnue. /help") })
 	}
 }
 
@@ -108,8 +108,8 @@ func (b *Bot) cmdPause(ctx context.Context, args []string) string {
 		camera = a
 	}
 	if camera != "" {
-		if err := b.checkCamera(ctx, camera); err != nil {
-			return err.Error()
+		if msg := b.checkCamera(ctx, camera); msg != "" {
+			return msg
 		}
 	}
 	until := state.Forever
@@ -166,7 +166,7 @@ func (b *Bot) cmdStatus() string {
 }
 
 func (b *Bot) cmdCameras(ctx context.Context) string {
-	cams, err := b.Frigate.Cameras(ctx)
+	cams, err := b.cameras(ctx)
 	if err != nil {
 		return "⚠️ Frigate injoignable : " + esc(err.Error())
 	}
@@ -191,7 +191,7 @@ func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 		b.sendLiveSnapshot(ctx, chat, args[0])
 		return
 	}
-	cams, err := b.Frigate.Cameras(ctx)
+	cams, err := b.cameras(ctx)
 	if err != nil || len(cams) == 0 {
 		b.reply(ctx, chat, "⚠️ Impossible de lister les caméras.")
 		return
@@ -273,13 +273,14 @@ func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 	}
 }
 
-// checkCamera vérifie que la caméra existe dans Frigate (accepte si Frigate est injoignable).
-func (b *Bot) checkCamera(ctx context.Context, camera string) error {
-	cams, err := b.Frigate.Cameras(ctx)
+// checkCamera vérifie que la caméra existe dans Frigate (accepte si Frigate est
+// injoignable) ; renvoie le message à afficher sinon, vide si tout va bien.
+func (b *Bot) checkCamera(ctx context.Context, camera string) string {
+	cams, err := b.cameras(ctx)
 	if err != nil || slices.Contains(cams, camera) {
-		return nil
+		return ""
 	}
-	return fmt.Errorf("Caméra inconnue : %s. Caméras : %s", esc(camera), esc(strings.Join(cams, ", ")))
+	return "Caméra inconnue : " + esc(camera) + ". Caméras : " + esc(strings.Join(cams, ", "))
 }
 
 func (b *Bot) untilText(until time.Time) string {
