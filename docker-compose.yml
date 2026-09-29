@@ -1,7 +1,7 @@
 services:
   frigate-telegram:
-    build: .
-    # image: ghcr.io/<utilisateur>/frigate-telegram:latest   # après publication par la CI
+    image: ghcr.io/limoniak/frigate-telegram:latest
+    # build: .                # décommenter (et commenter image:) pour construire localement
     container_name: frigate-telegram
     restart: unless-stopped
     stop_grace_period: 20s    # laisse le temps de sauvegarder l'état et de finir les envois en cours
@@ -12,5 +12,5 @@ services:
     tmpfs:
       - /tmp:size=256m        # clips temporaires (50 Mo max chacun)
     ports:
-      - "127.0.0.1:8080:8080" # /healthz et /metrics, accessible seulement depuis l'hôte ;
+      - "127.0.0.1:8080:8080" # /healthz et /metrics, accessibles seulement depuis l'hôte ;
                                # remplacer par "8080:8080" pour l'exposer sur toutes les interfaces

@@ -38,9 +38,18 @@ mkdir -p config data
 cp config.example.yml config/config.yml   # puis l'adapter
 cp .env.example .env                      # puis y mettre le token
 sudo chown 65532:65532 data               # l'image tourne en utilisateur non-root (uid 65532)
-docker compose up -d --build
+docker compose up -d
 docker compose logs -f
 ```
+
+L'image est construite et publiée par GitHub Actions sur GitHub Container Registry :
+`ghcr.io/limoniak/frigate-telegram` (amd64 et arm64).
+
+- `:latest` et `:X.Y.Z` — publiés à chaque tag `v*`
+- `:main` et `:sha-<court>` — publiés à chaque push sur `main`
+
+Pour construire localement à la place, commenter `image:` et décommenter `build: .`
+dans [`docker-compose.yml`](docker-compose.yml), puis `docker compose up -d --build`.
 
 ## Configuration
 
