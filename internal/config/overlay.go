@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -21,13 +22,17 @@ type Overlay struct {
 	Notify     NotifyPatch            `yaml:"notify" json:"notify"`
 	Cameras    map[string]NotifyPatch `yaml:"cameras,omitempty" json:"cameras"`
 	Recipients map[string]Recipient   `yaml:"recipients,omitempty" json:"recipients"`
+	// ExternalURL remplace frigate.external_url (FRIGATE_EXTERNAL_URL) ; absent, la
+	// valeur de la configuration s'applique ; vide, les liens utilisent frigate.url.
+	ExternalURL *string `yaml:"external_url,omitempty" json:"external_url,omitempty"`
 }
 
 // settings est l'ensemble des réglages modifiables à chaud.
 type settings struct {
-	notify     Notify
-	cameras    map[string]Notify
-	recipients map[string]Recipient
+	notify      Notify
+	cameras     map[string]Notify
+	recipients  map[string]Recipient
+	externalURL string
 }
 
 const overlayHeader = `# Réglages de notification enregistrés par l'interface web de frigate-telegram-enhanced.
@@ -86,12 +91,16 @@ func SaveOverlay(path string, o Overlay) error {
 // resolve calcule les réglages effectifs d'un overlay sans rien installer.
 // Un overlay nil redonne les sections notify et cameras de config.yml.
 func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
-	s := settings{notify: c.fileNotify, cameras: maps.Clone(c.fileCameras), recipients: maps.Clone(c.fileRecipients)}
+	s := settings{notify: c.fileNotify, cameras: maps.Clone(c.fileCameras), recipients: maps.Clone(c.fileRecipients),
+		externalURL: c.fileExternalURL}
 	if o != nil {
 		s.notify = o.Notify.ApplyTo(defaultNotify(c.Telegram.Chats))
 		s.cameras = make(map[string]Notify, len(o.Cameras))
 		for name, p := range o.Cameras {
 			s.cameras[name] = p.ApplyTo(s.notify)
+		}
+		if o.ExternalURL != nil {
+			s.externalURL = strings.TrimRight(strings.TrimSpace(*o.ExternalURL), "/")
 		}
 		s.recipients = make(map[string]Recipient, len(o.Recipients))
 		for name, r := range o.Recipients {
@@ -101,6 +110,9 @@ func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
 		}
 	}
 	errs := c.validateRecipients(s.recipients, lang)
+	if err := validateExternalURL(s.externalURL, lang); err != nil {
+		errs = append(errs, err)
+	}
 	errs = append(errs, c.validateNotify("notify", s.notify, lang)...)
 	for _, name := range slices.Sorted(maps.Keys(s.cameras)) {
 		errs = append(errs, c.validateNotify("cameras."+name, s.cameras[name], lang)...)
@@ -126,7 +138,7 @@ func (c *Config) ApplyOverlay(o *Overlay) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.notify, c.cameras, c.recipients = s.notify, s.cameras, s.recipients
+	c.notify, c.cameras, c.recipients, c.externalURL = s.notify, s.cameras, s.recipients, s.externalURL
 	return nil
 }
 
@@ -141,6 +153,8 @@ func (c *Config) CurrentOverlay() Overlay {
 	if o.Recipients == nil {
 		o.Recipients = map[string]Recipient{}
 	}
+	ext := c.externalURL
+	o.ExternalURL = &ext
 	for name, n := range c.cameras {
 		o.Cameras[name] = DiffPatch(c.notify, n)
 	}

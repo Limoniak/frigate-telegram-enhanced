@@ -25,7 +25,7 @@ services:
 
       # --- Optional ------------------------------------------------------------
       # TELEGRAM_ADMINS: "123456789"           # who can control the bot (default: the private chats above)
-      # FRIGATE_EXTERNAL_URL: "https://frigate.example.com"  # for the "Open in Frigate" links
+      # FRIGATE_EXTERNAL_URL: "https://frigate.example.com"  # "Open in Frigate" links (default: FRIGATE_URL)
       # FRIGATE_USERNAME: ""
       # FRIGATE_PASSWORD: ""
       # MQTT_USERNAME: ""

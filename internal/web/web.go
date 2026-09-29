@@ -238,19 +238,22 @@ type settings struct {
 	CanHist  bool                 `json:"can_history"`
 	CanHlth  bool                 `json:"can_health"`
 	Presence bool                 `json:"presence"` // topics de présence configurés
+	// FrigateURL est l'adresse des liens quand aucune adresse externe n'est réglée.
+	FrigateURL string `json:"frigate_url"`
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	s := settings{
-		Mode:     h.cfg.Mode,
-		Timezone: h.cfg.Timezone,
-		Chats:    h.cfg.ChatNames(),
-		Overlay:  h.cfg.CurrentOverlay(),
-		CanTest:  h.tester != nil,
-		CanPause: h.state != nil,
-		CanHist:  h.history != nil,
-		CanHlth:  h.health != nil,
-		Presence: h.cfg.Presence.Enabled(),
+		Mode:       h.cfg.Mode,
+		Timezone:   h.cfg.Timezone,
+		Chats:      h.cfg.ChatNames(),
+		Overlay:    h.cfg.CurrentOverlay(),
+		CanTest:    h.tester != nil,
+		CanPause:   h.state != nil,
+		CanHist:    h.history != nil,
+		CanHlth:    h.health != nil,
+		Presence:   h.cfg.Presence.Enabled(),
+		FrigateURL: h.cfg.Frigate.URL,
 	}
 	if _, err := os.Stat(h.path); err == nil {
 		s.Custom = true

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"maps"
+	"net/url"
 	"os"
 	"regexp"
 	"slices"
@@ -144,16 +145,18 @@ type Config struct {
 	Source     string    // fichier lu, ou "environment"
 	Language   i18n.Lang // langue des messages Telegram et des erreurs (en par défaut)
 
-	mu         sync.RWMutex
-	notify     Notify
-	cameras    map[string]Notify
-	recipients map[string]Recipient
+	mu          sync.RWMutex
+	notify      Notify
+	cameras     map[string]Notify
+	recipients  map[string]Recipient
+	externalURL string // adresse des liens « Ouvrir dans Frigate » ; vide = celle de frigate.url
 
 	// état issu du seul config.yml, conservé pour pouvoir revenir en arrière
 	// quand l'interface web supprime ses surcharges.
-	fileNotify     Notify
-	fileCameras    map[string]Notify
-	fileRecipients map[string]Recipient
+	fileNotify      Notify
+	fileCameras     map[string]Notify
+	fileRecipients  map[string]Recipient
+	fileExternalURL string
 }
 
 // ForCamera renvoie la configuration effective d'une caméra (globale si non listée).
@@ -164,6 +167,18 @@ func (c *Config) ForCamera(name string) Notify {
 		return n
 	}
 	return c.notify
+}
+
+// ExternalURL renvoie l'adresse de Frigate utilisée pour les liens des
+// notifications : celle réglée (FRIGATE_EXTERNAL_URL ou interface web), sinon
+// frigate.url, l'adresse par laquelle le service joint Frigate.
+func (c *Config) ExternalURL() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.externalURL == "" {
+		return c.Frigate.URL
+	}
+	return c.externalURL
 }
 
 // Recipient renvoie les restrictions d'un destinataire (vides s'il n'en a pas).
@@ -442,6 +457,7 @@ func build(f fileYAML) (*Config, error) {
 		c.cameras[name] = y.ApplyTo(c.notify)
 	}
 	c.recipients = maps.Clone(f.Recipients)
+	c.externalURL, c.fileExternalURL = c.Frigate.ExternalURL, c.Frigate.ExternalURL
 	c.fileNotify, c.fileCameras, c.fileRecipients = c.notify, maps.Clone(c.cameras), maps.Clone(c.recipients)
 	if err := errors.Join(langErr, c.validate()); err != nil {
 		return nil, err
@@ -542,11 +558,27 @@ func (c *Config) validate() error {
 		add("invalid log_level %q (debug, info, warn, error)", "log_level %q invalide (debug, info, warn, error)", c.LogLevel)
 	}
 	errs = append(errs, c.validateRecipients(c.recipients, c.Language)...)
+	if err := validateExternalURL(c.externalURL, c.Language); err != nil {
+		errs = append(errs, err)
+	}
 	errs = append(errs, c.validateNotify("notify", c.notify, c.Language)...)
 	for _, name := range slices.Sorted(maps.Keys(c.cameras)) {
 		errs = append(errs, c.validateNotify("cameras."+name, c.cameras[name], c.Language)...)
 	}
 	return errors.Join(errs...)
+}
+
+// validateExternalURL vérifie l'adresse des liens : vide, ou http(s)://hôte[…].
+func validateExternalURL(u string, l i18n.Lang) error {
+	if u == "" {
+		return nil
+	}
+	p, err := url.Parse(u)
+	if err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Host == "" {
+		return l.Errorf("invalid Frigate external URL %q (e.g. https://frigate.example.com)",
+			"adresse externe de Frigate %q invalide (ex. https://frigate.example.com)", u)
+	}
+	return nil
 }
 
 func (c *Config) validateRecipients(rs map[string]Recipient, l i18n.Lang) []error {

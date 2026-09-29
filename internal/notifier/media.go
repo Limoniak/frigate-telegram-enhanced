@@ -175,7 +175,7 @@ func (n *Notifier) download(ctx context.Context, path string) (string, error) {
 func (n *Notifier) tooLargeText(path string) string {
 	l := n.Config.Language
 	text := l.T("🎬 Clip too large for Telegram (over 50 MB).", "🎬 Clip trop volumineux pour Telegram (plus de 50 Mo).")
-	if base := n.Config.Frigate.ExternalURL; base != "" {
+	if base := n.Config.ExternalURL(); base != "" {
 		text += "\n<a href=\"" + html.EscapeString(base+path) + "\">" + l.T("Download the clip", "Télécharger le clip") + "</a>"
 	}
 	return text

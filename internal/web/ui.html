@@ -3,82 +3,151 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S10 19 10 13'/%3E%3Cpath d='M14.3 24.5a2 2 0 0 0 3.4 0'/%3E%3C/g%3E%3C/svg%3E">
 <title>frigate-telegram-enhanced — notifications</title>
 <style>
 :root {
-  --bg: #f5f6f8; --card: #fff; --fg: #16181d; --muted: #6b7280; --line: #dfe3e8;
-  --accent: #2b6cb0; --accent-fg: #fff; --accent-soft: #e8f0fa; --danger: #b42318; --ok: #2f7a3e;
-  --tg-bg: #dfe7d7; --tg-bubble: #fff; --tg-link: #2a7ab8; --tg-btn: rgba(0,0,0,.08); --tg-photo: #9aa7b4;
-  --radius: 12px;
+  color-scheme: light dark;
+  --bg: #f3f4f6; --card: #fff; --card-2: #f8f9fb; --fg: #111827; --muted: #6b7280; --faint: #9ca3af;
+  --line: #e5e7eb; --line-strong: #d1d5db;
+  --accent: #2563eb; --accent-hover: #1d4ed8; --accent-fg: #fff; --accent-soft: #eff5ff; --ring: rgba(37,99,235,.35);
+  --ok: #15803d; --ok-soft: #ecfdf3; --warn: #b45309; --warn-soft: #fff8e6; --danger: #c0262d; --danger-soft: #fef1f1;
+  --tg-bg: #cfdcc4; --tg-bubble: #fff; --tg-link: #2a7ab8; --tg-btn: rgba(0,0,0,.07); --tg-photo: #9aa7b4;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.06);
+  --shadow-lg: 0 6px 20px rgba(16,24,40,.10);
+  --radius: 14px; --radius-sm: 9px; --pad: 20px; --wrap: 960px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14161a; --card: #1c1f25; --fg: #e8eaed; --muted: #9aa3af; --line: #2c313a;
-    --accent: #5b9bd5; --accent-fg: #0d1014; --accent-soft: #1d2a38; --danger: #f07171; --ok: #6fbf73;
-    --tg-bg: #0e1621; --tg-bubble: #182533; --tg-link: #6ab2f2; --tg-btn: rgba(255,255,255,.09); --tg-photo: #3a4a5c;
+    --bg: #0e1014; --card: #16191f; --card-2: #1b1f26; --fg: #e7e9ec; --muted: #9aa3af; --faint: #6b7280;
+    --line: #252a32; --line-strong: #333a44;
+    --accent: #5b9dff; --accent-hover: #8ab9ff; --accent-fg: #07101f; --accent-soft: rgba(91,157,255,.13); --ring: rgba(91,157,255,.45);
+    --ok: #4ade80; --ok-soft: rgba(74,222,128,.10); --warn: #fbbf24; --warn-soft: rgba(251,191,36,.10); --danger: #f87171; --danger-soft: rgba(248,113,113,.10);
+    --tg-bg: #0e1621; --tg-bubble: #182533; --tg-link: #6ab2f2; --tg-btn: rgba(255,255,255,.08); --tg-photo: #3a4a5c;
+    --shadow: 0 1px 2px rgba(0,0,0,.35);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,.45);
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-padding-top: 76px; }
 body {
   margin: 0; background: var(--bg); color: var(--fg);
-  font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- en-tête ---- */
 header {
-  position: sticky; top: 0; z-index: 10; background: var(--card);
-  border-bottom: 1px solid var(--line); padding: 10px 16px;
-  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  -webkit-backdrop-filter: saturate(1.6) blur(12px); backdrop-filter: saturate(1.6) blur(12px);
+  border-bottom: 1px solid var(--line);
 }
-header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+header .bar { max-width: var(--wrap); margin: 0 auto; padding: 10px var(--pad); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.logo {
+  width: 34px; height: 34px; border-radius: 10px; flex: none; display: grid; place-items: center;
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8); color: #fff; box-shadow: 0 2px 6px rgba(37,99,235,.35);
+}
+.logo svg.i { width: 19px; height: 19px; }
+.brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+.brand-text .sub { font-size: 12px; color: var(--muted); }
 header .spacer { flex: 1; }
-.lang { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-.lang button { border: 0; border-radius: 0; padding: 5px 9px; font-size: 13px; background: var(--bg); color: var(--muted); }
-.lang button[aria-pressed=true] { background: var(--accent); color: var(--accent-fg); }
-main { max-width: 900px; margin: 0 auto; padding: 16px; }
-section {
+.lang { display: inline-flex; background: var(--card-2); border: 1px solid var(--line); border-radius: 9px; padding: 2px; }
+.lang button { border: 0; border-radius: 7px; padding: 4px 9px; font-size: 12px; font-weight: 600; background: transparent; color: var(--muted); }
+.lang button:hover { color: var(--fg); }
+.lang button[aria-pressed=true] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
+
+.status { font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.status:empty { display: none; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.status.saved { color: var(--ok); }
+.status.dirty { color: var(--warn); font-weight: 500; }
+
+main { max-width: 960px; margin: 0 auto; padding: 20px var(--pad) 8px; }
+section, details.advanced { scroll-margin-top: 76px; }
+
+/* ---- sommaire (grands écrans) ---- */
+.toc { display: none; }
+@media (min-width: 1240px) {
+  :root { --wrap: 1220px; }
+  .layout { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--pad); display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; }
+  .layout > main { max-width: none; margin: 0; padding-left: 0; padding-right: 0; }
+  .toc { display: block; position: sticky; top: 76px; align-self: start; padding-top: 20px; }
+  .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; border-left: 2px solid var(--line); }
+  .toc a {
+    display: flex; align-items: center; gap: 10px; padding: 7px 12px; margin-left: -2px; border-left: 2px solid transparent;
+    color: var(--muted); text-decoration: none; font-size: 14px; border-radius: 0 8px 8px 0;
+  }
+  .toc a svg.i { width: 16px; height: 16px; }
+  .toc a:hover { color: var(--fg); background: var(--card); }
+  .toc a[aria-current=true] { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  .toc .toc-title { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px 14px; }
+}
+
+/* ---- cartes ---- */
+section, details.advanced {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  margin-bottom: 16px; overflow: hidden;
+  margin-bottom: 18px; box-shadow: var(--shadow); overflow: hidden;
 }
-section > h2, details.advanced > summary {
-  font-size: 16px; margin: 0; padding: 14px 16px 4px; font-weight: 600;
+.sec-head, details.advanced > summary { display: flex; gap: 12px; align-items: flex-start; padding: 18px var(--pad) 14px; }
+.sec-head h2, details.advanced > summary .t { font-size: 16.5px; margin: 0; font-weight: 650; letter-spacing: -.01em; line-height: 1.35; }
+.sec-head .lead { margin: 3px 0 0; color: var(--muted); font-size: 14px; }
+.ico {
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none;
+  background: var(--accent-soft); color: var(--accent); margin-top: -3px;
 }
-section > .lead { margin: 0; padding: 0 16px 12px; color: var(--muted); font-size: 14px; }
-.body { padding: 4px 16px 16px; }
+.body { padding: 0 var(--pad) 8px; }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 
 /* ---- modèles de notification ---- */
-.styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 4px 16px 16px; }
+.styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; padding: 2px var(--pad) 18px; }
+.styles > .hint { grid-column: 1 / -1; }
 .style-card {
-  font: inherit; color: inherit; text-align: left; cursor: pointer;
-  border: 2px solid var(--line); border-radius: var(--radius); background: var(--bg);
+  position: relative; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--card);
   padding: 0; overflow: hidden; display: flex; flex-direction: column;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
 }
-.style-card:hover { border-color: var(--accent); }
-.style-card[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
-.style-card .meta { padding: 10px 12px 12px; }
+.style-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.style-card[aria-pressed=true] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.style-card .meta { padding: 11px 13px 13px; border-top: 1px solid var(--line); flex: 1; }
+.style-card[aria-pressed=true] .meta { background: var(--accent-soft); }
 .style-card .title { font-weight: 600; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.style-card .desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
-.tag { font-size: 11px; font-weight: 500; border-radius: 999px; padding: 1px 7px; background: var(--accent); color: var(--accent-fg); }
+.style-card .desc { color: var(--muted); font-size: 13px; margin-top: 3px; line-height: 1.4; }
+.tag { font-size: 10.5px; font-weight: 600; letter-spacing: .02em; border-radius: 999px; padding: 1px 8px; background: var(--accent); color: var(--accent-fg); }
 .tag.soft { background: transparent; color: var(--muted); border: 1px solid var(--line); }
-.check { margin-left: auto; color: var(--accent); visibility: hidden; }
-.style-card[aria-pressed=true] .check { visibility: visible; }
+.check {
+  position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 12px; font-weight: 700;
+  background: var(--accent); color: var(--accent-fg); box-shadow: 0 1px 4px rgba(0,0,0,.25);
+  transform: scale(.4); opacity: 0; transition: transform .15s, opacity .15s;
+}
+.style-card[aria-pressed=true] .check { transform: none; opacity: 1; }
 
 /* aperçu façon Telegram */
-.tg { background: var(--tg-bg); padding: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.35; min-height: 190px; }
-.bubble { background: var(--tg-bubble); border-radius: 10px; overflow: hidden; max-width: 100%; box-shadow: 0 1px 1px rgba(0,0,0,.12); }
-.photo { position: relative; height: 84px; background: linear-gradient(160deg, var(--tg-photo), #6b7a89); }
+.tg {
+  background-color: var(--tg-bg);
+  background-image: radial-gradient(rgba(255,255,255,.18) 1px, transparent 1.2px);
+  background-size: 14px 14px;
+  padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.35; min-height: 200px;
+}
+.bubble { background: var(--tg-bubble); border-radius: 12px 12px 12px 4px; overflow: hidden; max-width: 100%; box-shadow: 0 1px 1.5px rgba(0,0,0,.15); }
+.photo { position: relative; height: 88px; background: linear-gradient(160deg, var(--tg-photo), #6b7a89); }
 .photo .bbox { position: absolute; left: 42%; top: 14%; width: 20%; height: 72%; border: 2px solid #ffd54a; border-radius: 3px; }
 .photo .who { position: absolute; left: 44%; top: 30%; font-size: 26px; }
 .photo .gif { position: absolute; left: 6px; top: 6px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; }
-.photo .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; }
+.photo .play { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; padding-left: 2px; }
 .photo .dur { position: absolute; left: 6px; bottom: 5px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 0 5px; border-radius: 4px; }
 .photo.small { height: 58px; }
 .photo.zoom .bbox { left: 26%; top: 4%; width: 48%; height: 92%; }
 .photo.zoom .who { left: 37%; top: 12%; font-size: 52px; }
-.framing { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px; }
-.framing .row { gap: 10px; }
-.framing .row > .hint { min-width: 5.5em; margin: 0; }
-.framing .pills { margin-top: 0; }
-.cap { padding: 6px 8px; }
+.cap { padding: 6px 9px 7px; }
 .cap b { font-weight: 600; }
 .cap .link { color: var(--tg-link); }
 .kb { display: flex; gap: 3px; padding: 0 3px 3px; }
@@ -86,196 +155,378 @@ section > .lead { margin: 0; padding: 0 16px 12px; color: var(--muted); font-siz
 .kb span { flex: 1; text-align: center; background: var(--tg-btn); border-radius: 6px; padding: 3px 0; font-size: 11px; white-space: nowrap; }
 .quote { border-left: 2px solid var(--tg-link); margin: 6px 8px 0; padding-left: 6px; color: var(--tg-link); font-size: 11px; }
 
+/* options du modèle : cadrage, lien, vidéo */
+.framing {
+  display: flex; flex-direction: column; gap: 10px; margin: 0 var(--pad) 16px; padding: 14px 16px;
+  background: var(--card-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.framing:empty { display: none; }
+.framing .row { gap: 10px; }
+.framing .row > .hint:first-child { min-width: 6.5em; margin: 0; font-weight: 500; color: var(--fg); }
+.framing .row > .hint { margin: 0; }
+.framing .pills { margin-top: 0; }
+.control input.url { flex: 1; min-width: 220px; max-width: 420px; }
+.control a.test { font-size: 14px; color: var(--accent); text-decoration: none; font-weight: 500; }
+.control a.test:hover { text-decoration: underline; }
+
 /* ---- questions à choix ---- */
-.question { padding: 12px 0; border-top: 1px solid var(--line); }
-.question:first-child { border-top: 0; }
-.question .q { font-weight: 500; }
+.question { padding: 16px 0; border-top: 1px solid var(--line); }
+.question:first-child { border-top: 0; padding-top: 4px; }
+.question .q { font-weight: 600; }
+.question > .hint { margin-top: 3px; }
+@media (min-width: 720px) {
+  .question { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+  .question > .q, .question > .hint { grid-column: 1; }
+  .question > :not(.q):not(.hint) { grid-column: 2; margin-top: 0; }
+  .question > :not(.q):not(.hint):first-child { grid-column: 1 / -1; }
+  .question > .pills, .question > .chips, .question > div:not(.hint) { grid-row: span 2; }
+}
 .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .pill {
   font: inherit; font-size: 14px; cursor: pointer; color: var(--fg);
-  border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 14px;
+  border: 1px solid var(--line-strong); background: var(--card); border-radius: 999px; padding: 6px 14px;
+  transition: background .12s, border-color .12s, color .12s;
 }
-.pill:hover { border-color: var(--accent); }
-.pill[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.pill:hover { border-color: var(--accent); color: var(--accent); }
+.pill[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); box-shadow: 0 1px 3px var(--ring); }
 .pill.custom { cursor: default; border-style: dashed; }
-.pill.custom[aria-pressed=true] { background: var(--accent-soft); color: var(--fg); border-color: var(--accent); }
+.pill.custom[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); box-shadow: none; }
+
+/* ---- sensibilité ---- */
+.sens { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.sens input[type=range] { flex: 1; min-width: 180px; accent-color: var(--accent); margin: 0; }
+.sens .val { font-weight: 650; min-width: 3.5em; text-align: center; font-variant-numeric: tabular-nums; background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 2px 8px; }
+.sens-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.sens-effect { font-size: 13px; margin: 8px 0 0; }
+
+/* ---- destinataires ---- */
+.recipient { padding: 14px var(--pad); border-top: 1px solid var(--line); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 16px; align-items: center; }
+.recipient .who { font-weight: 600; grid-column: 1 / -1; }
+.recipient .sub-q { color: var(--muted); font-size: 13px; }
+.recipient .pills { margin-top: 0; }
+@media (max-width: 560px) {
+  .recipient { grid-template-columns: minmax(0, 1fr); }
+  .recipient .sub-q { margin-top: 6px; }
+}
 
 /* ---- caméras ---- */
-details.camera { border-top: 1px solid var(--line); }
+#cameras { border-top: 1px solid var(--line); }
+details.camera + details.camera { border-top: 1px solid var(--line); }
 details.camera > summary {
-  padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; list-style: none;
+  padding: 13px var(--pad); cursor: pointer; display: flex; align-items: center; gap: 12px; list-style: none;
+  transition: background .12s;
 }
+details.camera > summary:hover { background: var(--card-2); }
 details.camera > summary::-webkit-details-marker { display: none; }
-details.camera > summary::after { content: "▸"; color: var(--muted); margin-left: 4px; }
-details.camera[open] > summary::after { content: "▾"; }
-summary .cam-name { font-weight: 500; }
+details.camera > summary::after {
+  content: ""; width: 7px; height: 7px; flex: none; margin: 0 4px 0 2px;
+  border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint);
+  transform: rotate(-45deg); transition: transform .15s;
+}
+details.camera[open] > summary::after { transform: rotate(45deg); }
+details.camera[open] > summary { background: var(--card-2); }
+summary .cam-name { font-weight: 600; }
 summary .cam-state { font-size: 13px; color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 details.camera.off .cam-name { color: var(--muted); }
-.toggle { position: relative; width: 40px; height: 22px; flex: none; }
+details.camera > .body { background: var(--card-2); border-top: 1px solid var(--line); padding-top: 12px; padding-bottom: 14px; }
+details.camera > .body .question { border-top-color: var(--line); }
+details.camera > .body .pill { background: var(--card); }
+details.camera > .body .pill[aria-pressed=true] { background: var(--accent); }
+.toggle { position: relative; width: 40px; height: 23px; flex: none; }
 .toggle input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; position: absolute; z-index: 1; }
-.toggle span { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: background .15s; }
-.toggle span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.toggle span { position: absolute; inset: 0; background: var(--line-strong); border-radius: 999px; transition: background .15s; }
+.toggle span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 17px; height: 17px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
 .toggle input:checked + span { background: var(--ok); }
-.toggle input:checked + span::after { transform: translateX(18px); }
+.toggle input:checked + span::after { transform: translateX(17px); }
 .toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---- réglages avancés (éditeur détaillé) ---- */
-details.advanced { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 16px; }
-details.advanced > summary { cursor: pointer; padding-bottom: 14px; }
-details.more { margin-top: 8px; }
-details.more > summary { cursor: pointer; color: var(--accent); font-size: 14px; padding: 6px 0; }
+details.advanced > summary { cursor: pointer; list-style: none; align-items: center; padding-bottom: 18px; }
+details.advanced > summary::-webkit-details-marker { display: none; }
+details.advanced > summary .t { flex: 1; }
+details.advanced > summary::after {
+  content: ""; width: 7px; height: 7px; flex: none; margin-right: 4px;
+  border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint);
+  transform: rotate(-45deg); transition: transform .15s;
+}
+details.advanced[open] > summary::after { transform: rotate(45deg); }
+details.advanced[open] > summary { border-bottom: 1px solid var(--line); }
+details.advanced > .body { padding-top: 14px; }
+details.more { margin-top: 6px; border-top: 1px solid var(--line); }
+details.more > summary { cursor: pointer; color: var(--accent); font-size: 14px; font-weight: 500; padding: 12px 0 6px; list-style: none; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: "▸ "; }
+details.more[open] > summary::before { content: "▾ "; }
 .field { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .field:last-child { border-bottom: 0; }
+.fgroup + .fgroup { margin-top: 10px; }
+.fgroup > h3 {
+  display: flex; align-items: center; gap: 10px; margin: 14px 0 0; padding: 0 0 8px;
+  font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--accent);
+  border-bottom: 1px solid var(--line);
+}
+.fgroup > h3::after { content: ""; flex: 1; }
+details.more .fgroup > h3 { margin-top: 18px; }
 .field-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.field-head > .name { font-weight: 500; }
+.field-head > .name { font-weight: 600; }
 .field-head > .spacer { flex: 1; }
 .control { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .control.off { opacity: .45; }
-.override { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
-input[type=text], input[type=number], input[type=time], select {
-  font: inherit; color: inherit; background: var(--bg);
-  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; max-width: 100%;
+@media (min-width: 720px) {
+  .field { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+  .field > .field-head { grid-column: 1; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .field-head > .spacer { display: none; }
+  .field > .control { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; }
+  .field > .hint { grid-column: 1; }
+}
+.override { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.override input { accent-color: var(--accent); margin: 0; }
+input[type=text], input[type=url], input[type=number], input[type=time], select {
+  font: inherit; font-size: 14px; color: inherit; background: var(--card);
+  border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 10px; max-width: 100%;
+  transition: border-color .12s, box-shadow .12s;
+}
+input[type=text]:focus, input[type=url]:focus, input[type=number]:focus, input[type=time]:focus, select:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
 }
 input[type=number] { width: 7em; }
 input[type=text].dur { width: 7em; }
 input:invalid { border-color: var(--danger); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
-  border: 1px solid var(--line); background: var(--bg); color: var(--muted);
-  border-radius: 999px; padding: 4px 11px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--card); color: var(--muted);
+  border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer;
   user-select: none; font-family: inherit;
 }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
 .chip[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .control.off .chip { cursor: default; }
-.rows { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.control.off .chip:hover { border-color: var(--line-strong); color: var(--muted); }
+.chips input[type=text] { border-radius: 999px; padding: 3px 12px; font-size: 13px; }
+.rows { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row .lbl { min-width: 6em; }
+
+/* ---- boutons ---- */
 button {
-  font: inherit; font-size: 14px; cursor: pointer; border-radius: 7px;
-  border: 1px solid var(--line); background: var(--bg); color: inherit; padding: 6px 12px;
+  font: inherit; font-size: 14px; cursor: pointer; border-radius: 9px;
+  border: 1px solid var(--line-strong); background: var(--card); color: inherit; padding: 6px 13px;
+  transition: background .12s, border-color .12s, color .12s, box-shadow .12s;
 }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 500; padding: 7px 16px; }
-button.link { border: 0; background: none; color: var(--accent); padding: 4px 0; }
-button.danger { color: var(--danger); }
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; padding: 7px 18px; box-shadow: 0 1px 3px var(--ring); }
+button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-fg); }
+button.primary:disabled { background: var(--card-2); border-color: var(--line); color: var(--faint); box-shadow: none; opacity: 1; }
+button.link { border: 0; background: none; color: var(--accent); padding: 4px 0; font-weight: 500; }
+button.link:hover:not(:disabled) { text-decoration: underline; }
+button.danger, button.link.danger { color: var(--danger); }
+button.link.danger:hover:not(:disabled) { color: var(--danger); }
 button:disabled { opacity: .5; cursor: default; }
 button.icon { padding: 4px 9px; line-height: 1; }
-.switch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.switch input { width: 18px; height: 18px; accent-color: var(--accent); }
-.notice { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
-.notice.warn { background: #fdf3cd; color: #6b4e00; }
-.notice.err { background: #fde4e1; color: var(--danger); white-space: pre-wrap; }
-@media (prefers-color-scheme: dark) {
-  .notice.warn { background: #3a3116; color: #f0d68a; }
-  .notice.err { background: #3b1f1f; color: #f5a3a3; }
-}
-.status { font-size: 13px; color: var(--muted); }
-.status.saved { color: var(--ok); }
-.status.dirty { color: var(--fg); }
+.toggle input:disabled { cursor: default; }
+
+/* ---- messages ---- */
+.notice { padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 18px; font-size: 14px; border: 1px solid; border-left-width: 4px; }
+.notice.warn { background: var(--warn-soft); color: var(--fg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); border-left-color: var(--warn); }
+.notice.err { background: var(--danger-soft); color: var(--fg); border-color: color-mix(in srgb, var(--danger) 35%, transparent); border-left-color: var(--danger); white-space: pre-wrap; }
+
+/* ---- pastilles d'état ---- */
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.dot.pending { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.dot.error { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.dot.paused { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.dot.pulse { animation: pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px transparent; } }
+@media (prefers-reduced-motion: reduce) { .dot.pulse { animation: none; } * { transition: none !important; } }
+
 /* ---- bandeau d'état ---- */
-.live { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 16px; }
-.live .state { font-weight: 600; margin-right: auto; }
-.live.paused { background: #fdf3cd; }
-.live .sub { width: 100%; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
-.live .sub .row { gap: 6px; }
-@media (prefers-color-scheme: dark) { .live.paused { background: #3a3116; } }
-
-/* ---- destinataires ---- */
-.recipient { padding: 12px 16px; border-top: 1px solid var(--line); }
-.recipient .who { font-weight: 600; }
-.recipient .sub-q { color: var(--muted); font-size: 13px; margin-top: 8px; }
-.recipient .pills { margin-top: 4px; }
-
-/* ---- sensibilité ---- */
-.sens { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
-.sens input[type=range] { flex: 1; min-width: 180px; accent-color: var(--accent); }
-.sens .val { font-weight: 600; min-width: 3.5em; text-align: right; }
-.sens-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 2px; }
-.sens-effect { font-size: 13px; margin: 6px 0 0; }
+.overview { display: grid; gap: 0; }
+.live { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 14px var(--pad); }
+.live .state { font-weight: 650; margin-right: auto; display: inline-flex; align-items: center; gap: 10px; }
+.live.paused { background: var(--warn-soft); }
+.live .seg { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.live .seg button { padding: 5px 12px; font-size: 13px; border-radius: 999px; }
+.live .sub { width: 100%; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); padding-left: 19px; }
+.live .sub .row { gap: 8px; }
 
 /* ---- état des connexions ---- */
-.health { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 10px 16px; font-size: 14px; }
-.health .comp { display: inline-flex; gap: 6px; align-items: baseline; }
-.health .comp .d { color: var(--muted); font-size: 13px; }
-.health-errors { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px; }
-.health-error { border-left: 3px solid var(--danger); background: #fde4e1; border-radius: 6px; padding: 8px 12px; font-size: 14px; }
-.health-error .fix { color: var(--fg); margin-top: 2px; }
-@media (prefers-color-scheme: dark) { .health-error { background: #3b1f1f; } }
+.health { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px var(--pad); font-size: 13.5px; background: var(--card-2); }
+.live + .health { border-top: 1px solid var(--line); }
+.health .lbl { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 2px; }
+.health .comp { display: inline-flex; gap: 8px; align-items: center; background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px 4px 10px; }
+.health .comp .n { font-weight: 600; }
+.health .comp .d { color: var(--muted); font-size: 12.5px; }
+.health-errors { display: flex; flex-direction: column; gap: 8px; padding: 0 var(--pad) 14px; background: var(--card-2); }
+.health-errors[hidden] { display: none; }
+.health-error { border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-left: 4px solid var(--danger); background: var(--danger-soft); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 14px; }
+.health-error .fix { color: var(--fg); margin-top: 4px; }
 
 /* ---- essai ---- */
-.try { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 16px 16px; }
+.try { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px var(--pad); border-top: 1px solid var(--line); background: var(--card-2); }
+.try:empty { display: none; }
+.try .hint { margin: 0; }
 .try-one { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .try-one .result { font-size: 13px; color: var(--muted); }
-.try-one .result.ok { color: var(--ok); }
+.try-one .result.ok { color: var(--ok); font-weight: 500; }
 .try-one .result.err { color: var(--danger); }
+
 /* ---- activité récente ---- */
-.activity { list-style: none; margin: 0; padding: 0; }
-.activity li { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line); }
-.activity .thumb { width: 56px; height: 42px; border-radius: 6px; object-fit: cover; background: var(--bg); flex: none;
-  display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.activity { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.activity li { display: flex; align-items: center; gap: 14px; padding: 10px var(--pad); }
+.activity li + li { border-top: 1px solid var(--line); }
+.activity li:hover { background: var(--card-2); }
+.activity .thumb { width: 64px; height: 48px; border-radius: 8px; object-fit: cover; background: var(--card-2); border: 1px solid var(--line); flex: none;
+  display: flex; align-items: center; justify-content: center; font-size: 22px; }
 .activity .what { flex: 1; min-width: 0; }
-.activity .what .t { font-weight: 500; }
+.activity .what .t { font-weight: 600; }
 .activity .what .d { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity .out { text-align: right; font-size: 13px; flex: none; max-width: 45%; }
-.activity .out .ok { color: var(--ok); font-weight: 500; }
-.activity .out .no { color: var(--muted); }
-.activity-foot { display: flex; gap: 12px; align-items: center; padding: 8px 16px 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); flex-wrap: wrap; }
-.warn-line { color: #8a5a00; font-size: 13px; margin: 6px 0 0; }
-@media (prefers-color-scheme: dark) { .warn-line { color: #f0d68a; } }
-footer { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 13px; padding: 0 4px 24px; }
+.activity .out .ok { display: inline-block; color: var(--ok); background: var(--ok-soft); font-weight: 600; border-radius: 999px; padding: 2px 10px; }
+.activity .out .no { display: inline-block; color: var(--muted); background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; }
+.activity .out button.link { font-size: 13px; padding: 2px 0 0; }
+.activity-foot { display: flex; gap: 12px; align-items: center; padding: 12px var(--pad); border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); flex-wrap: wrap; background: var(--card-2); }
+.activity-foot:empty { display: none; }
+.activity-foot button.link { margin-left: auto; font-size: 13px; }
+.warn-line { color: var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 10px 0 0; }
+
+.savebar {
+  position: fixed; left: 50%; bottom: 16px; z-index: 20; transform: translateX(-50%);
+  width: min(560px, calc(100% - 2 * var(--pad)));
+  display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 16px;
+  background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); animation: rise .18s ease-out;
+}
+.savebar[hidden] { display: none; }
+.savebar .txt { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; }
+body.has-savebar main { padding-bottom: 88px; }
+@keyframes rise { from { transform: translate(-50%, 12px); opacity: 0; } }
+footer { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 13px; padding: 4px 4px 32px; }
 footer .spacer { flex: 1; }
+
+@media (max-width: 600px) {
+  :root { --pad: 16px; }
+  main { padding-top: 16px; }
+  .brand-text .sub { display: none; }
+  header .bar { flex-wrap: nowrap; gap: 8px; }
+  header .spacer { display: none; }
+  .brand { flex: 1; }
+  header h1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .status.dirty, header #save { display: none; }
+  header .status { position: absolute; left: var(--pad); bottom: -26px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; box-shadow: var(--shadow); }
+  .savebar { bottom: 10px; }
+  .styles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .style-card .desc { font-size: 12px; }
+  .tg { min-height: 180px; padding: 8px; }
+  .activity li { flex-wrap: wrap; }
+  .activity .out { max-width: none; width: 100%; text-align: left; padding-left: 78px; }
+  .live .sub { padding-left: 0; }
+}
+@media (max-width: 380px) {
+  .styles { grid-template-columns: minmax(0, 1fr); }
+}
 </style>
 </head>
 <body>
 <header>
-  <h1 data-t="Frigate notifications|Notifications Frigate">Frigate notifications</h1>
-  <span class="spacer"></span>
-  <span class="status" id="status"></span>
-  <span class="lang" role="group" aria-label="Language / Langue">
-    <button type="button" data-lang="en" aria-pressed="false">EN</button><button type="button" data-lang="fr" aria-pressed="false">FR</button>
-  </span>
-  <button class="primary" id="save" disabled data-t="Save|Enregistrer">Save</button>
+  <div class="bar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+      <div class="brand-text">
+        <h1 data-t="Frigate notifications|Notifications Frigate">Frigate notifications</h1>
+        <span class="sub">frigate-telegram-enhanced</span>
+      </div>
+    </div>
+    <span class="spacer"></span>
+    <span class="status" id="status" role="status" aria-live="polite"></span>
+    <span class="lang" role="group" aria-label="Language / Langue">
+      <button type="button" data-lang="en" aria-pressed="false">EN</button><button type="button" data-lang="fr" aria-pressed="false">FR</button>
+    </span>
+    <button class="primary" id="save" disabled data-t="Save|Enregistrer">Save</button>
+  </div>
 </header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Sections">
+  <p class="toc-title" data-t="On this page|Sur cette page"></p>
+  <ol>
+    <li><a href="#state-box" data-target="state-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg><span data-t="Status|État"></span></a></li>
+    <li><a href="#sec-style" data-target="sec-style"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span data-t="Notification style|Modèle de notification"></span></a></li>
+    <li><a href="#sec-when" data-target="sec-when"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-t="When|Quand"></span></a></li>
+    <li><a href="#recipients-box" data-target="recipients-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span data-t="Recipients|Destinataires"></span></a></li>
+    <li><a href="#sec-cameras" data-target="sec-cameras"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></svg><span data-t="Cameras|Caméras"></span></a></li>
+    <li><a href="#activity-box" data-target="activity-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span data-t="Recent activity|Activité récente"></span></a></li>
+    <li><a href="#advanced" data-target="advanced"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span data-t="Advanced settings|Réglages avancés"></span></a></li>
+  </ol>
+</nav>
 <main>
   <div id="messages"></div>
 
-  <section id="health-box" hidden><div class="health" id="health"></div><div class="health-errors" id="health-errors"></div></section>
+  <section id="state-box" hidden>
+    <div class="live" id="live" hidden></div>
+    <div class="health" id="health" hidden></div>
+    <div class="health-errors" id="health-errors" hidden></div>
+  </section>
 
-  <section id="live-box" hidden><div class="live" id="live"></div></section>
-
-  <section>
-    <h2 data-t="What should your notifications look like?|À quoi ressemblent vos notifications ?"></h2>
-    <p class="lead" data-t="Pick a style: every camera uses it, except the ones you set differently below.|Choisissez un modèle : toutes les caméras l'utiliseront, sauf celles que vous réglez autrement plus bas."></p>
+  <section id="sec-style">
+    <div class="sec-head">
+      <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      <div>
+        <h2 data-t="What should your notifications look like?|À quoi ressemblent vos notifications ?"></h2>
+        <p class="lead" data-t="Pick a style: every camera uses it, except the ones you set differently below.|Choisissez un modèle : toutes les caméras l'utiliseront, sauf celles que vous réglez autrement plus bas."></p>
+      </div>
+    </div>
     <div class="styles" id="styles"></div>
     <div class="framing" id="framing"></div>
     <div class="try" id="try"></div>
   </section>
 
-  <section>
-    <h2 data-t="When should you be notified?|Quand être prévenu ?"></h2>
+  <section id="sec-when">
+    <div class="sec-head">
+      <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div><h2 data-t="When should you be notified?|Quand être prévenu ?"></h2></div>
+    </div>
     <div class="body" id="questions"></div>
   </section>
 
   <section id="recipients-box" hidden>
-    <h2 data-t="Recipients|Destinataires"></h2>
-    <p class="lead" data-t="What each person receives, on top of the camera settings.|Ce que reçoit chaque personne, en plus des réglages des caméras."></p>
+    <div class="sec-head">
+      <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      <div>
+        <h2 data-t="Recipients|Destinataires"></h2>
+        <p class="lead" data-t="What each person receives, on top of the camera settings.|Ce que reçoit chaque personne, en plus des réglages des caméras."></p>
+      </div>
+    </div>
     <div id="recipients"></div>
   </section>
 
-  <section>
-    <h2 data-t="Cameras|Caméras"></h2>
-    <p class="lead" data-t="Turn a camera on or off, or open it to give it another style.|Activez ou coupez une caméra, ou ouvrez-la pour lui donner un autre modèle."></p>
+  <section id="sec-cameras">
+    <div class="sec-head">
+      <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></svg></span>
+      <div>
+        <h2 data-t="Cameras|Caméras"></h2>
+        <p class="lead" data-t="Turn a camera on or off, or open it to give it another style.|Activez ou coupez une caméra, ou ouvrez-la pour lui donner un autre modèle."></p>
+      </div>
+    </div>
     <div id="cameras"></div>
   </section>
 
   <section id="activity-box" hidden>
-    <h2 data-t="Recent activity|Activité récente"></h2>
-    <p class="lead" data-t="Frigate's latest detections and what happened to them — handy to understand why a notification didn't arrive.|Les dernières détections de Frigate et ce qu'il en est advenu — pratique pour comprendre pourquoi une notification n'est pas arrivée."></p>
+    <div class="sec-head">
+      <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+      <div>
+        <h2 data-t="Recent activity|Activité récente"></h2>
+        <p class="lead" data-t="Frigate's latest detections and what happened to them — handy to understand why a notification didn't arrive.|Les dernières détections de Frigate et ce qu'il en est advenu — pratique pour comprendre pourquoi une notification n'est pas arrivée."></p>
+      </div>
+    </div>
     <ul class="activity" id="activity"></ul>
     <div class="activity-foot" id="activity-foot"></div>
   </section>
 
   <details class="advanced" id="advanced">
-    <summary data-t="Advanced settings|Réglages avancés"></summary>
+    <summary>
+      <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span>
+      <span class="t" data-t="Advanced settings|Réglages avancés"></span>
+    </summary>
     <div class="body">
       <p class="hint" data-t="Every setting, for what the choices above don't cover. They apply to every camera, unless it has its own.|Tous les réglages, pour les cas que les choix ci-dessus ne couvrent pas. Ils s'appliquent à toutes les caméras, sauf réglage propre."></p>
       <div id="global"></div>
@@ -288,6 +539,13 @@ footer .spacer { flex: 1; }
     <button class="link danger" id="reset" data-t="Back to the config.yml settings|Revenir aux réglages de config.yml"></button>
   </footer>
 </main>
+</div>
+
+<div class="savebar" id="savebar" role="region" aria-label="Save / Enregistrer" hidden>
+  <span class="txt"><span class="dot pending"></span><span data-t="Unsaved changes|Modifications non enregistrées"></span></span>
+  <button type="button" id="discard" data-t="Cancel|Annuler"></button>
+  <button type="button" class="primary" id="save2" data-t="Save|Enregistrer"></button>
+</div>
 
 <script>
 "use strict";
@@ -339,6 +597,7 @@ function setLang(l) {
   render();
   renderLive();
   renderHistory();
+  renderHealth();
   if (data.can_health) loadHealth(); // messages du serveur : redemandés dans la nouvelle langue
   touched();
 }
@@ -463,6 +722,18 @@ const FIELDS = () => [
 ];
 const TYPES = Object.fromEntries(FIELDS().map((f) => [f.key, f.type]));
 
+// Les réglages détaillés, rangés par thème ; `extra` ajoute ce qui n'est pas un
+// réglage de notification (le lien vers Frigate, global seulement).
+const GROUPS = () => [
+  {title: T("Recipients and filtering", "Destinataires et filtrage"),
+   keys: ["enabled", "chats", "labels", "zones", "min_score", "ignore_stationary", "severity"]},
+  {title: T("Media", "Médias"),
+   keys: ["snapshot", "crop", "clip", "media_in_place", "gif", "clip_delay", "genai_description"]},
+  {title: T("Pace", "Rythme"), keys: ["cooldown", "group"]},
+  {title: T("Schedule and presence", "Horaires et présence"), keys: ["when_home", "quiet_hours", "off_hours"]},
+  {title: T("Links", "Liens"), keys: [], extra: () => externalURLField(), globalOnly: true},
+];
+
 let data = null;      // réponse de /api/settings
 let overlay = null;   // ce que l'on enregistrera
 let saved = null;     // sérialisation du dernier état enregistré, pour détecter les changements
@@ -475,6 +746,9 @@ function dirty() { return JSON.stringify(overlay) !== saved; }
 
 function touched() {
   $("save").disabled = !dirty();
+  $("save2").disabled = !dirty();
+  $("savebar").hidden = !dirty();
+  document.body.classList.toggle("has-savebar", dirty());
   const s = $("status");
   if (dirty()) { s.textContent = T("Unsaved changes", "Modifications non enregistrées"); s.className = "status dirty"; }
   else { s.textContent = ""; s.className = "status"; }
@@ -671,6 +945,35 @@ function renderStyles() {
   if (!STYLES().some((st) => matches(st.patch, eff))) {
     box.append(el("p", {class: "hint", text: T("Current setting is custom (see Advanced settings).", "Réglage actuel personnalisé (voir Réglages avancés).")}));
   }
+}
+
+// externalURLField : l'adresse de Frigate utilisée par le lien « Ouvrir dans Frigate »
+// des notifications. Vide, c'est celle par laquelle le service joint Frigate (FRIGATE_URL).
+function externalURLField() {
+  const valid = (u) => u === "" || /^https?:\/\/[^\s/]+/i.test(u);
+  const input = el("input", {type: "url", class: "url", placeholder: data.frigate_url || "https://frigate.example.com",
+    "aria-label": T("Frigate address for links", "Adresse de Frigate pour les liens")});
+  input.value = overlay.external_url || "";
+  const test = el("a", {class: "test", target: "_blank", rel: "noopener", text: T("Test ↗", "Tester ↗")});
+  const sync = () => {
+    const u = input.value.trim() || data.frigate_url || "";
+    test.hidden = !u || !valid(u);
+    test.href = u || "#";
+  };
+  sync();
+  input.addEventListener("input", sync);
+  input.addEventListener("change", () => {
+    const u = input.value.trim().replace(/\/+$/, "");
+    if (!valid(u)) { input.setCustomValidity(T("Expected an address like https://frigate.example.com", "Adresse attendue du type https://frigate.example.com")); input.reportValidity(); return; }
+    input.setCustomValidity("");
+    overlay.external_url = u;
+    changed();
+  });
+  return el("div", {class: "field"},
+    el("div", {class: "field-head"}, el("span", {class: "name", text: T("“Open in Frigate” link", "Lien « Ouvrir dans Frigate »")})),
+    el("div", {class: "control"}, input, test),
+    el("p", {class: "hint", text: T("Empty: Frigate's address (FRIGATE_URL). Set another one to open Frigate from outside.",
+      "Vide : l'adresse de Frigate (FRIGATE_URL). Mettez-en une autre pour ouvrir Frigate depuis l'extérieur.")}));
 }
 
 // renderFraming : cadrage de l'image et place de la vidéo, pour les modèles concernés.
@@ -969,11 +1272,7 @@ function renderCameras() {
     const more = el("details", {class: "more", "data-name": name});
     if (openMore.has(name)) more.open = true;
     more.append(el("summary", {text: T("All settings for ", "Tous les réglages de ") + name}));
-    for (const f of FIELDS()) {
-      if (f.key === "enabled") continue; // déjà l'interrupteur
-      const node = renderField(f, name);
-      if (node) more.append(node);
-    }
+    renderGrouped(more, name);
     more.append(el("div", {class: "row"},
       el("button", {type: "button", class: "link", text: T("Reset everything to default", "Tout remettre par défaut"),
         onclick: () => { overlay.cameras[name] = {}; changed(); }})));
@@ -1010,8 +1309,9 @@ const CONTROLS = {
     const input = el("input", {type: "checkbox"});
     input.checked = !!value;
     input.disabled = ctx.disabled;
+    input.setAttribute("aria-label", field.name);
     input.addEventListener("change", () => on(input.checked));
-    return el("label", {class: "switch"}, input, el("span", {text: value ? T("Yes", "Oui") : T("No", "Non")}));
+    return el("label", {class: "toggle"}, input, el("span"));
   },
 
   duration(field, value, on, ctx) {
@@ -1201,14 +1501,68 @@ function renderField(field, camera) {
   return wrap;
 }
 
+// renderGrouped ajoute à `box` les réglages détaillés, groupe par groupe ; un groupe
+// sans aucun réglage à montrer (mode, présence, caméra) est omis.
+function renderGrouped(box, camera) {
+  const byKey = Object.fromEntries(FIELDS().map((f) => [f.key, f]));
+  for (const g of GROUPS()) {
+    if (g.globalOnly && camera) continue;
+    const nodes = [];
+    for (const k of g.keys) {
+      if (camera && k === "enabled") continue; // déjà l'interrupteur de la caméra
+      const node = renderField(byKey[k], camera);
+      if (node) nodes.push(node);
+    }
+    if (g.extra) nodes.push(g.extra());
+    if (nodes.length) box.append(el("div", {class: "fgroup"}, el("h3", {text: g.title}), ...nodes));
+  }
+}
+
 function renderAdvanced() {
   const g = $("global");
   g.innerHTML = "";
-  for (const f of FIELDS()) {
-    const node = renderField(f, null);
-    if (node) g.append(node);
+  renderGrouped(g, null);
+}
+
+// ---- sommaire -------------------------------------------------------------------
+
+function syncToc() {
+  for (const a of document.querySelectorAll(".toc a")) {
+    const target = $(a.dataset.target);
+    a.parentElement.hidden = !target || target.hidden;
   }
 }
+
+// tocClicked : le lien choisi dans le sommaire. Une section du bas ne peut pas
+// remonter sous l'en-tête (la page s'arrête avant) : on la garde surlignée
+// jusqu'à ce que l'utilisateur fasse défiler lui-même.
+let tocClicked = null;
+
+// La section « en cours » est la dernière dont le haut est passé sous l'en-tête ;
+// en bas de page, la dernière visible.
+function currentSection() {
+  const links = [...document.querySelectorAll(".toc li:not([hidden]) a")];
+  let current = links[0];
+  for (const a of links) if ($(a.dataset.target).getBoundingClientRect().top <= 120) current = a;
+  if (tocClicked && links.includes(tocClicked)) {
+    current = tocClicked;
+  } else if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+    current = links[links.length - 1];
+  }
+  for (const a of links) a.setAttribute("aria-current", String(a === current));
+}
+
+for (const a of document.querySelectorAll(".toc a")) {
+  a.addEventListener("click", () => {
+    if (a.dataset.target === "advanced") $("advanced").open = true;
+    tocClicked = a;
+    currentSection();
+  });
+}
+for (const ev of ["wheel", "touchmove", "keydown"]) {
+  window.addEventListener(ev, () => { tocClicked = null; }, {passive: true});
+}
+window.addEventListener("scroll", currentSection, {passive: true});
 
 function render() {
   renderStyles();
@@ -1218,6 +1572,8 @@ function render() {
   renderRecipients();
   renderCameras();
   renderAdvanced();
+  syncToc();
+  currentSection();
 }
 
 // ---- pause et reprise ---------------------------------------------------------
@@ -1261,21 +1617,25 @@ async function stateCall(path, body) {
 
 function renderLive() {
   const box = $("live");
-  $("live-box").hidden = !live;
+  $("live").hidden = !live;
+  stateBox();
   if (!live) return;
   box.innerHTML = "";
   box.className = "live" + (live.paused ? " paused" : "");
   if (live.paused) {
-    box.append(el("span", {class: "state", text: T("⏸️ Notifications paused ", "⏸️ Notifications en pause ") + untilText(live.paused_until)}),
+    box.append(el("span", {class: "state"}, el("span", {class: "dot paused"}),
+        el("span", {text: T("Notifications paused ", "Notifications en pause ") + untilText(live.paused_until)})),
       el("button", {type: "button", class: "primary", text: T("▶ Resume", "▶ Reprendre"),
         onclick: () => stateCall("api/resume", {})}));
   } else {
-    box.append(el("span", {class: "state", text: T("✅ Notifications active", "✅ Notifications actives")}),
+    const seg = el("span", {class: "seg", role: "group", "aria-label": T("Pause", "Pause")},
       el("span", {class: "hint", text: T("Pause:", "Pause :")}));
     for (const [label, minutes] of [["30 min", 30], ["1 h", 60], ["8 h", 480], [T("until resumed", "jusqu'à reprise"), 0]]) {
-      box.append(el("button", {type: "button", text: label,
+      seg.append(el("button", {type: "button", text: label,
         onclick: () => stateCall("api/pause", {minutes})}));
     }
+    box.append(el("span", {class: "state"}, el("span", {class: "dot ok pulse"}),
+      el("span", {text: T("Notifications active", "Notifications actives")})), seg);
   }
   const sub = el("div", {class: "sub"});
   if (data && data.presence) {
@@ -1308,14 +1668,22 @@ async function loadHealth() {
   } catch (e) { /* l'état est un plus : on n'interrompt rien */ }
 }
 
+// stateBox montre la carte d'état dès qu'une de ses parties a quelque chose à dire.
+function stateBox() {
+  $("state-box").hidden = !live && !health;
+  syncToc();
+}
+
 function renderHealth() {
-  $("health-box").hidden = !health;
+  $("health").hidden = !health;
+  stateBox();
   if (!health) return;
   const line = $("health"), errors = $("health-errors");
   line.innerHTML = ""; errors.innerHTML = "";
-  const icon = {ok: "✅", pending: "⏳", error: "❌"};
+  line.append(el("span", {class: "lbl", text: T("Connections", "Connexions")}));
   for (const c of health) {
-    const comp = el("span", {class: "comp"}, el("span", {text: icon[c.state] + " " + c.name}));
+    const comp = el("span", {class: "comp", title: c.detail || ""},
+      el("span", {class: "dot " + c.state}), el("span", {class: "n", text: c.name}));
     if (c.state !== "error" && c.detail) comp.append(el("span", {class: "d", text: c.detail}));
     line.append(comp);
     if (c.state === "error") {
@@ -1392,6 +1760,7 @@ async function loadHistory() {
 
 function renderHistory() {
   $("activity-box").hidden = !history;
+  syncToc();
   if (!history) return;
   const list = $("activity");
   list.innerHTML = "";
@@ -1451,14 +1820,15 @@ function toSend() {
   for (const [name, patch] of Object.entries(overlay.cameras)) {
     if (Object.keys(patch).length) cameras[name] = patch;
   }
-  return {notify: overlay.notify, cameras, recipients: overlay.recipients};
+  return {notify: overlay.notify, cameras, recipients: overlay.recipients, external_url: overlay.external_url};
 }
 
 async function load() {
   const resp = await api("api/settings", {headers: {"Accept": "application/json"}});
   if (!resp.ok) throw new Error("HTTP " + resp.status + " : " + (await resp.text()));
   data = await resp.json();
-  overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}, recipients: data.overlay.recipients || {}};
+  overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}, recipients: data.overlay.recipients || {},
+    external_url: data.overlay.external_url || ""};
   // Chaque caméra connue a une entrée (vide = suit le global) avant la mémorisation
   // de l'état enregistré, sinon la page se croirait modifiée dès l'ouverture.
   for (const c of data.cameras || []) if (!overlay.cameras[c.name]) overlay.cameras[c.name] = {};
@@ -1474,9 +1844,17 @@ async function load() {
   touched();
 }
 
+// discard revient au dernier état enregistré.
+function discard() {
+  overlay = JSON.parse(saved);
+  message("", "");
+  render();
+  touched();
+}
+
 async function save() {
-  const btn = $("save");
-  btn.disabled = true;
+  const btns = [$("save"), $("save2")];
+  for (const b of btns) b.disabled = true;
   try {
     const resp = await api("api/settings", {
       method: "PUT",
@@ -1487,6 +1865,8 @@ async function save() {
     if (!resp.ok) throw new Error(body.error || "HTTP " + resp.status);
     saved = JSON.stringify(overlay);
     message("", "");
+    $("savebar").hidden = true;
+    document.body.classList.remove("has-savebar");
     data.custom = true;
     $("reset").hidden = false;
     render(); // réactive les boutons d'essai
@@ -1495,7 +1875,7 @@ async function save() {
     setTimeout(touched, 3000);
   } catch (e) {
     message(T("Save refused:\n", "Enregistrement refusé :\n") + e.message, "err");
-    btn.disabled = false;
+    for (const b of btns) b.disabled = false;
   }
 }
 
@@ -1515,6 +1895,8 @@ async function reset() {
 }
 
 $("save").addEventListener("click", save);
+$("save2").addEventListener("click", save);
+$("discard").addEventListener("click", discard);
 $("reset").addEventListener("click", reset);
 window.addEventListener("beforeunload", (e) => { if (dirty()) e.preventDefault(); });
 

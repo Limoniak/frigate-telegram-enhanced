@@ -169,3 +169,38 @@ func TestApplyOverlayIsSafeWhileReading(t *testing.T) {
 	}
 	<-done
 }
+
+func TestExternalURLOverride(t *testing.T) {
+	c := mustParse(t, strings.Replace(minimal, "url: http://frigate:5000/", "url: http://frigate:5000/\n  external_url: https://ancien.example/", 1))
+	if c.ExternalURL() != "https://ancien.example" {
+		t.Fatalf("depuis la config = %q", c.ExternalURL())
+	}
+	o := c.CurrentOverlay()
+	u := " https://frigate.maison.example/ "
+	o.ExternalURL = &u
+	if err := c.ApplyOverlay(&o); err != nil {
+		t.Fatal(err)
+	}
+	if c.ExternalURL() != "https://frigate.maison.example" {
+		t.Errorf("après modification = %q", c.ExternalURL())
+	}
+	bad := "frigate.maison"
+	o.ExternalURL = &bad
+	if err := c.ApplyOverlay(&o); err == nil || !strings.Contains(err.Error(), "external URL") {
+		t.Errorf("adresse sans http(s) : %v", err)
+	}
+	empty := ""
+	o.ExternalURL = &empty
+	if err := c.ApplyOverlay(&o); err != nil || c.ExternalURL() != "http://frigate:5000" {
+		t.Errorf("vide = l'adresse de frigate.url : %q, %v", c.ExternalURL(), err)
+	}
+	if err := c.ApplyOverlay(nil); err != nil || c.ExternalURL() != "https://ancien.example" {
+		t.Errorf("retour à la config : %q, %v", c.ExternalURL(), err)
+	}
+}
+
+func TestExternalURLDefaultsToFrigateURL(t *testing.T) {
+	if c := mustParse(t, minimal); c.ExternalURL() != "http://frigate:5000" {
+		t.Errorf("sans adresse externe, les liens utilisent frigate.url : %q", c.ExternalURL())
+	}
+}

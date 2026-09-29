@@ -634,3 +634,21 @@ func TestAuthUnblocksAfterDelay(t *testing.T) {
 		t.Error("des échecs espacés ne doivent pas bloquer")
 	}
 }
+
+func TestExternalURLIsSavedAndValidated(t *testing.T) {
+	cfg, _, ts := setup(t, "", fakeCameras{})
+	var s settings
+	json.NewDecoder(do(t, ts, "GET", "/api/settings", "").Body).Decode(&s)
+	if s.Overlay.ExternalURL == nil {
+		t.Fatal("l'adresse actuelle doit être transmise à l'interface")
+	}
+	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{},"external_url":"frigate.lan"}`); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("adresse invalide : statut = %d", resp.StatusCode)
+	}
+	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{},"external_url":"http://192.168.1.10:5000/"}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("statut = %d", resp.StatusCode)
+	}
+	if got := cfg.ExternalURL(); got != "http://192.168.1.10:5000" {
+		t.Errorf("adresse = %q", got)
+	}
+}

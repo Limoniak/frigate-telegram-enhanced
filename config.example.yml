@@ -16,7 +16,7 @@ mode: events                     # events (un message par objet) ou reviews (ale
 
 frigate:
   url: http://frigate:5000       # URL interne de l'API (5000 sans auth, 8971 avec auth)
-  external_url: ""               # URL publique pour les liens « Ouvrir dans Frigate » (optionnel)
+  external_url: ""               # adresse des liens « Ouvrir dans Frigate » (vide : celle de url)
   username: ""                   # renseigner si l'authentification Frigate est activée
   password: "${FRIGATE_PASSWORD:-}"
   insecure_skip_verify: false    # true pour un certificat auto-signé

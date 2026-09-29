@@ -125,7 +125,7 @@ Pour mettre à jour : `docker compose pull && docker compose up -d`.
 | `LANGUAGE` | | Langue des messages Telegram et des erreurs : `en` (défaut) ou `fr` — **mettre `fr` pour du français** (les journaux restent en anglais) |
 | `WEB_PASSWORD` | | Mot de passe de l'interface web (vide = aucun) |
 | `TELEGRAM_ADMINS` | | Utilisateurs autorisés à piloter le bot (défaut : les chats privés de `TELEGRAM_CHAT_ID` ; obligatoire s'il ne liste que des groupes) |
-| `FRIGATE_EXTERNAL_URL` | | URL publique de Frigate, pour les liens « Ouvrir dans Frigate » |
+| `FRIGATE_EXTERNAL_URL` | | Adresse de Frigate utilisée par les liens « Ouvrir dans Frigate » (défaut : `FRIGATE_URL` ; modifiable aussi dans l'interface web) — à renseigner pour ouvrir Frigate hors de chez vous |
 | `FRIGATE_USERNAME` / `FRIGATE_PASSWORD` | | Si l'authentification de Frigate est activée |
 | `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` pour un certificat auto-signé |
 | `MQTT_USERNAME` / `MQTT_PASSWORD` | | Identifiants MQTT |
@@ -176,7 +176,8 @@ sélecteur **EN / FR** de l'en-tête la change, et le choix est retenu.
   la présence configurée, quand quelqu'un est à la maison.
 - **Rafales** : un message par détection, ou les détections des 2 ou 5 minutes suivantes
   ajoutées au premier message (modifié, donc sans nouvelle sonnerie). **Cadrage** : plan
-  large ou zoom sur l'objet.
+  large ou zoom sur l'objet. **Lien Frigate** : l'adresse utilisée par « Ouvrir dans
+  Frigate », avec un bouton pour la tester.
 - **Sensibilité** : un curseur de score minimal qui montre, sur l'activité récente,
   combien de détections auraient été ignorées.
 - **Destinataires** (avec plusieurs chats) : ce que reçoit chaque personne — tout, les

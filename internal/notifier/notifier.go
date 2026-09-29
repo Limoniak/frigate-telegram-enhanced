@@ -300,10 +300,11 @@ func (n *Notifier) sweep() {
 }
 
 func (n *Notifier) uiLink(path string) string {
-	if n.Config.Frigate.ExternalURL == "" {
+	base := n.Config.ExternalURL()
+	if base == "" {
 		return ""
 	}
-	return n.Config.Frigate.ExternalURL + path
+	return base + path
 }
 
 func (n *Notifier) captionData(t *tracked) captionData {

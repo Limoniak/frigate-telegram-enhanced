@@ -125,7 +125,7 @@ To update: `docker compose pull && docker compose up -d`.
 | `LANGUAGE` | | Language of Telegram messages and error messages: `en` (default) or `fr` (logs are always in English) |
 | `WEB_PASSWORD` | | Password for the web interface (empty = none) |
 | `TELEGRAM_ADMINS` | | User IDs allowed to control the bot (default: the private chats of `TELEGRAM_CHAT_ID`; required if it only lists groups) |
-| `FRIGATE_EXTERNAL_URL` | | Public Frigate URL, for the "open in Frigate" links |
+| `FRIGATE_EXTERNAL_URL` | | Frigate address used by the "Open in Frigate" links (default: `FRIGATE_URL`; also editable in the web interface) — set it to open Frigate from outside your network |
 | `FRIGATE_USERNAME` / `FRIGATE_PASSWORD` | | If Frigate authentication is enabled |
 | `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` for a self-signed certificate |
 | `MQTT_USERNAME` / `MQTT_PASSWORD` | | MQTT credentials |
@@ -176,7 +176,7 @@ up in a few clicks. It follows the browser's language (English or French); the
   set up, when someone is home.
 - **Bursts**: one message per detection, or detections within 2 or 5 minutes added to
   the first message (edited, so no extra sound). **Framing**: wide shot or zoom on the
-  object.
+  object. **Frigate link**: the address used by "Open in Frigate", with a test button.
 - **Sensitivity**: a slider for the minimum score that shows, on recent activity, how
   many detections would have been ignored.
 - **Recipients** (with several chats): what each person receives — every object, people

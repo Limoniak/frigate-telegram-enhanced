@@ -335,3 +335,20 @@ func TestClipRepliesToTextOnlyNotification(t *testing.T) {
 		}
 	}
 }
+
+// L'adresse modifiée dans l'interface s'applique aux liens des notifications suivantes.
+func TestExternalURLChangeAppliesToLinks(t *testing.T) {
+	h := newHarness(t, "events")
+	o := h.n.Config.CurrentOverlay()
+	u := "https://frigate.maison.example"
+	o.ExternalURL = &u
+	if err := h.n.Config.ApplyOverlay(&o); err != nil {
+		t.Fatal(err)
+	}
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) == 0 || !strings.Contains(photos[0].Text, `href="https://frigate.maison.example/explore?event_id=`) {
+		t.Fatalf("lien : %+v", photos)
+	}
+}
