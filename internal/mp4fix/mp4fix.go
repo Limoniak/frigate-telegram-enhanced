@@ -69,6 +69,44 @@ func Fix(path string) (int, error) {
 	return fixed, nil
 }
 
+// Trim coupe le fichier path après son dernier fragment complet (un moof suivi de
+// son mdat) et renvoie le nombre de fragments gardés. Il sert quand Frigate cesse
+// d'envoyer un clip avant la fin : Telegram ne lit pas un fragment tronqué. Sans
+// aucun fragment complet (0), le fichier est laissé tel quel.
+func Trim(path string) (int, error) {
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+
+	var end int64 // fin du dernier fragment complet
+	frags, moof := 0, false
+	for off := int64(0); off+8 <= st.Size(); {
+		typ, _, size, err := header(f, off, st.Size())
+		if err != nil {
+			break // boîte tronquée : le fichier s'arrête là
+		}
+		switch typ {
+		case "moof":
+			moof = true
+		case "mdat":
+			if moof {
+				frags, end, moof = frags+1, off+size, false
+			}
+		}
+		off += size
+	}
+	if frags == 0 || end == st.Size() {
+		return frags, nil
+	}
+	return frags, f.Truncate(end)
+}
+
 // header lit l'en-tête de la boîte à off : type, taille de l'en-tête, taille totale.
 func header(f *os.File, off, fileSize int64) (string, int64, int64, error) {
 	var b [16]byte

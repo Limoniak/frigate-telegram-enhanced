@@ -162,6 +162,13 @@ func (n *Notifier) download(ctx context.Context, path string) (string, error) {
 		start := time.Now()
 		file, err := n.Frigate.DownloadToFile(ctx, path, maxUploadSize)
 		n.Metrics.MediaDownload.Observe(time.Since(start).Seconds())
+		if err != nil && file != "" { // reçu en partie (frigate.ErrIncomplete)
+			if n.keepCompletePart(file, path) {
+				err = nil
+			} else {
+				os.Remove(file)
+			}
+		}
 		if err == nil {
 			n.repairClip(file, path)
 			return file, nil
@@ -179,7 +186,7 @@ func (n *Notifier) download(ctx context.Context, path string) (string, error) {
 // mp4fix) : sans cela, Telegram peut annoncer une vidéo de plusieurs heures qui ne
 // se lit pas. Un échec laisse le fichier tel quel.
 func (n *Notifier) repairClip(file, path string) {
-	if p, _, _ := strings.Cut(path, "?"); !strings.HasSuffix(p, ".mp4") {
+	if !isMP4(path) {
 		return
 	}
 	fixed, err := mp4fix.Fix(file)
@@ -189,6 +196,26 @@ func (n *Notifier) repairClip(file, path string) {
 	case fixed > 0:
 		n.Log.Info("clip timestamps repaired", "path", path, "samples", fixed)
 	}
+}
+
+// keepCompletePart coupe un clip MP4 reçu en partie après son dernier fragment
+// complet ; false s'il n'en reste rien d'envoyable.
+func (n *Notifier) keepCompletePart(file, path string) bool {
+	if !isMP4(path) {
+		return false
+	}
+	frags, err := mp4fix.Trim(file)
+	if err != nil || frags == 0 {
+		n.Log.Warn("clip incomplete, nothing to send", "path", path, "err", err)
+		return false
+	}
+	n.Log.Warn("Frigate stopped sending the clip, sending its complete part", "path", path, "fragments", frags)
+	return true
+}
+
+func isMP4(path string) bool {
+	p, _, _ := strings.Cut(path, "?")
+	return strings.HasSuffix(p, ".mp4")
 }
 
 func (n *Notifier) tooLargeText(path string) string {

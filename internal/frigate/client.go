@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"frigate-telegram-enhanced/internal/config"
+	"frigate-telegram-enhanced/internal/i18n"
 )
 
 // ErrTooLarge signale un média plus gros que la limite demandée.
@@ -36,9 +37,18 @@ type HTTPError struct {
 
 func (e *HTTPError) Error() string { return fmt.Sprintf("frigate %s: HTTP %d", e.Path, e.Status) }
 
+// ErrIncomplete signale un téléchargement que Frigate a cessé d'alimenter avant la
+// fin : il envoie parfois presque tout un clip puis garde la connexion ouverte.
+var ErrIncomplete = i18n.NewError("Frigate stopped sending the clip before the end",
+	"Frigate a cessé d'envoyer le clip avant la fin")
+
+// stallTimeout est le silence au-delà duquel un téléchargement est tenu pour calé.
+const stallTimeout = 15 * time.Second
+
 // Retryable indique si réessayer a une chance d'aboutir (média pas encore prêt, serveur ou réseau en difficulté).
+// Un clip qui cale n'est pas retenté : Frigate cale au même endroit à chaque fois.
 func Retryable(err error) bool {
-	if errors.Is(err, ErrTooLarge) || errors.Is(err, context.Canceled) {
+	if errors.Is(err, ErrTooLarge) || errors.Is(err, ErrIncomplete) || errors.Is(err, context.Canceled) {
 		return false
 	}
 	var he *HTTPError
@@ -54,6 +64,8 @@ type Client struct {
 	user, pass string
 	http       *http.Client
 	loginMu    sync.Mutex
+
+	stallTimeout time.Duration
 }
 
 func NewClient(cfg config.Frigate) (*Client, error) {
@@ -74,6 +86,8 @@ func NewClient(cfg config.Frigate) (*Client, error) {
 		user: cfg.Username,
 		pass: cfg.Password,
 		http: &http.Client{Transport: tr, Jar: jar},
+
+		stallTimeout: stallTimeout,
 	}, nil
 }
 
@@ -149,10 +163,13 @@ func (c *Client) GetBytes(ctx context.Context, path string, max int64) ([]byte, 
 }
 
 // DownloadToFile écrit une ressource dans un fichier temporaire (clips) et renvoie son chemin.
-// L'appelant doit supprimer le fichier.
+// L'appelant doit supprimer le fichier. Si Frigate cesse d'envoyer avant la fin, elle
+// renvoie ErrIncomplete, avec le chemin de ce qui a été reçu s'il y en a.
 func (c *Client) DownloadToFile(ctx context.Context, path string, max int64) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
+	ctx, stall := context.WithCancelCause(ctx)
+	defer stall(nil)
 	resp, err := c.do(ctx, path)
 	if err != nil {
 		return "", err
@@ -165,18 +182,42 @@ func (c *Client) DownloadToFile(ctx context.Context, path string, max int64) (st
 	if err != nil {
 		return "", err
 	}
-	n, err := io.Copy(f, io.LimitReader(resp.Body, max+1))
+	idle := time.AfterFunc(c.stallTimeout, func() { stall(ErrIncomplete) })
+	defer idle.Stop()
+	body := &idleReader{r: resp.Body, idle: idle, timeout: c.stallTimeout}
+	n, err := io.Copy(f, io.LimitReader(body, max+1))
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
 	if err == nil && n > max {
 		err = ErrTooLarge
 	}
+	if err != nil && errors.Is(context.Cause(ctx), ErrIncomplete) {
+		err = ErrIncomplete
+		if n > 0 {
+			return f.Name(), err
+		}
+	}
 	if err != nil {
 		os.Remove(f.Name())
 		return "", err
 	}
 	return f.Name(), nil
+}
+
+// idleReader relance le minuteur idle à chaque lecture qui apporte des données.
+type idleReader struct {
+	r       io.Reader
+	idle    *time.Timer
+	timeout time.Duration
+}
+
+func (r *idleReader) Read(p []byte) (int, error) {
+	n, err := r.r.Read(p)
+	if n > 0 {
+		r.idle.Reset(r.timeout)
+	}
+	return n, err
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, out any) error {

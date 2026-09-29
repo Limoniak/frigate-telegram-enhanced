@@ -24,6 +24,7 @@ type fakeFrigate struct {
 	files    map[string][]byte
 	fails    map[string]int // nombre de 404 à renvoyer avant succès
 	tooLarge map[string]bool
+	stalls   map[string]bool // téléchargement qui cale : files[path] n'est reçu qu'en partie
 	calls    []string
 	events   []frigate.APIEvent
 	reviews  map[string]frigate.Review
@@ -34,7 +35,7 @@ type fakeFrigate struct {
 }
 
 func newFakeFrigate() *fakeFrigate {
-	return &fakeFrigate{files: map[string][]byte{}, fails: map[string]int{}, tooLarge: map[string]bool{}, reviews: map[string]frigate.Review{}}
+	return &fakeFrigate{files: map[string][]byte{}, fails: map[string]int{}, tooLarge: map[string]bool{}, stalls: map[string]bool{}, reviews: map[string]frigate.Review{}}
 }
 
 func (f *fakeFrigate) GetBytes(_ context.Context, path string, _ int64) ([]byte, error) {
@@ -75,8 +76,16 @@ func (f *fakeFrigate) DownloadToFile(ctx context.Context, path string, max int64
 	if err != nil {
 		return "", err
 	}
-	defer tmp.Close()
 	_, err = tmp.Write(b)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	f.mu.Lock()
+	stalled := f.stalls[path]
+	f.mu.Unlock()
+	if err == nil && stalled {
+		err = frigate.ErrIncomplete
+	}
 	return tmp.Name(), err
 }
 

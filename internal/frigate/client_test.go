@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"frigate-telegram-enhanced/internal/config"
 )
@@ -141,6 +142,38 @@ func TestDownloadToFile(t *testing.T) {
 	}
 	if _, err := c.DownloadToFile(context.Background(), "/clip.mp4", 3); !errors.Is(err, ErrTooLarge) {
 		t.Errorf("err = %v, attendu ErrTooLarge", err)
+	}
+}
+
+// Frigate envoie parfois presque tout un clip puis garde la connexion ouverte sans
+// jamais finir : le téléchargement s'arrête dès que plus rien n'arrive, et rend ce qui
+// a été reçu.
+func TestDownloadToFileStalled(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/partial.mp4" {
+			w.Write([]byte("partial"))
+		}
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv.URL, "", "")
+	c.stallTimeout = 50 * time.Millisecond
+
+	path, err := c.DownloadToFile(context.Background(), "/partial.mp4", 1024)
+	if !errors.Is(err, ErrIncomplete) || path == "" {
+		t.Fatalf("DownloadToFile = %q, %v ; attendu le fichier partiel et ErrIncomplete", path, err)
+	}
+	defer os.Remove(path)
+	if b, _ := os.ReadFile(path); string(b) != "partial" {
+		t.Errorf("contenu = %q", b)
+	}
+	if Retryable(err) {
+		t.Error("un clip qui cale ne doit pas être retenté : Frigate cale au même endroit")
+	}
+
+	if path, err := c.DownloadToFile(context.Background(), "/empty.mp4", 1024); !errors.Is(err, ErrIncomplete) || path != "" {
+		t.Errorf("rien reçu : %q, %v ; attendu aucun fichier et ErrIncomplete", path, err)
 	}
 }
 

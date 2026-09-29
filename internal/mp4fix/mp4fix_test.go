@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -132,5 +133,45 @@ func TestFixLeavesHealthyAndForeignFilesAlone(t *testing.T) {
 	}
 	if after, _ := os.ReadFile(path); !bytes.Equal(after, gif) {
 		t.Error("un fichier étranger ne doit pas être modifié")
+	}
+}
+
+// Le cas réel : Frigate cesse d'envoyer le clip 1 479 octets avant la fin du dernier
+// fragment. Trim ne garde que les fragments complets.
+func TestTrimDropsIncompleteFragment(t *testing.T) {
+	head := bytes.Join([][]byte{
+		box("ftyp", []byte("isom")),
+		box("moov", trak(1, 90000)),
+		box("moof", traf(1, 3000, 3000)),
+		box("mdat", make([]byte, 64)),
+	}, nil)
+	last := append(box("moof", traf(1, 3000)), box("mdat", make([]byte, 64))...)
+	join := func(a, b []byte) []byte { return append(slices.Clone(a), b...) }
+
+	cases := map[string]struct {
+		data      []byte
+		wantLen   int
+		wantFrags int
+	}{
+		"mdat tronqué":       {join(head, last[:len(last)-10]), len(head), 1},
+		"moof sans son mdat": {join(head, box("moof", traf(1, 3000))), len(head), 1},
+		"en-tête coupé":      {join(head, last[:5]), len(head), 1},
+		"complet":            {join(head, last), len(head) + len(last), 2},
+	}
+	for name, tc := range cases {
+		path := write(t, tc.data)
+		if n, err := Trim(path); err != nil || n != tc.wantFrags {
+			t.Errorf("%s : Trim = %d, %v ; attendu %d fragments", name, n, err, tc.wantFrags)
+		}
+		if after, _ := os.ReadFile(path); !bytes.Equal(after, tc.data[:tc.wantLen]) {
+			t.Errorf("%s : %d octets gardés, attendu %d", name, len(after), tc.wantLen)
+		}
+	}
+
+	// Rien d'exploitable : aucun fragment complet, ou pas un MP4.
+	for _, data := range [][]byte{head[:len(head)-10], []byte("GIF89a\x01\x00\x01\x00")} {
+		if n, _ := Trim(write(t, data)); n != 0 {
+			t.Errorf("Trim(%q…) = %d, attendu 0", data[:8], n)
+		}
 	}
 }

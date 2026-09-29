@@ -1,7 +1,11 @@
 package notifier
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -50,6 +54,47 @@ func TestSendClipToMissingClipReturnsError(t *testing.T) {
 	h := newHarness(t, "events")
 	if err := h.n.SendClipTo(context.Background(), 1, 0, "absent"); err == nil {
 		t.Error("erreur attendue")
+	}
+}
+
+// mp4Box construit une boîte MP4 (taille, type, contenu) pour les tests de clips.
+func mp4Box(typ string, body []byte) []byte {
+	b := binary.BigEndian.AppendUint32(nil, uint32(8+len(body)))
+	return append(append(b, typ...), body...)
+}
+
+// Frigate cale avant la fin du clip : les fragments complets sont envoyés, sans
+// nouvel essai (Frigate calerait au même endroit).
+func TestSendClipToStalledSendsCompletePart(t *testing.T) {
+	h := newHarness(t, "events")
+	clip := frigate.EventClipPath("ancien")
+	whole := bytes.Join([][]byte{
+		mp4Box("ftyp", []byte("isom")), mp4Box("moov", nil),
+		mp4Box("moof", nil), mp4Box("mdat", []byte("image1")),
+	}, nil)
+	h.fr.files[clip] = append(slices.Clone(whole), mp4Box("moof", nil)[:6]...)
+	h.fr.stalls[clip] = true
+	if err := h.n.SendClipTo(context.Background(), 1, 0, "ancien"); err != nil {
+		t.Fatal(err)
+	}
+	if v := h.tg.byMethod("sendVideo"); len(v) != 1 || v[0].Data != string(whole) {
+		t.Errorf("vidéo = %+v, attendu les fragments complets", v)
+	}
+	if n := h.fr.countCalls(clip); n != 1 {
+		t.Errorf("téléchargements = %d, attendu 1", n)
+	}
+}
+
+func TestSendClipToStalledWithoutUsablePartReturnsError(t *testing.T) {
+	h := newHarness(t, "events")
+	clip := frigate.EventClipPath("ancien")
+	h.fr.files[clip] = mp4Box("ftyp", []byte("isom"))
+	h.fr.stalls[clip] = true
+	if err := h.n.SendClipTo(context.Background(), 1, 0, "ancien"); !errors.Is(err, frigate.ErrIncomplete) {
+		t.Errorf("err = %v, attendu ErrIncomplete", err)
+	}
+	if len(h.tg.byMethod("sendVideo")) != 0 || h.fr.countCalls(clip) != 1 {
+		t.Error("ni vidéo ni nouvel essai attendus")
 	}
 }
 
