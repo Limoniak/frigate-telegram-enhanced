@@ -164,11 +164,14 @@ values in it are read from the container's environment. Key points:
 
 `http://<server-ip>:8431/` serves a page to configure notifications, designed to be set
 up in a few clicks. It follows the browser's language (English or French); the
-**EN / FR** switch in the header changes it and is remembered.
+**EN / FR** switch in the header changes it and is remembered. On a wide screen, a side
+menu jumps to each section.
 
-- **Connection status**: Frigate, MQTT and Telegram at a glance; when one fails, the
-  cause in plain words and the variable to fix (wrong password, unreachable address,
-  invalid token, `localhost` used inside Docker…).
+- **Status**: one card at the top with the connections to Frigate, MQTT and Telegram,
+  whether notifications are active, who is home and which cameras are muted. When a
+  connection fails, the cause in plain words and the variable to fix (wrong password,
+  unreachable address, invalid token, `localhost` used inside Docker…). Pause for
+  30 min, 1 h, 8 h or until resumed, and re-enable cameras muted from Telegram.
 - **Notification styles**: photo + video, photo only, photo + GIF or text only, each
   with a preview of the message as it will arrive in Telegram.
 - **Simple questions**: what to report (people, people and cars, everything), how often
@@ -176,7 +179,7 @@ up in a few clicks. It follows the browser's language (English or French); the
   set up, when someone is home.
 - **Bursts**: one message per detection, or detections within 2 or 5 minutes added to
   the first message (edited, so no extra sound). **Framing**: wide shot or zoom on the
-  object. **Frigate link**: the address used by "Open in Frigate", with a test button.
+  object. **Video**: in the same message as the image, or as a reply.
 - **Sensitivity**: a slider for the minimum score that shows, on recent activity, how
   many detections would have been ignored.
 - **Recipients** (with several chats): what each person receives — every object, people
@@ -188,20 +191,21 @@ up in a few clicks. It follows the browser's language (English or French); the
   zones, in one click.
 - **Try it**: the sample button sends a real test notification to the recipients, with
   the camera's live image and the saved settings.
-- **Pause**: a banner shows whether notifications are active; pause for 30 min, 1 h,
-  8 h or until resumed, and re-enable cameras muted from Telegram.
 - **Recent activity**: the last 50 detections with their thumbnail and outcome —
   ✅ sent, or ⛔ ignored with the reason in plain words (outside the zones, score too
   low, already reported a moment ago…) and a link to adjust the camera. The history is
   kept in memory and starts over when the service restarts.
 - **Consistency warnings**: a camera set to report an object that Frigate does not
   track on it (missing from `objects.track`) is flagged.
-- **Advanced settings** (collapsed): every setting in detail — zones, scores, custom
-  time ranges, delays… — globally, then camera by camera. The zones and objects offered
-  come from Frigate's API.
+- **Advanced settings** (collapsed): every setting in detail, sorted by theme —
+  recipients and filtering, media, pace, schedule and presence, links — globally, then
+  camera by camera. The zones and objects offered come from Frigate's API. **Links**
+  holds the address used by "Open in Frigate" (default: `FRIGATE_URL`), with a button
+  to test it.
 
-Saving takes effect **immediately**, without a restart, and is only accepted if valid —
-a rejected change leaves the service on the previous settings.
+As soon as something changes, a bar appears at the bottom of the page with **Save**
+and **Cancel**. Saving takes effect **immediately**, without a restart, and is only
+accepted if valid — a rejected change leaves the service on the previous settings.
 
 Settings are saved in the data volume (`/data/notify.yml`), next to the state (pauses,
 cooldowns), so they survive restarts and updates. With a configuration file, they

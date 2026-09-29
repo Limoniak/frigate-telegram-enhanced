@@ -164,11 +164,14 @@ sont lues dans l'environnement du conteneur. Points clés :
 
 `http://<ip-du-serveur>:8431/` sert une page de réglage des notifications, pensée pour se
 régler en quelques clics. Elle suit la langue du navigateur (français ou anglais) ; le
-sélecteur **EN / FR** de l'en-tête la change, et le choix est retenu.
+sélecteur **EN / FR** de l'en-tête la change, et le choix est retenu. Sur grand écran,
+un sommaire latéral mène à chaque section.
 
-- **État des connexions** : Frigate, MQTT et Telegram d'un coup d'œil ; en cas de
-  problème, la cause en clair et la variable à corriger (mauvais mot de passe, adresse
-  injoignable, token invalide, `localhost` utilisé dans Docker…).
+- **État** : une carte en haut de page avec les connexions à Frigate, MQTT et Telegram,
+  l'état des notifications, qui est à la maison et les caméras coupées. Quand une
+  connexion échoue, la cause en clair et la variable à corriger (mauvais mot de passe,
+  adresse injoignable, token invalide, `localhost` utilisé dans Docker…). Pause de
+  30 min, 1 h, 8 h ou jusqu'à reprise, et réactivation des caméras coupées depuis Telegram.
 - **Modèles de notification** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou
   *Texte seul*, chacun avec un aperçu du message tel qu'il arrivera dans Telegram.
 - **Questions simples** : quoi signaler (personnes, personnes et voitures, tout), à
@@ -176,8 +179,7 @@ sélecteur **EN / FR** de l'en-tête la change, et le choix est retenu.
   la présence configurée, quand quelqu'un est à la maison.
 - **Rafales** : un message par détection, ou les détections des 2 ou 5 minutes suivantes
   ajoutées au premier message (modifié, donc sans nouvelle sonnerie). **Cadrage** : plan
-  large ou zoom sur l'objet. **Lien Frigate** : l'adresse utilisée par « Ouvrir dans
-  Frigate », avec un bouton pour la tester.
+  large ou zoom sur l'objet. **Vidéo** : dans le même message que l'image, ou en réponse.
 - **Sensibilité** : un curseur de score minimal qui montre, sur l'activité récente,
   combien de détections auraient été ignorées.
 - **Destinataires** (avec plusieurs chats) : ce que reçoit chaque personne — tout, les
@@ -189,20 +191,21 @@ sélecteur **EN / FR** de l'en-tête la change, et le choix est retenu.
   certaines zones, en un clic.
 - **Essai** : *M'envoyer un exemple* envoie une vraie notification de test aux
   destinataires, avec l'image en direct de la caméra et les réglages enregistrés.
-- **Pause** : un bandeau indique si les notifications sont actives ; pause de 30 min,
-  1 h, 8 h ou jusqu'à reprise, et réactivation des caméras coupées depuis Telegram.
 - **Activité récente** : les 50 dernières détections avec leur miniature et leur
   issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone, score trop bas,
   déjà signalé il y a peu…) et un lien pour régler la caméra concernée. L'historique est
   gardé en mémoire et repart de zéro au redémarrage du service.
 - **Alertes de cohérence** : une caméra réglée pour signaler un objet que Frigate n'y
   suit pas (absent de `objects.track`) est signalée.
-- **Réglages avancés** (repliés) : tous les réglages en détail — zones, scores,
-  plages horaires sur mesure, délais… — en global puis caméra par caméra. Les zones et
-  les objets proposés viennent de l'API de Frigate.
+- **Réglages avancés** (repliés) : tous les réglages en détail, rangés par thème —
+  destinataires et filtrage, médias, rythme, horaires et présence, liens — en global
+  puis caméra par caméra. Les zones et les objets proposés viennent de l'API de Frigate.
+  **Liens** contient l'adresse utilisée par « Ouvrir dans Frigate » (défaut :
+  `FRIGATE_URL`), avec un bouton pour la tester.
 
-Un enregistrement prend effet **immédiatement**, sans redémarrage, et n'est accepté que
-s'il est valide — un réglage refusé laisse le service sur les précédents.
+Dès qu'un réglage change, une barre apparaît en bas de page avec **Enregistrer** et
+**Annuler**. Un enregistrement prend effet **immédiatement**, sans redémarrage, et n'est
+accepté que s'il est valide — un réglage refusé laisse le service sur les précédents.
 
 Les réglages sont enregistrés dans le volume de données (`/data/notify.yml`), à côté de
 l'état (pauses, cooldowns) : ils survivent aux redémarrages et aux mises à jour. Avec un
