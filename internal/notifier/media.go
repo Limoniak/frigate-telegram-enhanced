@@ -5,10 +5,12 @@ import (
 	"errors"
 	"html"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/mp4fix"
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
@@ -161,6 +163,7 @@ func (n *Notifier) download(ctx context.Context, path string) (string, error) {
 		file, err := n.Frigate.DownloadToFile(ctx, path, maxUploadSize)
 		n.Metrics.MediaDownload.Observe(time.Since(start).Seconds())
 		if err == nil {
+			n.repairClip(file, path)
 			return file, nil
 		}
 		if !frigate.Retryable(err) || attempt >= len(n.ClipRetryDelays) {
@@ -169,6 +172,22 @@ func (n *Notifier) download(ctx context.Context, path string) (string, error) {
 		if serr := sleepCtx(ctx, n.ClipRetryDelays[attempt]); serr != nil {
 			return "", serr
 		}
+	}
+}
+
+// repairClip corrige les horodatages aberrants d'un clip MP4 de Frigate (voir
+// mp4fix) : sans cela, Telegram peut annoncer une vidéo de plusieurs heures qui ne
+// se lit pas. Un échec laisse le fichier tel quel.
+func (n *Notifier) repairClip(file, path string) {
+	if p, _, _ := strings.Cut(path, "?"); !strings.HasSuffix(p, ".mp4") {
+		return
+	}
+	fixed, err := mp4fix.Fix(file)
+	switch {
+	case err != nil:
+		n.Log.Debug("clip not repaired", "path", path, "err", err)
+	case fixed > 0:
+		n.Log.Info("clip timestamps repaired", "path", path, "samples", fixed)
 	}
 }
 
