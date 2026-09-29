@@ -1,22 +1,64 @@
 # frigate-telegram
 
-Notifications Telegram pour [Frigate NVR](https://frigate.video) : un snapshot dès la détection, puis le clip vidéo en réponse, avec des filtres fins et un pilotage depuis Telegram.
+**English** · [Français](README.fr.md)
 
-## Fonctionnalités
+Telegram notifications for [Frigate NVR](https://frigate.video): a snapshot as soon as
+something is detected, then the video clip as a reply — with fine-grained filters, a web
+interface to set everything up in a few clicks, and control from Telegram itself.
 
-- Mode **events** (un message par objet détecté) ou **reviews** (alertes regroupées, Frigate ≥ 0.14)
-- Snapshot immédiat, clip MP4 en réponse, et GIF en option ; au-delà de 50 Mo, un lien vers le clip
-- Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
-- Filtres par caméra, objet, zone, score minimum et sévérité ; cooldown ; plages silencieuses et plages coupées
-- **Interface web** pour régler tout cela sans éditer de YAML, appliquée sans redémarrage
-- Plusieurs destinataires avec routage par caméra
-- Boutons 🔇 *couper la caméra 1 h*, ⏸ *pause 30 min*, 🎬 *clip*
-- Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
-- État persistant, `/healthz`, métriques Prometheus, image distroless multi-arch (amd64 et arm64)
+<p align="center">
+  <img src="docs/screenshots/overview.png" width="820" alt="Web interface: notification styles with a preview of the Telegram message, and simple multiple-choice questions">
+</p>
 
-## Prérequis
+> The web interface and the Telegram messages are currently in French.
 
-1. **MQTT activé dans Frigate** (`config.yml` de Frigate) :
+## Features
+
+- **events** mode (one message per detected object) or **reviews** mode (grouped alerts, Frigate ≥ 0.14)
+- Instant snapshot, MP4 clip as a reply, optional GIF; above 50 MB, a link to the clip instead
+- Frigate's GenAI description added to the caption as soon as it is available
+- Filters per camera, object, zone, minimum score and severity; cooldown; quiet hours and off hours
+- **Web interface** to configure all of this without editing YAML, applied without a restart
+- Several recipients, with per-camera routing
+- Inline buttons: 🔇 *mute camera for 1 h*, ⏸ *pause 30 min*, 🎬 *clip*
+- Commands: `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
+- Persistent state, `/healthz`, Prometheus metrics, multi-arch distroless image (amd64 and arm64)
+
+## A tour of the web interface
+
+**Pick a notification style.** Four styles — *photo + video*, *photo only*,
+*photo + GIF*, *text only* — each with a preview of the message as it will arrive in
+Telegram. One click and every camera uses it. Below, a few multiple-choice questions:
+what to report, how often at most, and what to do at night (screenshot above).
+
+**Fine-tune a camera.** Each camera has an on/off switch; open it to give it another
+style, other objects or only some zones — otherwise it follows the general choices.
+*Test this camera* sends a real sample notification.
+
+<p align="center">
+  <img src="docs/screenshots/cameras.png" width="820" alt="An expanded camera: style, objects and zones, test button">
+</p>
+
+**Find out why a notification didn't arrive.** Recent activity lists the latest
+detections and what happened to them: ✅ sent, or ⛔ ignored and why (outside the
+selected zones, score too low, already reported a moment ago…), with a direct link to
+the camera to adjust.
+
+<p align="center">
+  <img src="docs/screenshots/activity.png" width="820" alt="Recent activity: detections sent or ignored, with the reason">
+</p>
+
+**On a phone, and in dark mode.** The page adapts to the screen and follows the system theme.
+
+<p align="center">
+  <img src="docs/screenshots/mobile.png" width="260" alt="The interface on a phone">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/dark.png" width="540" alt="The interface in dark mode">
+</p>
+
+## Requirements
+
+1. **MQTT enabled in Frigate** (Frigate's `config.yml`):
 
    ```yaml
    mqtt:
@@ -26,129 +68,140 @@ Notifications Telegram pour [Frigate NVR](https://frigate.video) : un snapshot d
      password: ...
    ```
 
-2. **Un bot Telegram** : écrire à [@BotFather](https://t.me/BotFather), `/newbot`, puis noter le token.
+2. **A Telegram bot**: message [@BotFather](https://t.me/BotFather), send `/newbot`, and note the token.
 
-3. **Votre identifiant Telegram** : écrire un message à votre bot, puis ouvrir
-   `https://api.telegram.org/bot<TOKEN>/getUpdates` et relever `message.from.id`.
-   Pour un groupe : ajouter le bot au groupe, y écrire un message et relever `message.chat.id` (négatif).
+3. **Your Telegram ID**: send a message to your bot, then open
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` and note `message.from.id`.
+   For a group: add the bot to the group, post a message there and note `message.chat.id` (negative).
 
 ## Installation
 
 ```bash
 mkdir -p config data
-cp config.example.yml config/config.yml   # puis l'adapter
-cp .env.example .env                      # puis y mettre le token
-sudo chown 65532:65532 data               # l'image tourne en utilisateur non-root (uid 65532)
+cp config.example.yml config/config.yml   # then edit it
+cp .env.example .env                      # then put the token in it
+sudo chown 65532:65532 data               # the image runs as a non-root user (uid 65532)
 docker compose up -d
 docker compose logs -f
 ```
 
-L'image est construite et publiée par GitHub Actions sur GitHub Container Registry :
-`ghcr.io/limoniak/frigate-telegram` (amd64 et arm64).
+Then open `http://127.0.0.1:8080/` to set up notifications, and use
+*M'envoyer un exemple* (send me a sample) to check that everything reaches Telegram.
 
-- `:latest` et `:X.Y.Z` — publiés à chaque tag `v*`
-- `:main` et `:sha-<court>` — publiés à chaque push sur `main`
+The image is built and published by GitHub Actions to GitHub Container Registry:
+`ghcr.io/limoniak/frigate-telegram` (amd64 and arm64).
 
-Pour construire localement à la place, commenter `image:` et décommenter `build: .`
-dans [`docker-compose.yml`](docker-compose.yml), puis `docker compose up -d --build`.
+- `:latest` and `:X.Y.Z` — published on every `v*` tag
+- `:main` and `:sha-<short>` — published on every push to `main`
+
+To build locally instead, comment out `image:` and uncomment `build: .`
+in [`docker-compose.yml`](docker-compose.yml), then run `docker compose up -d --build`.
 
 ## Configuration
 
-Tout est documenté dans [`config.example.yml`](config.example.yml). Points clés :
+Everything is documented in [`config.example.yml`](config.example.yml) (comments in French). Key points:
 
-- Les réglages de `notify` s'appliquent à toutes les caméras ; une entrée dans `cameras` remplace champ par champ.
-- `zones` : ne notifie que si l'objet est **entré** dans une des zones listées.
-- `quiet_hours` : notification sans son ; `off_hours` : aucune notification.
-- Mode `reviews` : `severity: [alert]` suit la configuration `review.alerts` de Frigate.
-- Les secrets passent par `.env` (`${TELEGRAM_TOKEN}`…). Mettre les valeurs entre guillemets dans le YAML.
+- `notify` settings apply to every camera; an entry under `cameras` overrides them field by field.
+- `zones`: only notify when the object has **entered** one of the listed zones.
+- `quiet_hours`: notifications without sound; `off_hours`: no notifications at all.
+- `reviews` mode: `severity: [alert]` follows Frigate's `review.alerts` configuration.
+- Secrets go in `.env` (`${TELEGRAM_TOKEN}`…). Quote the values in the YAML.
 
-## Interface web
+## Web interface
 
-`http://127.0.0.1:8080/` sert une page de réglage des notifications, pensée pour se
-régler en quelques clics :
+`http://127.0.0.1:8080/` serves a page to configure notifications, designed to be set
+up in a few clicks:
 
-- **Modèles de notification** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou
-  *Texte seul*, chacun avec un aperçu du message tel qu'il arrivera dans Telegram.
-- **Questions simples** : quoi signaler (personnes, personnes et voitures, tout), à
-  quelle fréquence au plus, et quoi faire la nuit (comme le jour, sans son, rien).
-- **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle
-  ou d'autres objets, sinon elle suit les choix du haut.
-- **Où ?** : pour une caméra qui a des zones dans Frigate, « Partout » ou seulement
-  certaines zones, en un clic.
-- **Essai** : *M'envoyer un exemple* envoie une vraie notification de test aux
-  destinataires, avec l'image en direct de la caméra et les réglages enregistrés.
-- **Pause** : un bandeau indique si les notifications sont actives ; pause de 30 min,
-  1 h, 8 h ou jusqu'à reprise, et réactivation des caméras coupées depuis Telegram.
-- **Activité récente** : les 50 dernières détections avec leur miniature et leur
-  issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone, score trop bas,
-  déjà signalé il y a peu…) et un lien pour régler la caméra concernée.
-- **Alertes de cohérence** : une caméra réglée pour signaler un objet que Frigate n'y
-  suit pas (absent de `objects.track`) est signalée.
-- **Réglages avancés** (repliés) : tous les réglages en détail — zones, scores,
-  plages horaires sur mesure, délais… — en global puis caméra par caméra. Les zones et
-  les objets proposés viennent de l'API de Frigate.
+- **Notification styles**: photo + video, photo only, photo + GIF or text only, each
+  with a preview of the message as it will arrive in Telegram.
+- **Simple questions**: what to report (people, people and cars, everything), how often
+  at most, and what to do at night (same as daytime, silent, nothing).
+- **Cameras**: one switch per camera; open it to give it another style or other
+  objects, otherwise it follows the choices above.
+- **Where?**: for a camera with zones defined in Frigate, "everywhere" or only some
+  zones, in one click.
+- **Try it**: the sample button sends a real test notification to the recipients, with
+  the camera's live image and the saved settings.
+- **Pause**: a banner shows whether notifications are active; pause for 30 min, 1 h,
+  8 h or until resumed, and re-enable cameras muted from Telegram.
+- **Recent activity**: the last 50 detections with their thumbnail and outcome —
+  ✅ sent, or ⛔ ignored with the reason in plain words (outside the zones, score too
+  low, already reported a moment ago…) and a link to adjust the camera. The history is
+  kept in memory and starts over when the service restarts.
+- **Consistency warnings**: a camera set to report an object that Frigate does not
+  track on it (missing from `objects.track`) is flagged.
+- **Advanced settings** (collapsed): every setting in detail — zones, scores, custom
+  time ranges, delays… — globally, then camera by camera. The zones and objects offered
+  come from Frigate's API.
 
-Un enregistrement prend effet **immédiatement**, sans redémarrage, et n'est accepté que
-s'il est valide — un réglage refusé laisse le service sur les précédents.
+Saving takes effect **immediately**, without a restart, and is only accepted if valid —
+a rejected change leaves the service on the previous settings.
 
-Les réglages sont écrits dans `/data/notify.yml`, à côté de l'état, et **remplacent les
-sections `notify` et `cameras` de `config.yml`** tant que ce fichier existe ; le bouton
-*Revenir à config.yml* le supprime. `config.yml` reste la source des secrets, des `${VAR}`
-et des commentaires, et n'est jamais réécrit — c'est d'ailleurs nécessaire, le conteneur
-le monte en lecture seule.
+Settings are written to `/data/notify.yml`, next to the state, and **replace the
+`notify` and `cameras` sections of `config.yml`** as long as that file exists; the
+*Revenir aux réglages de config.yml* (back to config.yml) button deletes it.
+`config.yml` remains the source of secrets, `${VAR}`s and comments, and is never
+rewritten — which is necessary anyway, since the container mounts it read-only.
+
+### Access and security
 
 ```yaml
 web:
-  enabled: true                  # false pour ne pas servir l'interface du tout
-  password: "${WEB_PASSWORD:-}"  # vide = aucune authentification
-  allowed_hosts: []              # noms d'hôte acceptés sans mot de passe (ex. [nas.lan])
-  protect_metrics: false         # true = /metrics exige aussi le mot de passe
+  enabled: true                  # false to not serve the interface at all
+  password: "${WEB_PASSWORD:-}"  # empty = no authentication
+  allowed_hosts: []              # host names accepted without a password (e.g. [nas.lan])
+  protect_metrics: false         # true = /metrics requires the password too
 ```
 
-Sans mot de passe, l'interface est ouverte à quiconque atteint le port : le
-`docker-compose.yml` fourni ne publie `8080` que sur `127.0.0.1`. Pour y accéder depuis
-le réseau ou un reverse proxy, renseigner `WEB_PASSWORD` dans `.env`.
+Without a password, the interface is open to anyone who can reach the port: the
+provided `docker-compose.yml` only publishes `8080` on `127.0.0.1`. To reach it from
+the network or through a reverse proxy, set `WEB_PASSWORD` in `.env`.
 
-Sans mot de passe, l'interface n'accepte en outre que les requêtes adressées à une
-adresse IP ou à `localhost` (`http://192.168.1.10:8080/` fonctionne,
-`http://nas.lan:8080/` est refusé en 403). Cela bloque le *rebinding DNS*, où un site
-malveillant ouvert dans votre navigateur fait pointer son propre domaine vers
-`127.0.0.1` pour piloter l'interface à votre insu. Pour passer par un nom d'hôte,
-l'ajouter à `web.allowed_hosts`, ou définir un mot de passe (qui lève ce contrôle).
+Without a password, the interface also only accepts requests addressed to an IP
+address or to `localhost` (`http://192.168.1.10:8080/` works, `http://nas.lan:8080/` is
+rejected with a 403). This blocks *DNS rebinding*, where a malicious site open in your
+browser points its own domain at `127.0.0.1` to drive the interface behind your back.
+To use a host name, add it to `web.allowed_hosts`, or set a password (which lifts this
+check).
 
-L'authentification ne couvre que l'interface : `/healthz` reste toujours libre pour la
-sonde du conteneur, et `/metrics` aussi, sauf avec `protect_metrics: true`. Si le port
-est exposé au réseau, pensez-y : les compteurs par caméra et par objet révèlent quand
-il y a de l'activité chez vous. Prometheus s'authentifie alors avec `basic_auth`
-(nom d'utilisateur libre, mot de passe `WEB_PASSWORD`).
+Authentication only covers the interface: `/healthz` always stays open for the
+container probe, and so does `/metrics`, unless `protect_metrics: true`. Keep this in
+mind if the port is exposed to the network: per-camera and per-object counters reveal
+when there is activity at your place. Prometheus then authenticates with `basic_auth`
+(any user name, password `WEB_PASSWORD`).
 
-## Commandes
+## Telegram commands
 
-| Commande | Effet |
+| Command | Effect |
 |---|---|
-| `/pause [durée] [caméra]` | Pause globale ou d'une caméra (1 h par défaut, `0` = jusqu'à `/resume`). Durées : `30m`, `2h`, `1d` |
-| `/resume [caméra]` | Reprend une caméra, ou tout sans argument |
-| `/status` | Connexion MQTT, pauses actives, notifications sur 24 h |
-| `/cameras` | Caméras et leur état |
-| `/snapshot [caméra]` | Image en direct |
-| `/last [caméra]` | Dernier événement (snapshot et clip) |
+| `/pause [duration] [camera]` | Pause everything or one camera (1 h by default, `0` = until `/resume`). Durations: `30m`, `2h`, `1d` |
+| `/resume [camera]` | Resume one camera, or everything without an argument |
+| `/status` | MQTT connection, active pauses, notifications over 24 h |
+| `/cameras` | Cameras and their state |
+| `/snapshot [camera]` | Live image |
+| `/last [camera]` | Latest event (snapshot and clip) |
 
-Seuls les utilisateurs listés dans `telegram.admins` peuvent utiliser les commandes et les boutons.
+Only the users listed in `telegram.admins` can use the commands and buttons.
 
-## Supervision
+## Monitoring
 
-- `GET /healthz` : 200 si MQTT est connecté et Telegram joignable (utilisé par le `HEALTHCHECK` Docker)
-- `GET /metrics` : métriques Prometheus préfixées par `ft_`
-- `/healthz` n'est jamais protégée ; `/metrics` l'est par `web.password` si `web.protect_metrics: true`
+- `GET /healthz`: 200 when MQTT is connected and Telegram is reachable (used by the Docker `HEALTHCHECK`)
+- `GET /metrics`: Prometheus metrics prefixed with `ft_`
+- `/healthz` is never protected; `/metrics` is protected by `web.password` when `web.protect_metrics: true`
 
-## Dépannage
+## Troubleshooting
 
-- **Aucune notification** : `log_level: debug`, puis vérifier `ft_events_received_total` et `ft_events_filtered_total{reason=...}` sur `/metrics`.
-- **Clip manquant** : augmenter `clip_delay` (Frigate n'a pas encore fini d'écrire le clip).
-- **`permission denied` sur `/data`** : voir le `chown` de l'installation. L'interface web ne peut pas enregistrer sans ce droit.
-- **Réglages de l'interface ignorés au démarrage** : le journal indique pourquoi `/data/notify.yml` a été écarté (un chat supprimé de `telegram.chats`, par exemple). Le service repart alors sur `config.yml`.
+- **No notifications**: open *recent activity* in the web interface, which gives the
+  reason for every ignored detection. Otherwise, set `log_level: debug`, then check
+  `ft_events_received_total` and `ft_events_filtered_total{reason=...}` on `/metrics`.
+- **Missing clip**: increase `clip_delay` (Frigate hasn't finished writing the clip yet).
+- **Interface returns 403 "hôte non autorisé" (host not allowed)**: see
+  [Access and security](#access-and-security) — add the host name to
+  `web.allowed_hosts` or set a password.
+- **`permission denied` on `/data`**: see the `chown` step in the installation. The web interface cannot save without it.
+- **Interface settings ignored at startup**: the log explains why `/data/notify.yml` was set aside (a chat removed from `telegram.chats`, for example). The service then falls back to `config.yml`.
 
-## Développement
+## Development
 
 ```bash
 go test ./...
