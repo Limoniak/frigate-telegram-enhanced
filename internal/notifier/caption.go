@@ -1,7 +1,6 @@
 package notifier
 
 import (
-	"fmt"
 	"html"
 	"math"
 	"strings"
@@ -9,30 +8,36 @@ import (
 	"unicode/utf8"
 
 	"frigate-telegram/internal/actions"
+	"frigate-telegram/internal/i18n"
 	"frigate-telegram/internal/telegram"
 )
 
 const maxCaption = 1024
 
-var labelNames = map[string]struct{ emoji, name string }{
-	"person":     {"🚶", "Personne"},
-	"car":        {"🚗", "Voiture"},
-	"dog":        {"🐕", "Chien"},
-	"cat":        {"🐈", "Chat"},
-	"bicycle":    {"🚲", "Vélo"},
-	"motorcycle": {"🏍️", "Moto"},
-	"bird":       {"🐦", "Oiseau"},
-	"package":    {"📦", "Colis"},
+var labelNames = map[string]struct{ emoji, en, fr string }{
+	"person":     {"🚶", "Person", "Personne"},
+	"car":        {"🚗", "Car", "Voiture"},
+	"dog":        {"🐕", "Dog", "Chien"},
+	"cat":        {"🐈", "Cat", "Chat"},
+	"bicycle":    {"🚲", "Bicycle", "Vélo"},
+	"motorcycle": {"🏍️", "Motorcycle", "Moto"},
+	"bird":       {"🐦", "Bird", "Oiseau"},
+	"package":    {"📦", "Package", "Colis"},
 }
 
-func labelText(label string) string {
+func labelText(label string, lang i18n.Lang) string {
 	if l, ok := labelNames[label]; ok {
-		return l.emoji + " " + l.name
+		return l.emoji + " " + lang.T(l.en, l.fr)
 	}
 	if label == "" {
-		return "🔔 Détection"
+		return "🔔 " + lang.T("Detection", "Détection")
 	}
 	return "🔔 " + label
+}
+
+// openInFrigate est le lien « ouvrir dans Frigate » d'une légende.
+func openInFrigate(link string, lang i18n.Lang) string {
+	return "\n🔗 <a href=\"" + html.EscapeString(link) + "\">" + lang.T("Open in Frigate", "Ouvrir dans Frigate") + "</a>"
 }
 
 type captionData struct {
@@ -46,10 +51,10 @@ type captionData struct {
 }
 
 // buildCaption produit la légende HTML (≤ 1024 caractères ; la description est tronquée si besoin).
-func buildCaption(d captionData, loc *time.Location) string {
+func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	esc := html.EscapeString
 	var b strings.Builder
-	b.WriteString("<b>" + esc(labelText(d.Label)) + "</b> — " + esc(d.Camera))
+	b.WriteString("<b>" + esc(labelText(d.Label, lang)) + "</b> — " + esc(d.Camera))
 	if d.SubLabel != "" {
 		b.WriteString(" (" + esc(d.SubLabel) + ")")
 	}
@@ -58,16 +63,16 @@ func buildCaption(d captionData, loc *time.Location) string {
 		details = append(details, "📍 "+esc(strings.Join(d.Zones, ", ")))
 	}
 	if d.HasScore && d.Score > 0 {
-		details = append(details, fmt.Sprintf("%d %%", int(math.Round(d.Score*100))))
+		details = append(details, lang.Tf("%d%%", "%d %%", int(math.Round(d.Score*100))))
 	}
 	if len(details) > 0 {
 		b.WriteString("\n" + strings.Join(details, " · "))
 	}
-	b.WriteString("\n🕑 " + d.Start.In(loc).Format("02/01 15:04:05"))
+	b.WriteString("\n🕑 " + d.Start.In(loc).Format(lang.DateTime()))
 
 	footer := ""
 	if d.Link != "" {
-		footer = "\n🔗 <a href=\"" + esc(d.Link) + "\">Ouvrir dans Frigate</a>"
+		footer = openInFrigate(d.Link, lang)
 	}
 	if d.Description != "" {
 		// Telegram compte le texte hors balises : compter la chaîne HTML entière est prudent.

@@ -10,6 +10,7 @@ import (
 
 	"frigate-telegram/internal/config"
 	"frigate-telegram/internal/frigate"
+	"frigate-telegram/internal/i18n"
 	"frigate-telegram/internal/telegram"
 )
 
@@ -75,7 +76,7 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 		return err
 	}
 	if len(evs) == 0 {
-		_, err := n.Telegram.SendMessage(ctx, chatID, "Aucun événement trouvé.", telegram.SendOptions{})
+		_, err := n.Telegram.SendMessage(ctx, chatID, n.Config.Language.T("No event found.", "Aucun événement trouvé."), telegram.SendOptions{})
 		return err
 	}
 	ev := evs[0]
@@ -83,7 +84,7 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 		Label: ev.Label, SubLabel: string(ev.SubLabel), Camera: ev.Camera, Zones: ev.Zones,
 		Score: ev.Score(), HasScore: true, Start: frigate.UnixTime(ev.StartTime),
 		Link: n.uiLink("/explore?event_id=" + url.QueryEscape(ev.ID)),
-	}, n.Config.Location)
+	}, n.Config.Location, n.Config.Language)
 	markup := buttons(ev.Camera, ev.ID)
 
 	var msg telegram.Message
@@ -108,7 +109,7 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 }
 
 // ErrNoRecipient signale une caméra dont les réglages n'ont aucun destinataire.
-var ErrNoRecipient = errors.New("aucun destinataire pour cette caméra")
+var ErrNoRecipient = i18n.NewError("no recipient for this camera", "aucun destinataire pour cette caméra")
 
 // SendTest envoie une notification d'exemple pour camera, telle qu'un vrai
 // événement la produirait avec les réglages en vigueur : destinataires, image en
@@ -120,16 +121,19 @@ func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 	if len(cfg.Chats) == 0 {
 		return ErrNoRecipient
 	}
-	caption := "🧪 <b>Notification de test</b> — " + html.EscapeString(camera) +
-		"\n🕑 " + n.Now().In(n.Config.Location).Format("02/01 15:04:05")
+	l := n.Config.Language
+	caption := "🧪 <b>" + l.T("Test notification", "Notification de test") + "</b> — " + html.EscapeString(camera) +
+		"\n🕑 " + n.Now().In(n.Config.Location).Format(l.DateTime())
 	switch {
 	case cfg.Clip:
-		caption += "\n🎬 Lors d'un vrai événement, le clip vidéo suivra en réponse."
+		caption += l.T("\n🎬 On a real event, the video clip will follow as a reply.",
+			"\n🎬 Lors d'un vrai événement, le clip vidéo suivra en réponse.")
 	case cfg.GIF:
-		caption += "\n🎞 Lors d'un vrai événement, un GIF animé suivra en réponse."
+		caption += l.T("\n🎞 On a real event, an animated GIF will follow as a reply.",
+			"\n🎞 Lors d'un vrai événement, un GIF animé suivra en réponse.")
 	}
 	if link := n.uiLink("/#" + url.PathEscape(camera)); link != "" {
-		caption += "\n🔗 <a href=\"" + html.EscapeString(link) + "\">Ouvrir dans Frigate</a>"
+		caption += openInFrigate(link, l)
 	}
 
 	var photo []byte

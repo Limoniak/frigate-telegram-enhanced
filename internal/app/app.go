@@ -121,7 +121,7 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 		close(botDone)
 	}()
 	sub.Start()
-	log.Info("frigate-telegram démarré", "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
+	log.Info("frigate-telegram démarré", "configuration", cfg.Source, "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
 	if cfg.Web.Enabled {
 		log.Info("interface web disponible", "adresse", cfg.HTTPListen,
 			"authentification", cfg.Web.Password != "")

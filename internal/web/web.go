@@ -21,6 +21,7 @@ import (
 
 	"frigate-telegram/internal/config"
 	"frigate-telegram/internal/frigate"
+	"frigate-telegram/internal/i18n"
 	"frigate-telegram/internal/notifier"
 	"frigate-telegram/internal/state"
 )
@@ -133,7 +134,7 @@ func (h *Handler) guard(next http.Handler) http.Handler {
 	if h.cfg.Web.Password != "" {
 		return BasicAuth(h.cfg.Web.Password, next)
 	}
-	return checkHost(h.cfg.Web.AllowedHosts, next)
+	return checkHost(h.cfg.Web.AllowedHosts, h.cfg.Language, next)
 }
 
 // checkHost refuse les requêtes dont l'en-tête Host n'est ni une adresse IP, ni
@@ -141,10 +142,12 @@ func (h *Handler) guard(next http.Handler) http.Handler {
 // rebinding DNS : un site tiers qui fait pointer son propre domaine vers 127.0.0.1
 // devient « même origine » pour le navigateur — X-Requested-With ne l'arrête plus —
 // mais ses requêtes portent toujours son nom de domaine dans Host.
-func checkHost(allowed []string, next http.Handler) http.Handler {
+func checkHost(allowed []string, def i18n.Lang, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !hostAllowed(r.Host, allowed) {
-			http.Error(w, "hôte non autorisé : ajouter ce nom à web.allowed_hosts, ou définir web.password", http.StatusForbidden)
+			http.Error(w, requestLang(r, def).T(
+				"host not allowed: add this name to WEB_ALLOWED_HOSTS (web.allowed_hosts), or set WEB_PASSWORD",
+				"hôte non autorisé : ajouter ce nom à WEB_ALLOWED_HOSTS (web.allowed_hosts), ou définir WEB_PASSWORD"), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -174,7 +177,8 @@ const requestedWith = "frigate-telegram"
 func sameOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Requested-With") != requestedWith {
-			http.Error(w, "requête refusée : en-tête X-Requested-With manquant", http.StatusForbidden)
+			http.Error(w, requestLang(r, i18n.Default).T("request refused: missing X-Requested-With header",
+				"requête refusée : en-tête X-Requested-With manquant"), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -187,7 +191,7 @@ func BasicAuth(pass string, next http.Handler) http.Handler {
 		_, got, ok := r.BasicAuth()
 		if !ok || subtle.ConstantTimeCompare([]byte(got), []byte(pass)) != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="frigate-telegram", charset="UTF-8"`)
-			http.Error(w, "authentification requise", http.StatusUnauthorized)
+			http.Error(w, requestLang(r, i18n.Default).T("authentication required", "authentification requise"), http.StatusUnauthorized)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -239,7 +243,8 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Frigate injoignable : on affiche au moins les caméras déjà réglées,
 		// pour que l'interface reste utilisable et n'efface rien.
-		s.Warning = "Frigate est injoignable : la liste des caméras, zones et objets est incomplète."
+		s.Warning = h.lang(r).T("Frigate is unreachable: the list of cameras, zones and objects is incomplete.",
+			"Frigate est injoignable : la liste des caméras, zones et objets est incomplète.")
 		for _, name := range h.cfg.CameraNames() {
 			cams = append(cams, frigate.CameraInfo{Name: name})
 		}
@@ -253,7 +258,7 @@ func (h *Handler) put(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&o); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		h.writeError(w, r, http.StatusBadRequest, err)
 		return
 	}
 
@@ -261,17 +266,17 @@ func (h *Handler) put(w http.ResponseWriter, r *http.Request) {
 	defer h.save.Unlock()
 	// Valider avant d'écrire : un fichier de surcharge invalide serait rejeté au
 	// prochain démarrage, et le service repartirait sur config.yml sans prévenir.
-	if err := h.cfg.ValidateOverlay(&o); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := h.cfg.ValidateOverlay(&o, h.lang(r)); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, err)
 		return
 	}
 	if err := config.SaveOverlay(h.path, o); err != nil {
 		h.log.Error("enregistrement des réglages échoué", "err", err)
-		writeError(w, http.StatusInternalServerError, err)
+		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	if err := h.cfg.ApplyOverlay(&o); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	h.log.Info("réglages de notification mis à jour depuis l'interface web")
@@ -282,11 +287,11 @@ func (h *Handler) reset(w http.ResponseWriter, r *http.Request) {
 	h.save.Lock()
 	defer h.save.Unlock()
 	if err := os.Remove(h.path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		writeError(w, http.StatusInternalServerError, err)
+		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	if err := h.cfg.ApplyOverlay(nil); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	h.log.Info("réglages de notification revenus à config.yml")
@@ -305,18 +310,18 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
 
 func (h *Handler) test(w http.ResponseWriter, r *http.Request) {
 	if h.tester == nil {
-		writeError(w, http.StatusNotFound, errors.New("envoi de test indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("test notifications are unavailable", "envoi de test indisponible"))
 		return
 	}
 	var req struct {
 		Camera string `json:"camera"`
 	}
 	if err := decodeBody(w, r, &req); err != nil || req.Camera == "" {
-		writeError(w, http.StatusBadRequest, errors.New("caméra manquante"))
+		h.writeError(w, r, http.StatusBadRequest, i18n.NewError("missing camera", "caméra manquante"))
 		return
 	}
 	if !h.allowTest() {
-		writeError(w, http.StatusTooManyRequests, errors.New("un test vient d'être envoyé, patientez quelques secondes"))
+		h.writeError(w, r, http.StatusTooManyRequests, i18n.NewError("a test was just sent, wait a few seconds", "un test vient d'être envoyé, patientez quelques secondes"))
 		return
 	}
 
@@ -324,7 +329,7 @@ func (h *Handler) test(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	if err := h.tester.SendTest(ctx, req.Camera); err != nil {
 		h.log.Warn("notification de test échouée", "camera", req.Camera, "err", err)
-		writeError(w, http.StatusBadGateway, err)
+		h.writeError(w, r, http.StatusBadGateway, err)
 		return
 	}
 	h.log.Info("notification de test envoyée depuis l'interface web", "camera", req.Camera)
@@ -376,9 +381,9 @@ func (h *Handler) writeState(w http.ResponseWriter) {
 	writeJSON(w, http.StatusOK, v)
 }
 
-func (h *Handler) getState(w http.ResponseWriter, _ *http.Request) {
+func (h *Handler) getState(w http.ResponseWriter, r *http.Request) {
 	if h.state == nil {
-		writeError(w, http.StatusNotFound, errors.New("état indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable", "état indisponible"))
 		return
 	}
 	h.writeState(w)
@@ -386,14 +391,14 @@ func (h *Handler) getState(w http.ResponseWriter, _ *http.Request) {
 
 func (h *Handler) pause(w http.ResponseWriter, r *http.Request) {
 	if h.state == nil {
-		writeError(w, http.StatusNotFound, errors.New("état indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable", "état indisponible"))
 		return
 	}
 	var req struct {
 		Minutes int `json:"minutes"`
 	}
 	if err := decodeBody(w, r, &req); err != nil || req.Minutes < 0 || req.Minutes > 7*24*60 {
-		writeError(w, http.StatusBadRequest, errors.New("durée invalide (0 = jusqu'à reprise, 7 jours au plus)"))
+		h.writeError(w, r, http.StatusBadRequest, i18n.NewError("invalid duration (0 = until resumed, 7 days at most)", "durée invalide (0 = jusqu'à reprise, 7 jours au plus)"))
 		return
 	}
 	end := state.Forever
@@ -401,7 +406,7 @@ func (h *Handler) pause(w http.ResponseWriter, r *http.Request) {
 		end = h.now().Add(time.Duration(req.Minutes) * time.Minute)
 	}
 	if err := h.state.Pause(end); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	h.log.Info("notifications en pause depuis l'interface web", "minutes", req.Minutes)
@@ -410,14 +415,14 @@ func (h *Handler) pause(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) resume(w http.ResponseWriter, r *http.Request) {
 	if h.state == nil {
-		writeError(w, http.StatusNotFound, errors.New("état indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable", "état indisponible"))
 		return
 	}
 	var req struct {
 		Camera string `json:"camera"`
 	}
 	if err := decodeBody(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		h.writeError(w, r, http.StatusBadRequest, err)
 		return
 	}
 	var err error
@@ -427,7 +432,7 @@ func (h *Handler) resume(w http.ResponseWriter, r *http.Request) {
 		err = h.state.Unmute(req.Camera)
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	h.log.Info("notifications reprises depuis l'interface web", "camera", req.Camera)
@@ -443,9 +448,9 @@ type historyEntryView struct {
 	HasThumb bool `json:"has_thumb"`
 }
 
-func (h *Handler) getHistory(w http.ResponseWriter, _ *http.Request) {
+func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 	if h.history == nil {
-		writeError(w, http.StatusNotFound, errors.New("historique indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable", "historique indisponible"))
 		return
 	}
 	v := historyView{Entries: []historyEntryView{}}
@@ -469,7 +474,7 @@ func (h *Handler) thumb(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	img, err := h.media.GetBytes(ctx, path, maxThumb)
 	if err != nil {
-		http.Error(w, "miniature indisponible", http.StatusBadGateway)
+		http.Error(w, h.lang(r).T("thumbnail unavailable", "miniature indisponible"), http.StatusBadGateway)
 		return
 	}
 	w.Header().Set("Content-Type", "image/jpeg")
@@ -484,6 +489,27 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func writeError(w http.ResponseWriter, code int, err error) {
-	writeJSON(w, code, map[string]string{"error": err.Error()})
+// writeError répond une erreur JSON, dans la langue de l'interface si l'erreur est bilingue.
+func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, code int, err error) {
+	writeJSON(w, code, map[string]string{"error": h.lang(r).Message(err)})
+}
+
+// langHeader porte la langue affichée par l'interface, jointe à chacune de ses requêtes.
+const langHeader = "X-Lang"
+
+// lang est la langue des réponses à r : celle de l'interface, sinon celle du
+// navigateur, sinon celle du service.
+func (h *Handler) lang(r *http.Request) i18n.Lang { return requestLang(r, h.cfg.Language) }
+
+func requestLang(r *http.Request, def i18n.Lang) i18n.Lang {
+	if l, err := i18n.Parse(r.Header.Get(langHeader)); err == nil && r.Header.Get(langHeader) != "" {
+		return l
+	}
+	// Accept-Language : "fr-FR,fr;q=0.9,en;q=0.8" — seule la première langue compte.
+	first, _, _ := strings.Cut(r.Header.Get("Accept-Language"), ",")
+	first, _, _ = strings.Cut(first, ";")
+	if l, err := i18n.Parse(first); err == nil && first != "" {
+		return l
+	}
+	return def
 }

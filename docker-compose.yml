@@ -1,17 +1,45 @@
+# frigate-telegram — Telegram notifications for Frigate NVR
+# Documentation: https://github.com/Limoniak/frigate-telegram
+#
+# 1. Replace the values below (at least the four required ones).
+# 2. docker compose up -d
+# 3. Open http://<server-ip>:8431/ to set up notifications.
+
 services:
   frigate-telegram:
     image: ghcr.io/limoniak/frigate-telegram:latest
-    # build: .                # décommenter (et commenter image:) pour construire localement
     container_name: frigate-telegram
     restart: unless-stopped
-    stop_grace_period: 20s    # laisse le temps de sauvegarder l'état et de finir les envois en cours
-    env_file: .env
+    stop_grace_period: 20s   # time to finish the notifications being sent
+    environment:
+      # --- Required ------------------------------------------------------------
+      TELEGRAM_TOKEN: "123456789:AAAA-replace-with-the-token-from-BotFather"
+      TELEGRAM_CHAT_ID: "123456789"          # your ID; several: "me=123456789,family=-1001234567890"
+      FRIGATE_URL: "http://192.168.1.10:5000"  # Frigate API (5000 without auth, 8971 with auth)
+      MQTT_BROKER: "192.168.1.10:1883"         # the MQTT broker used by Frigate
+
+      # --- Recommended ---------------------------------------------------------
+      TZ: "Europe/Paris"
+      LANGUAGE: "en"                           # Telegram messages: en or fr
+      WEB_PASSWORD: ""                         # web interface password (empty = none)
+
+      # --- Optional ------------------------------------------------------------
+      # TELEGRAM_ADMINS: "123456789"           # who can control the bot (default: the private chats above)
+      # FRIGATE_EXTERNAL_URL: "https://frigate.example.com"  # for the "Open in Frigate" links
+      # FRIGATE_USERNAME: ""
+      # FRIGATE_PASSWORD: ""
+      # MQTT_USERNAME: ""
+      # MQTT_PASSWORD: ""
+      # MQTT_TOPIC_PREFIX: "frigate"
+      # MODE: "events"                         # events (one message per object) or reviews (Frigate ≥ 0.14 alerts)
+      # WEB_ALLOWED_HOSTS: "nas.lan"           # host names accepted without a password
+      # LOG_LEVEL: "info"
     volumes:
-      - ./config:/config:ro
-      - ./data:/data
+      - frigate-telegram-data:/data            # web interface settings and state (pauses, cooldowns)
     tmpfs:
-      - /tmp:size=256m        # clips temporaires (50 Mo max chacun)
+      - /tmp:size=256m                         # temporary clips (50 MB max each)
     ports:
-      - "127.0.0.1:8080:8080" # interface web, /healthz et /metrics, accessibles seulement depuis l'hôte ;
-                               # remplacer par "8080:8080" pour l'exposer sur toutes les interfaces
-                               # (renseigner alors WEB_PASSWORD dans .env)
+      - "8431:8431"                            # web interface, /healthz and /metrics
+
+volumes:
+  frigate-telegram-data:

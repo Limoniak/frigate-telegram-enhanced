@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"frigate-telegram/internal/config"
+	"frigate-telegram/internal/i18n"
 	"frigate-telegram/internal/state"
 	"frigate-telegram/internal/telegram"
 )
@@ -154,7 +155,7 @@ func TestPauseGlobalDefaultsToOneHour(t *testing.T) {
 	if !e.st.IsPaused(now.Add(59*time.Minute)) || e.st.IsPaused(now.Add(61*time.Minute)) {
 		t.Error("pause d'une heure attendue")
 	}
-	if !strings.Contains(e.tg.last(), "jusqu'à 28/09 17:00") {
+	if !strings.Contains(e.tg.last(), "until Sep 28 17:00") {
 		t.Errorf("réponse = %q", e.tg.last())
 	}
 }
@@ -178,7 +179,7 @@ func TestPauseZeroIsForever(t *testing.T) {
 func TestPauseUnknownCamera(t *testing.T) {
 	e := newEnv(t)
 	e.cmd("/pause cuisine", 1)
-	if e.st.IsMuted("cuisine", now) || !strings.Contains(e.tg.last(), "Caméra inconnue") {
+	if e.st.IsMuted("cuisine", now) || !strings.Contains(e.tg.last(), "Unknown camera") {
 		t.Errorf("réponse = %q", e.tg.last())
 	}
 }
@@ -210,7 +211,7 @@ func TestStatus(t *testing.T) {
 	e.cmd("/pause jardin 1h", 1)
 	e.cmd("/status", 1)
 	out := e.tg.last()
-	for _, want := range []string{"MQTT : ✅", "Notifications actives", "🔇 jardin", "3 notification(s)"} {
+	for _, want := range []string{"MQTT: ✅", "Notifications active", "🔇 jardin", "3 notification(s)"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status sans %q :\n%s", want, out)
 		}
@@ -268,7 +269,7 @@ func TestCallbacks(t *testing.T) {
 func TestCallbackUnauthorized(t *testing.T) {
 	e := newEnv(t)
 	e.callback("p:1800", 999)
-	if e.st.IsPaused(now) || len(e.tg.answers) != 1 || !strings.Contains(e.tg.answers[0], "Non autorisé") {
+	if e.st.IsPaused(now) || len(e.tg.answers) != 1 || !strings.Contains(e.tg.answers[0], "Not allowed") {
 		t.Errorf("answers = %v", e.tg.answers)
 	}
 }
@@ -314,7 +315,7 @@ func TestCommandsDoNotBlockPollingAndKeepOrder(t *testing.T) {
 
 	e.tg.mu.Lock()
 	defer e.tg.mu.Unlock()
-	if len(e.tg.messages) != 2 || !strings.Contains(e.tg.messages[0], "Caméras") || !strings.Contains(e.tg.messages[1], "Commandes") {
+	if len(e.tg.messages) != 2 || !strings.Contains(e.tg.messages[0], "Cameras") || !strings.Contains(e.tg.messages[1], "Commands") {
 		t.Errorf("réponses = %q, attendu /cameras puis /help", e.tg.messages)
 	}
 }
@@ -337,5 +338,21 @@ func TestCameraListIsCached(t *testing.T) {
 	e.cmd("/cameras", 1)
 	if calls != 2 {
 		t.Errorf("appels à Frigate = %d, attendu 2 après expiration du cache", calls)
+	}
+}
+
+func TestFrenchReplies(t *testing.T) {
+	e := newEnv(t)
+	e.b.Config.Language = i18n.FR
+	e.cmd("/pause", 1)
+	if !strings.Contains(e.tg.last(), "Notifications en pause jusqu'à 28/09 17:00") {
+		t.Errorf("réponse = %q", e.tg.last())
+	}
+	e.cmd("/pause cuisine", 1)
+	if !strings.Contains(e.tg.last(), "Caméra inconnue") {
+		t.Errorf("réponse = %q", e.tg.last())
+	}
+	if c := commands(i18n.FR); c[0].Description != "Mettre en pause : /pause [durée] [caméra]" {
+		t.Errorf("menu = %+v", c[0])
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"frigate-telegram/internal/config"
+	"frigate-telegram/internal/i18n"
 	"frigate-telegram/internal/state"
 	"frigate-telegram/internal/telegram"
 )
@@ -123,19 +124,22 @@ func (b *Bot) cameras(ctx context.Context) ([]string, error) {
 	return slices.Clone(cams), nil
 }
 
-var commands = []telegram.BotCommand{
-	{Command: "pause", Description: "Mettre en pause : /pause [durée] [caméra]"},
-	{Command: "resume", Description: "Reprendre : /resume [caméra]"},
-	{Command: "status", Description: "État du service"},
-	{Command: "cameras", Description: "Liste des caméras"},
-	{Command: "snapshot", Description: "Image en direct : /snapshot [caméra]"},
-	{Command: "last", Description: "Dernier événement : /last [caméra]"},
-	{Command: "help", Description: "Aide"},
+// commands est le menu des commandes affiché par Telegram, dans la langue l.
+func commands(l i18n.Lang) []telegram.BotCommand {
+	return []telegram.BotCommand{
+		{Command: "pause", Description: l.T("Pause: /pause [duration] [camera]", "Mettre en pause : /pause [durée] [caméra]")},
+		{Command: "resume", Description: l.T("Resume: /resume [camera]", "Reprendre : /resume [caméra]")},
+		{Command: "status", Description: l.T("Service status", "État du service")},
+		{Command: "cameras", Description: l.T("List cameras", "Liste des caméras")},
+		{Command: "snapshot", Description: l.T("Live image: /snapshot [camera]", "Image en direct : /snapshot [caméra]")},
+		{Command: "last", Description: l.T("Latest event: /last [camera]", "Dernier événement : /last [caméra]")},
+		{Command: "help", Description: l.T("Help", "Aide")},
+	}
 }
 
 // Run fait du long polling jusqu'à l'annulation de ctx.
 func (b *Bot) Run(ctx context.Context) {
-	if err := b.Telegram.SetMyCommands(ctx, commands); err != nil {
+	if err := b.Telegram.SetMyCommands(ctx, commands(b.Config.Language)); err != nil {
 		b.Log.Warn("setMyCommands échoué", "err", err)
 	}
 	offset := 0

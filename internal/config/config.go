@@ -4,7 +4,6 @@ package config
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -15,12 +14,18 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"frigate-telegram/internal/i18n"
 )
 
 const (
 	ModeEvents  = "events"
 	ModeReviews = "reviews"
 )
+
+// DefaultHTTPListen est l'adresse d'écoute par défaut de l'interface web, de
+// /healthz et de /metrics. 8431 : un port qu'aucun service courant n'utilise.
+const DefaultHTTPListen = ":8431"
 
 type Frigate struct {
 	URL                string `yaml:"url"`
@@ -90,6 +95,8 @@ type Config struct {
 	StateFile  string
 	HTTPListen string
 	LogLevel   string
+	Source     string    // fichier lu, ou "environment"
+	Language   i18n.Lang // langue des messages Telegram et des erreurs (en par défaut)
 
 	mu      sync.RWMutex
 	notify  Notify
@@ -135,6 +142,7 @@ func (c *Config) ChatNames() []string { return slices.Sorted(maps.Keys(c.Telegra
 func (c *Config) IsAdmin(userID int64) bool { return slices.Contains(c.Telegram.Admins, userID) }
 
 type fileYAML struct {
+	Language   string                 `yaml:"language"`
 	Timezone   string                 `yaml:"timezone"`
 	Mode       string                 `yaml:"mode"`
 	Frigate    Frigate                `yaml:"frigate"`
@@ -278,17 +286,29 @@ func defaultNotify(chats map[string]int64) Notify {
 }
 
 // Load lit et valide le fichier de configuration, en résolvant les ${VAR}.
+// Sans fichier à path, la configuration est lue dans les variables d'environnement
+// (voir FromEnv) : c'est l'installation par docker-compose seul.
 func Load(path string) (*Config, error) {
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("lecture de la config: %w", err)
+	if errors.Is(err, os.ErrNotExist) {
+		return FromEnv(os.LookupEnv)
 	}
-	return Parse(raw, os.LookupEnv)
+	if err != nil {
+		return nil, envLang(os.LookupEnv).Errorf("reading the configuration: %w", "lecture de la config : %w", err)
+	}
+	c, err := Parse(raw, os.LookupEnv)
+	if err != nil {
+		return nil, err
+	}
+	c.Source = path
+	return c, nil
 }
 
-// Parse construit la configuration depuis le YAML brut.
+// Parse construit la configuration depuis le YAML brut. La langue vient de la clé
+// language, sinon de la variable LANGUAGE.
 func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
-	expanded, err := expandEnv(raw, lookup)
+	lang := envLang(lookup)
+	expanded, err := expandEnv(raw, lookup, lang)
 	if err != nil {
 		return nil, err
 	}
@@ -297,12 +317,28 @@ func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 	dec.KnownFields(true)
 	if err := dec.Decode(&f); err != nil {
 		if errors.Is(err, io.EOF) {
-			return nil, errors.New("config vide")
+			return nil, lang.Errorf("the configuration is empty", "config vide")
 		}
-		return nil, fmt.Errorf("config invalide: %w", err)
+		return nil, lang.Errorf("invalid configuration: %w", "config invalide : %w", err)
 	}
+	if f.Language == "" {
+		f.Language, _ = lookup("LANGUAGE")
+	}
+	return build(f)
+}
 
+// envLang lit LANGUAGE, pour les erreurs qui précèdent le décodage de la config.
+func envLang(lookup func(string) (string, bool)) i18n.Lang {
+	v, _ := lookup("LANGUAGE")
+	l, _ := i18n.Parse(v)
+	return l
+}
+
+// build complète et valide une configuration décodée (fichier ou environnement).
+func build(f fileYAML) (*Config, error) {
+	lang, langErr := i18n.Parse(f.Language)
 	c := &Config{
+		Language: lang,
 		Timezone: orDefault(f.Timezone, "UTC"),
 		Mode:     orDefault(f.Mode, ModeEvents),
 		Frigate:  f.Frigate,
@@ -315,7 +351,7 @@ func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 			ProtectMetrics: f.Web.ProtectMetrics,
 		},
 		StateFile:  orDefault(f.StateFile, "/data/state.json"),
-		HTTPListen: orDefault(f.HTTPListen, ":8080"),
+		HTTPListen: orDefault(f.HTTPListen, DefaultHTTPListen),
 		LogLevel:   orDefault(f.LogLevel, "info"),
 	}
 	c.Frigate.URL = strings.TrimRight(c.Frigate.URL, "/")
@@ -328,7 +364,7 @@ func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 		c.cameras[name] = y.ApplyTo(c.notify)
 	}
 	c.fileNotify, c.fileCameras = c.notify, maps.Clone(c.cameras)
-	if err := c.validate(); err != nil {
+	if err := errors.Join(langErr, c.validate()); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -347,22 +383,22 @@ var envRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`)
 // dans les commentaires ni les clés). On passe par un yaml.Node pour que la substitution
 // agisse sur la valeur Go décodée, pas sur le texte brut : un guillemet ou un antislash
 // dans la variable n'a donc pas besoin d'être ré-échappé pour rester valide.
-func expandEnv(raw []byte, lookup func(string) (string, bool)) ([]byte, error) {
+func expandEnv(raw []byte, lookup func(string) (string, bool), lang i18n.Lang) ([]byte, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return raw, nil
 	}
 	var root yaml.Node
 	if err := yaml.Unmarshal(raw, &root); err != nil {
-		return nil, fmt.Errorf("config invalide: %w", err)
+		return nil, lang.Errorf("invalid configuration: %w", "config invalide : %w", err)
 	}
 	var missing []string
 	expandScalarNodes(&root, lookup, &missing)
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("variables d'environnement manquantes: %s", strings.Join(missing, ", "))
+		return nil, lang.Errorf("missing environment variables: %s", "variables d'environnement manquantes : %s", strings.Join(missing, ", "))
 	}
 	out, err := yaml.Marshal(&root)
 	if err != nil {
-		return nil, fmt.Errorf("config invalide: %w", err)
+		return nil, lang.Errorf("invalid configuration: %w", "config invalide : %w", err)
 	}
 	return out, nil
 }
@@ -391,64 +427,65 @@ func expandScalarNodes(n *yaml.Node, lookup func(string) (string, bool), missing
 
 func (c *Config) validate() error {
 	var errs []error
-	add := func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) }
+	l := c.Language
+	add := func(en, fr string, a ...any) { errs = append(errs, l.Errorf(en, fr, a...)) }
 
 	loc, err := time.LoadLocation(c.Timezone)
 	if err != nil {
-		add("timezone %q invalide: %v", c.Timezone, err)
+		add("invalid timezone %q: %v", "timezone %q invalide : %v", c.Timezone, err)
 	} else {
 		c.Location = loc
 	}
 	if c.Mode != ModeEvents && c.Mode != ModeReviews {
-		add("mode %q invalide (events ou reviews)", c.Mode)
+		add("invalid mode %q (events or reviews)", "mode %q invalide (events ou reviews)", c.Mode)
 	}
 	if c.Frigate.URL == "" {
-		add("frigate.url est obligatoire")
+		add("frigate.url is required", "frigate.url est obligatoire")
 	}
 	if c.MQTT.Broker == "" {
-		add("mqtt.broker est obligatoire")
+		add("mqtt.broker is required", "mqtt.broker est obligatoire")
 	}
 	if c.Telegram.Token == "" {
-		add("telegram.token est obligatoire")
+		add("telegram.token is required", "telegram.token est obligatoire")
 	}
 	if len(c.Telegram.Chats) == 0 {
-		add("telegram.chats doit contenir au moins un chat")
+		add("telegram.chats must list at least one chat", "telegram.chats doit contenir au moins un chat")
 	}
 	if len(c.Telegram.Admins) == 0 {
-		add("telegram.admins doit contenir au moins un utilisateur")
+		add("telegram.admins must list at least one user", "telegram.admins doit contenir au moins un utilisateur")
 	}
 	if c.Web.ProtectMetrics && c.Web.Password == "" {
-		add("web.protect_metrics exige web.password")
+		add("web.protect_metrics requires web.password", "web.protect_metrics exige web.password")
 	}
 	switch c.LogLevel {
 	case "debug", "info", "warn", "error":
 	default:
-		add("log_level %q invalide (debug, info, warn, error)", c.LogLevel)
+		add("invalid log_level %q (debug, info, warn, error)", "log_level %q invalide (debug, info, warn, error)", c.LogLevel)
 	}
-	errs = append(errs, c.validateNotify("notify", c.notify)...)
+	errs = append(errs, c.validateNotify("notify", c.notify, c.Language)...)
 	for _, name := range slices.Sorted(maps.Keys(c.cameras)) {
-		errs = append(errs, c.validateNotify("cameras."+name, c.cameras[name])...)
+		errs = append(errs, c.validateNotify("cameras."+name, c.cameras[name], c.Language)...)
 	}
 	return errors.Join(errs...)
 }
 
-func (c *Config) validateNotify(where string, n Notify) []error {
+func (c *Config) validateNotify(where string, n Notify, l i18n.Lang) []error {
 	var errs []error
 	for _, ch := range n.Chats {
 		if _, ok := c.Telegram.Chats[ch]; !ok {
-			errs = append(errs, fmt.Errorf("%s.chats: chat %q inconnu (voir telegram.chats)", where, ch))
+			errs = append(errs, l.Errorf("%s.chats: unknown chat %q (see telegram.chats)", "%s.chats : chat %q inconnu (voir telegram.chats)", where, ch))
 		}
 	}
 	for _, s := range n.Severity {
 		if s != "alert" && s != "detection" {
-			errs = append(errs, fmt.Errorf("%s.severity: valeur %q invalide (alert ou detection)", where, s))
+			errs = append(errs, l.Errorf("%s.severity: invalid value %q (alert or detection)", "%s.severity : valeur %q invalide (alert ou detection)", where, s))
 		}
 	}
 	if !n.MinScore.valid() {
-		errs = append(errs, fmt.Errorf("%s.min_score doit être compris entre 0 et 1", where))
+		errs = append(errs, l.Errorf("%s.min_score must be between 0 and 1", "%s.min_score doit être compris entre 0 et 1", where))
 	}
 	if n.Cooldown < 0 || n.ClipDelay < 0 {
-		errs = append(errs, fmt.Errorf("%s: les durées ne peuvent pas être négatives", where))
+		errs = append(errs, l.Errorf("%s: durations cannot be negative", "%s : les durées ne peuvent pas être négatives", where))
 	}
 	return errs
 }

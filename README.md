@@ -7,10 +7,8 @@ something is detected, then the video clip as a reply — with fine-grained filt
 interface to set everything up in a few clicks, and control from Telegram itself.
 
 <p align="center">
-  <img src="docs/screenshots/overview.png" width="820" alt="Web interface: notification styles with a preview of the Telegram message, and simple multiple-choice questions">
+  <img src="docs/screenshots/en/overview.png" width="820" alt="Web interface: notification styles with a preview of the Telegram message, and simple multiple-choice questions">
 </p>
-
-> The web interface and the Telegram messages are currently in French.
 
 ## Features
 
@@ -22,6 +20,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - Several recipients, with per-camera routing
 - Inline buttons: 🔇 *mute camera for 1 h*, ⏸ *pause 30 min*, 🎬 *clip*
 - Commands: `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
+- In **English** or **French**: Telegram messages (`LANGUAGE`) and the web interface (EN / FR switch)
 - Persistent state, `/healthz`, Prometheus metrics, multi-arch distroless image (amd64 and arm64)
 
 ## A tour of the web interface
@@ -36,7 +35,7 @@ style, other objects or only some zones — otherwise it follows the general cho
 *Test this camera* sends a real sample notification.
 
 <p align="center">
-  <img src="docs/screenshots/cameras.png" width="820" alt="An expanded camera: style, objects and zones, test button">
+  <img src="docs/screenshots/en/cameras.png" width="820" alt="An expanded camera: style, objects and zones, test button">
 </p>
 
 **Find out why a notification didn't arrive.** Recent activity lists the latest
@@ -45,15 +44,15 @@ selected zones, score too low, already reported a moment ago…), with a direct 
 the camera to adjust.
 
 <p align="center">
-  <img src="docs/screenshots/activity.png" width="820" alt="Recent activity: detections sent or ignored, with the reason">
+  <img src="docs/screenshots/en/activity.png" width="820" alt="Recent activity: detections sent or ignored, with the reason">
 </p>
 
 **On a phone, and in dark mode.** The page adapts to the screen and follows the system theme.
 
 <p align="center">
-  <img src="docs/screenshots/mobile.png" width="260" alt="The interface on a phone">
+  <img src="docs/screenshots/en/mobile.png" width="260" alt="The interface on a phone">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/dark.png" width="540" alt="The interface in dark mode">
+  <img src="docs/screenshots/en/dark.png" width="540" alt="The interface in dark mode">
 </p>
 
 ## Requirements
@@ -76,41 +75,89 @@ the camera to adjust.
 
 ## Installation
 
-```bash
-mkdir -p config data
-cp config.example.yml config/config.yml   # then edit it
-cp .env.example .env                      # then put the token in it
-sudo chown 65532:65532 data               # the image runs as a non-root user (uid 65532)
-docker compose up -d
-docker compose logs -f
-```
+1. Download the `docker-compose.yml` file:
 
-Then open `http://127.0.0.1:8080/` to set up notifications, and use
-*M'envoyer un exemple* (send me a sample) to check that everything reaches Telegram.
+   ```bash
+   curl -O https://raw.githubusercontent.com/Limoniak/frigate-telegram/main/docker-compose.yml
+   ```
 
-The image is built and published by GitHub Actions to GitHub Container Registry:
+2. Change the environment variables in `docker-compose.yml` — at least the four
+   required ones (see [Environment variables](#environment-variables)).
+
+3. Deploy:
+
+   ```bash
+   docker compose up -d
+   ```
+
+Then open `http://<server-ip>:8431/` to choose what gets notified, and use
+*Send me a sample* to check that everything reaches Telegram.
+Notification settings (objects, zones, cameras, night hours…) are made in the web
+interface — no variable needed for those.
+
+> If Frigate and its MQTT broker run in Docker on the same machine, use the machine's
+> IP address in `FRIGATE_URL` and `MQTT_BROKER` — `localhost` would point to the
+> frigate-telegram container itself.
+
+The image is built by GitHub Actions and published to GitHub Container Registry:
 `ghcr.io/limoniak/frigate-telegram` (amd64 and arm64).
 
-- `:latest` and `:X.Y.Z` — published on every `v*` tag
-- `:main` and `:sha-<short>` — published on every push to `main`
+- `:latest` and `:main` — the latest version of `main`
+- `:X.Y.Z` — published on every `v*` tag
+- `:sha-<short>` — a specific commit
 
-To build locally instead, comment out `image:` and uncomment `build: .`
-in [`docker-compose.yml`](docker-compose.yml), then run `docker compose up -d --build`.
+To update: `docker compose pull && docker compose up -d`.
 
-## Configuration
+## Environment variables
 
-Everything is documented in [`config.example.yml`](config.example.yml) (comments in French). Key points:
+| Variable | Required | Description |
+|---|---|---|
+| `TELEGRAM_TOKEN` | ✅ | Bot token given by @BotFather |
+| `TELEGRAM_CHAT_ID` | ✅ | Recipient ID. Several: `me=123456789,family=-1001234567890` (names are free; a group ID is negative) |
+| `FRIGATE_URL` | ✅ | Frigate API, e.g. `http://192.168.1.10:5000` (5000 without auth, 8971 with auth) |
+| `MQTT_BROKER` | ✅ | MQTT broker used by Frigate: `host`, `host:port`, or `tcp://…` / `ssl://…` |
+| `TZ` | | Time zone, e.g. `Europe/Paris` (default: `UTC`) |
+| `LANGUAGE` | | Language of Telegram messages and error messages: `en` (default) or `fr` |
+| `WEB_PASSWORD` | | Password for the web interface (empty = none) |
+| `TELEGRAM_ADMINS` | | User IDs allowed to control the bot (default: the private chats of `TELEGRAM_CHAT_ID`; required if it only lists groups) |
+| `FRIGATE_EXTERNAL_URL` | | Public Frigate URL, for the "open in Frigate" links |
+| `FRIGATE_USERNAME` / `FRIGATE_PASSWORD` | | If Frigate authentication is enabled |
+| `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` for a self-signed certificate |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | | MQTT credentials |
+| `MQTT_TOPIC_PREFIX` | | Must match Frigate's `mqtt.topic_prefix` (default: `frigate`) |
+| `MQTT_CLIENT_ID` | | Default: `frigate-telegram` |
+| `MQTT_INSECURE_SKIP_VERIFY` | | `true` for a self-signed certificate |
+| `MODE` | | `events` (one message per object, default) or `reviews` (Frigate ≥ 0.14 alerts) |
+| `WEB_ENABLED` | | `false` to disable the web interface |
+| `WEB_ALLOWED_HOSTS` | | Host names accepted without a password, e.g. `nas.lan` (see [Access and security](#access-and-security)) |
+| `WEB_PROTECT_METRICS` | | `true` so that `/metrics` requires the password too |
+| `LOG_LEVEL` | | `debug`, `info` (default), `warn`, `error` |
+
+### Advanced: configuration file
+
+Instead of environment variables, everything can be set in a YAML file — useful to
+prepare per-camera settings in advance or to keep them under version control. Copy
+[`config.example.yml`](config.example.yml) (comments in French) to `config/config.yml`,
+edit it, and add this volume to the service:
+
+```yaml
+    volumes:
+      - ./config:/config:ro
+```
+
+When `/config/config.yml` exists, it is the only source of configuration; `${VAR}`
+values in it are read from the container's environment. Key points:
 
 - `notify` settings apply to every camera; an entry under `cameras` overrides them field by field.
 - `zones`: only notify when the object has **entered** one of the listed zones.
 - `quiet_hours`: notifications without sound; `off_hours`: no notifications at all.
 - `reviews` mode: `severity: [alert]` follows Frigate's `review.alerts` configuration.
-- Secrets go in `.env` (`${TELEGRAM_TOKEN}`…). Quote the values in the YAML.
 
 ## Web interface
 
-`http://127.0.0.1:8080/` serves a page to configure notifications, designed to be set
-up in a few clicks:
+`http://<server-ip>:8431/` serves a page to configure notifications, designed to be set
+up in a few clicks. It follows the browser's language (English or French); the
+**EN / FR** switch in the header changes it and is remembered.
 
 - **Notification styles**: photo + video, photo only, photo + GIF or text only, each
   with a preview of the message as it will arrive in Telegram.
@@ -137,38 +184,32 @@ up in a few clicks:
 Saving takes effect **immediately**, without a restart, and is only accepted if valid —
 a rejected change leaves the service on the previous settings.
 
-Settings are written to `/data/notify.yml`, next to the state, and **replace the
-`notify` and `cameras` sections of `config.yml`** as long as that file exists; the
-*Revenir aux réglages de config.yml* (back to config.yml) button deletes it.
-`config.yml` remains the source of secrets, `${VAR}`s and comments, and is never
-rewritten — which is necessary anyway, since the container mounts it read-only.
+Settings are saved in the data volume (`/data/notify.yml`), next to the state (pauses,
+cooldowns), so they survive restarts and updates. With a configuration file, they
+**replace its `notify` and `cameras` sections** as long as they exist; the
+*Back to the config.yml settings* button deletes them.
+`config.yml` itself is never rewritten.
 
 ### Access and security
 
-```yaml
-web:
-  enabled: true                  # false to not serve the interface at all
-  password: "${WEB_PASSWORD:-}"  # empty = no authentication
-  allowed_hosts: []              # host names accepted without a password (e.g. [nas.lan])
-  protect_metrics: false         # true = /metrics requires the password too
-```
-
-Without a password, the interface is open to anyone who can reach the port: the
-provided `docker-compose.yml` only publishes `8080` on `127.0.0.1`. To reach it from
-the network or through a reverse proxy, set `WEB_PASSWORD` in `.env`.
+Without a password, the interface is open to anyone who can reach the port, and the
+provided `docker-compose.yml` publishes `8431` on the whole network. **Set
+`WEB_PASSWORD`**, or restrict the port to the machine itself with
+`"127.0.0.1:8431:8431"`. (In a configuration file: `web.password`,
+`web.allowed_hosts`, `web.protect_metrics`.)
 
 Without a password, the interface also only accepts requests addressed to an IP
-address or to `localhost` (`http://192.168.1.10:8080/` works, `http://nas.lan:8080/` is
+address or to `localhost` (`http://192.168.1.10:8431/` works, `http://nas.lan:8431/` is
 rejected with a 403). This blocks *DNS rebinding*, where a malicious site open in your
 browser points its own domain at `127.0.0.1` to drive the interface behind your back.
-To use a host name, add it to `web.allowed_hosts`, or set a password (which lifts this
+To use a host name, add it to `WEB_ALLOWED_HOSTS`, or set a password (which lifts this
 check).
 
 Authentication only covers the interface: `/healthz` always stays open for the
 container probe, and so does `/metrics`, unless `protect_metrics: true`. Keep this in
 mind if the port is exposed to the network: per-camera and per-object counters reveal
-when there is activity at your place. Prometheus then authenticates with `basic_auth`
-(any user name, password `WEB_PASSWORD`).
+when there is activity at your place — `WEB_PROTECT_METRICS=true` protects them.
+Prometheus then authenticates with `basic_auth` (any user name, password `WEB_PASSWORD`).
 
 ## Telegram commands
 
@@ -187,18 +228,22 @@ Only the users listed in `telegram.admins` can use the commands and buttons.
 
 - `GET /healthz`: 200 when MQTT is connected and Telegram is reachable (used by the Docker `HEALTHCHECK`)
 - `GET /metrics`: Prometheus metrics prefixed with `ft_`
-- `/healthz` is never protected; `/metrics` is protected by `web.password` when `web.protect_metrics: true`
+- `/healthz` is never protected; `/metrics` is protected by the password when `WEB_PROTECT_METRICS=true`
 
 ## Troubleshooting
 
+- **The container stops right away**: `docker compose logs` names the missing or
+  invalid environment variables.
 - **No notifications**: open *recent activity* in the web interface, which gives the
-  reason for every ignored detection. Otherwise, set `log_level: debug`, then check
+  reason for every ignored detection. Otherwise, set `LOG_LEVEL=debug`, then check
   `ft_events_received_total` and `ft_events_filtered_total{reason=...}` on `/metrics`.
 - **Missing clip**: increase `clip_delay` (Frigate hasn't finished writing the clip yet).
-- **Interface returns 403 "hôte non autorisé" (host not allowed)**: see
+- **Interface returns 403 "host not allowed"**: see
   [Access and security](#access-and-security) — add the host name to
-  `web.allowed_hosts` or set a password.
-- **`permission denied` on `/data`**: see the `chown` step in the installation. The web interface cannot save without it.
+  `WEB_ALLOWED_HOSTS` or set a password.
+- **`permission denied` on `/data`**: only happens if you replaced the named volume with
+  a folder (`./data:/data`); give it to the container's user with
+  `sudo chown 65532:65532 data`.
 - **Interface settings ignored at startup**: the log explains why `/data/notify.yml` was set aside (a chat removed from `telegram.chats`, for example). The service then falls back to `config.yml`.
 
 ## Development

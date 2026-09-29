@@ -1,8 +1,16 @@
-# Configuration de frigate-telegram.
-# Copier ce fichier vers config/config.yml puis l'adapter.
-# Les valeurs ${VAR} viennent des variables d'environnement (.env) ;
-# ${VAR:-défaut} utilise « défaut » si la variable n'est pas définie.
+# Configuration avancée de frigate-telegram — FACULTATIVE.
+#
+# L'installation normale n'en a pas besoin : tout se règle par les variables
+# d'environnement de docker-compose.yml, puis dans l'interface web.
+#
+# Pour utiliser ce fichier à la place : le copier vers config/config.yml, l'adapter,
+# et ajouter au service le volume « - ./config:/config:ro ». Quand
+# /config/config.yml existe, il est seul pris en compte.
+#
+# Les valeurs ${VAR} viennent des variables d'environnement du conteneur (section
+# environment du compose) ; ${VAR:-défaut} utilise « défaut » si elle n'est pas définie.
 
+language: en                     # langue des messages Telegram et des erreurs : en ou fr
 timezone: Europe/Paris
 mode: events                     # events (un message par objet) ou reviews (alertes Frigate ≥ 0.14)
 
@@ -32,7 +40,7 @@ web:                             # interface de réglage des notifications, sur 
   password: "${WEB_PASSWORD:-}"  # vide = aucune authentification (ne l'exposer alors que sur 127.0.0.1)
   # Sans mot de passe, l'interface n'accepte que les adresses IP et localhost dans
   # l'URL (protection contre le rebinding DNS). Pour l'ouvrir par un nom d'hôte
-  # (http://nas.lan:8080), l'ajouter ici — ou définir un mot de passe.
+  # (http://nas.lan:8431), l'ajouter ici — ou définir un mot de passe.
   allowed_hosts: []
   protect_metrics: false         # true = /metrics exige aussi le mot de passe (à renseigner côté Prometheus)
 
@@ -68,5 +76,5 @@ cameras:
     enabled: false
 
 state_file: /data/state.json
-http_listen: ":8080"
+http_listen: ":8431"
 log_level: info                  # debug, info, warn, error

@@ -96,7 +96,7 @@ func TestApplyOverlayRejectsInvalidAndKeepsPrevious(t *testing.T) {
 	if got := c.Global(); got.Chats[0] != before.Chats[0] {
 		t.Errorf("les réglages ont changé malgré le refus : %v", got.Chats)
 	}
-	if c.ValidateOverlay(o) == nil {
+	if c.ValidateOverlay(o, c.Language) == nil {
 		t.Error("ValidateOverlay devrait refuser le même overlay")
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"frigate-telegram/internal/i18n"
 )
 
 func paris(t *testing.T) *time.Location {
@@ -22,7 +24,7 @@ func TestBuildCaption(t *testing.T) {
 		Zones: []string{"allee", "portail"}, Score: 0.87, HasScore: true,
 		Start: time.Date(2026, 9, 28, 14, 32, 5, 0, time.UTC),
 		Link:  "https://nvr.example/explore?event_id=abc",
-	}, paris(t))
+	}, paris(t), i18n.FR)
 	want := "<b>🚶 Personne</b> — jardin (Alice)\n" +
 		"📍 allee, portail · 87 %\n" +
 		"🕑 28/09 16:32:05\n" +
@@ -32,8 +34,23 @@ func TestBuildCaption(t *testing.T) {
 	}
 }
 
+func TestBuildCaptionEnglish(t *testing.T) {
+	got := buildCaption(captionData{
+		Label: "car", Camera: "garage", Score: 0.9, HasScore: true,
+		Start: time.Date(2026, 9, 28, 14, 32, 5, 0, time.UTC),
+		Link:  "https://nvr.example/x",
+	}, time.UTC, i18n.EN)
+	want := "<b>🚗 Car</b> — garage\n" +
+		"90%\n" +
+		"🕑 Sep 28 14:32:05\n" +
+		"🔗 <a href=\"https://nvr.example/x\">Open in Frigate</a>"
+	if got != want {
+		t.Errorf("caption:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestBuildCaptionEscapesAndUnknownLabel(t *testing.T) {
-	got := buildCaption(captionData{Label: "raccoon", Camera: "<cam>", Start: time.Unix(0, 0)}, time.UTC)
+	got := buildCaption(captionData{Label: "raccoon", Camera: "<cam>", Start: time.Unix(0, 0)}, time.UTC, i18n.FR)
 	if !strings.Contains(got, "🔔 raccoon") || !strings.Contains(got, "&lt;cam&gt;") {
 		t.Errorf("légende = %q", got)
 	}
@@ -44,7 +61,7 @@ func TestBuildCaptionEscapesAndUnknownLabel(t *testing.T) {
 
 func TestBuildCaptionTruncatesDescription(t *testing.T) {
 	got := buildCaption(captionData{Label: "person", Camera: "jardin", Start: time.Unix(0, 0),
-		Description: strings.Repeat("é", 2000), Link: "https://nvr.example/x"}, time.UTC)
+		Description: strings.Repeat("é", 2000), Link: "https://nvr.example/x"}, time.UTC, i18n.FR)
 	if n := utf8.RuneCountInString(got); n > 1024 {
 		t.Errorf("légende de %d caractères (max 1024)", n)
 	}

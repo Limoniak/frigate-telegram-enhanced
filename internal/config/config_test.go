@@ -52,7 +52,7 @@ func TestParseMinimalAppliesDefaults(t *testing.T) {
 	if c.MQTT.ClientID != "frigate-telegram" || c.MQTT.TopicPrefix != "frigate" {
 		t.Errorf("mqtt = %+v", c.MQTT)
 	}
-	if c.StateFile != "/data/state.json" || c.HTTPListen != ":8080" || c.LogLevel != "info" {
+	if c.StateFile != "/data/state.json" || c.HTTPListen != ":8431" || c.LogLevel != "info" {
 		t.Errorf("défauts = %q %q %q", c.StateFile, c.HTTPListen, c.LogLevel)
 	}
 	n := c.Global()
@@ -132,7 +132,7 @@ cameras:
 func TestValidationErrors(t *testing.T) {
 	cases := []struct{ name, extra, want string }{
 		{"mode", "mode: foo\n", "mode"},
-		{"chat inconnu", "notify:\n  chats: [nope]\n", `chat "nope" inconnu`},
+		{"chat inconnu", "notify:\n  chats: [nope]\n", `unknown chat "nope"`},
 		{"severity", "notify:\n  severity: [urgent]\n", "severity"},
 		{"score", "notify:\n  min_score: 1.5\n", "min_score"},
 		{"timezone", "timezone: Mars/Olympus\n", "timezone"},

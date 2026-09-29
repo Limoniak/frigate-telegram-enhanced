@@ -308,7 +308,7 @@ func (n *Notifier) caption(t *tracked) string {
 		Label: t.label, SubLabel: t.subLabel, Camera: t.camera, Zones: t.zones,
 		Score: t.score, HasScore: t.hasScore, Start: t.start,
 		Description: t.description, Link: t.link,
-	}, n.Config.Location)
+	}, n.Config.Location, n.Config.Language)
 }
 
 // notify marque l'événement notifié et lance l'envoi du snapshot. Appelé sous n.mu.

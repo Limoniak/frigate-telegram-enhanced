@@ -73,7 +73,7 @@ func TestSendLastWithoutEvents(t *testing.T) {
 	if err := h.n.SendLast(context.Background(), 1, "garage"); err != nil {
 		t.Fatal(err)
 	}
-	if m := h.tg.byMethod("sendMessage"); len(m) != 1 || m[0].Text != "Aucun événement trouvé." {
+	if m := h.tg.byMethod("sendMessage"); len(m) != 1 || m[0].Text != "No event found." {
 		t.Errorf("messages = %+v", m)
 	}
 }
@@ -88,7 +88,7 @@ func TestSendTestUsesLiveSnapshotAndRecipients(t *testing.T) {
 	if len(photos) != 2 {
 		t.Fatalf("photos = %+v, attendu une par chat", photos)
 	}
-	if !strings.Contains(photos[0].Text, "Notification de test") || !strings.Contains(photos[0].Text, "clip vidéo suivra") {
+	if !strings.Contains(photos[0].Text, "Test notification") || !strings.Contains(photos[0].Text, "video clip will follow") {
 		t.Errorf("légende = %q", photos[0].Text)
 	}
 }

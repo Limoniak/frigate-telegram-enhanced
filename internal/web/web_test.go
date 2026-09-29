@@ -544,3 +544,37 @@ func TestHistoryAndThumbnails(t *testing.T) {
 		}
 	}
 }
+
+// Les erreurs suivent la langue de l'interface (X-Lang), sinon celle du navigateur,
+// sinon celle du service (anglais par défaut).
+func TestErrorsFollowInterfaceLanguage(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{})
+	bad := `{"notify":{"chats":["nope"]}}`
+	for _, tc := range []struct {
+		name    string
+		headers map[string]string
+		want    string
+	}{
+		{"défaut", nil, "unknown chat"},
+		{"X-Lang", map[string]string{"X-Lang": "fr"}, "inconnu (voir"},
+		{"Accept-Language", map[string]string{"Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8"}, "inconnu (voir"},
+		{"X-Lang prime", map[string]string{"X-Lang": "en", "Accept-Language": "fr-FR"}, "unknown chat"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequest("PUT", ts.URL+"/api/settings", strings.NewReader(bad))
+			req.Header.Set("X-Requested-With", requestedWith)
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+			resp, err := ts.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+			if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), tc.want) {
+				t.Errorf("%d %s ; attendu %q", resp.StatusCode, body, tc.want)
+			}
+		})
+	}
+}

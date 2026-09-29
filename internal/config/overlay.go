@@ -9,6 +9,8 @@ import (
 	"slices"
 
 	"gopkg.in/yaml.v3"
+
+	"frigate-telegram/internal/i18n"
 )
 
 // Overlay est l'ensemble des réglages de notification enregistrés par l'interface
@@ -75,7 +77,7 @@ func SaveOverlay(path string, o Overlay) error {
 
 // resolve calcule les réglages effectifs d'un overlay sans rien installer.
 // Un overlay nil redonne les sections notify et cameras de config.yml.
-func (c *Config) resolve(o *Overlay) (Notify, map[string]Notify, error) {
+func (c *Config) resolve(o *Overlay, lang i18n.Lang) (Notify, map[string]Notify, error) {
 	notify := c.fileNotify
 	cameras := maps.Clone(c.fileCameras)
 	if o != nil {
@@ -86,17 +88,18 @@ func (c *Config) resolve(o *Overlay) (Notify, map[string]Notify, error) {
 		}
 	}
 	var errs []error
-	errs = append(errs, c.validateNotify("notify", notify)...)
+	errs = append(errs, c.validateNotify("notify", notify, lang)...)
 	for _, name := range slices.Sorted(maps.Keys(cameras)) {
-		errs = append(errs, c.validateNotify("cameras."+name, cameras[name])...)
+		errs = append(errs, c.validateNotify("cameras."+name, cameras[name], lang)...)
 	}
 	return notify, cameras, errors.Join(errs...)
 }
 
 // ValidateOverlay indique si un overlay est applicable, sans l'installer. L'interface
 // web s'en sert pour refuser un enregistrement avant d'écrire quoi que ce soit sur disque.
-func (c *Config) ValidateOverlay(o *Overlay) error {
-	_, _, err := c.resolve(o)
+// Les erreurs sont rédigées dans la langue lang (celle de l'interface).
+func (c *Config) ValidateOverlay(o *Overlay, lang i18n.Lang) error {
+	_, _, err := c.resolve(o, lang)
 	return err
 }
 
@@ -104,7 +107,7 @@ func (c *Config) ValidateOverlay(o *Overlay) error {
 // surcharge refusée laisse le service sur les réglages précédents. Un overlay nil
 // rétablit les sections notify et cameras de config.yml.
 func (c *Config) ApplyOverlay(o *Overlay) error {
-	notify, cameras, err := c.resolve(o)
+	notify, cameras, err := c.resolve(o, c.Language)
 	if err != nil {
 		return err
 	}

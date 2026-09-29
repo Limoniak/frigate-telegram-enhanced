@@ -12,18 +12,28 @@ import (
 
 	"frigate-telegram/internal/actions"
 	"frigate-telegram/internal/frigate"
+	"frigate-telegram/internal/i18n"
 	"frigate-telegram/internal/state"
 	"frigate-telegram/internal/telegram"
 )
 
-const helpText = `<b>Commandes</b>
+func helpText(l i18n.Lang) string {
+	return l.T(`<b>Commands</b>
+/pause [duration] [camera] — pause (1 h by default, 0 = until /resume)
+/resume [camera] — resume (no argument: resume everything)
+/status — service status
+/cameras — list cameras
+/snapshot [camera] — live image
+/last [camera] — latest event
+Durations: 30m, 2h, 1h30m, 1d`, `<b>Commandes</b>
 /pause [durée] [caméra] — pause (1 h par défaut, 0 = jusqu'à /resume)
 /resume [caméra] — reprendre (sans argument : tout reprendre)
 /status — état du service
 /cameras — liste des caméras
 /snapshot [caméra] — image en direct
 /last [caméra] — dernier événement
-Durées : 30m, 2h, 1h30m, 1d`
+Durées : 30m, 2h, 1h30m, 1d`)
+}
 
 var esc = html.EscapeString
 
@@ -48,13 +58,13 @@ func ParseDuration(s string) (time.Duration, error) {
 	if days, ok := strings.CutSuffix(s, "d"); ok {
 		n, err := strconv.Atoi(days)
 		if err != nil || n <= 0 {
-			return 0, fmt.Errorf("durée invalide %q", s)
+			return 0, fmt.Errorf("invalid duration %q", s)
 		}
 		return time.Duration(n) * 24 * time.Hour, nil
 	}
 	d, err := time.ParseDuration(s)
 	if err != nil || d <= 0 {
-		return 0, fmt.Errorf("durée invalide %q", s)
+		return 0, fmt.Errorf("invalid duration %q", s)
 	}
 	return d, nil
 }
@@ -92,9 +102,9 @@ func (b *Bot) handleCommand(ctx context.Context, m telegram.Message) {
 			}
 		})
 	case "help", "start":
-		b.serial(func() { b.reply(ctx, chat, helpText) })
+		b.serial(func() { b.reply(ctx, chat, helpText(b.Config.Language)) })
 	default:
-		b.serial(func() { b.reply(ctx, chat, "Commande inconnue. /help") })
+		b.serial(func() { b.reply(ctx, chat, b.Config.Language.T("Unknown command. /help", "Commande inconnue. /help")) })
 	}
 }
 
@@ -116,18 +126,19 @@ func (b *Bot) cmdPause(ctx context.Context, args []string) string {
 	if dur > 0 {
 		until = b.Now().Add(dur)
 	}
+	l := b.Config.Language
 	var err error
-	target := "Notifications"
+	target := l.T("Notifications paused", "Notifications en pause")
 	if camera == "" {
 		err = b.State.Pause(until)
 	} else {
 		err = b.State.Mute(camera, until)
-		target = "Caméra <b>" + esc(camera) + "</b>"
+		target = l.Tf("Camera <b>%s</b> paused", "Caméra <b>%s</b> en pause", esc(camera))
 	}
 	if err != nil {
-		return "⚠️ Impossible d'enregistrer l'état : " + esc(err.Error())
+		return l.T("⚠️ Could not save the state: ", "⚠️ Impossible d'enregistrer l'état : ") + esc(err.Error())
 	}
-	return "⏸ " + target + " en pause " + b.untilText(until)
+	return "⏸ " + target + " " + b.untilText(until)
 }
 
 func (b *Bot) cmdResume(args []string) string {
@@ -135,44 +146,45 @@ func (b *Bot) cmdResume(args []string) string {
 		if err := b.State.Resume(); err != nil {
 			return "⚠️ " + esc(err.Error())
 		}
-		return "▶️ Notifications réactivées (toutes les caméras)."
+		return b.Config.Language.T("▶️ Notifications resumed (all cameras).", "▶️ Notifications réactivées (toutes les caméras).")
 	}
 	if err := b.State.Unmute(args[0]); err != nil {
 		return "⚠️ " + esc(err.Error())
 	}
-	return "▶️ Caméra <b>" + esc(args[0]) + "</b> réactivée."
+	return b.Config.Language.Tf("▶️ Camera <b>%s</b> resumed.", "▶️ Caméra <b>%s</b> réactivée.", esc(args[0]))
 }
 
 func (b *Bot) cmdStatus() string {
+	l := b.Config.Language
 	now := b.Now()
 	st := b.State.Status(now)
 	var sb strings.Builder
-	sb.WriteString("<b>État</b>\n")
+	sb.WriteString(l.T("<b>Status</b>\n", "<b>État</b>\n"))
 	if b.MQTTConnected() {
-		sb.WriteString("MQTT : ✅ connecté\n")
+		sb.WriteString(l.T("MQTT: ✅ connected\n", "MQTT : ✅ connecté\n"))
 	} else {
-		sb.WriteString("MQTT : ❌ déconnecté\n")
+		sb.WriteString(l.T("MQTT: ❌ disconnected\n", "MQTT : ❌ déconnecté\n"))
 	}
 	if st.PausedUntil.IsZero() {
-		sb.WriteString("▶️ Notifications actives")
+		sb.WriteString(l.T("▶️ Notifications active", "▶️ Notifications actives"))
 	} else {
-		sb.WriteString("⏸ Pause globale " + b.untilText(st.PausedUntil))
+		sb.WriteString(l.T("⏸ Everything paused ", "⏸ Pause globale ") + b.untilText(st.PausedUntil))
 	}
 	for _, cam := range slices.Sorted(maps.Keys(st.Mutes)) {
 		sb.WriteString("\n🔇 " + esc(cam) + " " + b.untilText(st.Mutes[cam]))
 	}
-	fmt.Fprintf(&sb, "\n📨 %d notification(s) sur 24 h", b.Notifier.Count24h())
+	sb.WriteString(l.Tf("\n📨 %d notification(s) in the last 24 h", "\n📨 %d notification(s) sur 24 h", b.Notifier.Count24h()))
 	return sb.String()
 }
 
 func (b *Bot) cmdCameras(ctx context.Context) string {
 	cams, err := b.cameras(ctx)
 	if err != nil {
-		return "⚠️ Frigate injoignable : " + esc(err.Error())
+		return b.Config.Language.T("⚠️ Frigate unreachable: ", "⚠️ Frigate injoignable : ") + esc(err.Error())
 	}
 	now := b.Now()
 	var sb strings.Builder
-	sb.WriteString("<b>Caméras</b>")
+	sb.WriteString(b.Config.Language.T("<b>Cameras</b>", "<b>Caméras</b>"))
 	for _, cam := range cams {
 		icon := "✅"
 		switch {
@@ -193,7 +205,7 @@ func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 	}
 	cams, err := b.cameras(ctx)
 	if err != nil || len(cams) == 0 {
-		b.reply(ctx, chat, "⚠️ Impossible de lister les caméras.")
+		b.reply(ctx, chat, b.Config.Language.T("⚠️ Could not list the cameras.", "⚠️ Impossible de lister les caméras."))
 		return
 	}
 	var rows [][]telegram.InlineKeyboardButton
@@ -203,7 +215,7 @@ func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 		}
 		rows[len(rows)-1] = append(rows[len(rows)-1], telegram.InlineKeyboardButton{Text: cam, CallbackData: actions.Snapshot(cam)})
 	}
-	if _, err := b.Telegram.SendMessage(ctx, chat, "📷 Choisis une caméra :",
+	if _, err := b.Telegram.SendMessage(ctx, chat, b.Config.Language.T("📷 Pick a camera:", "📷 Choisis une caméra :"),
 		telegram.SendOptions{Markup: &telegram.InlineKeyboardMarkup{InlineKeyboard: rows}}); err != nil {
 		b.Log.Warn("envoi du clavier échoué", "err", err)
 	}
@@ -212,7 +224,7 @@ func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 func (b *Bot) sendLiveSnapshot(ctx context.Context, chat int64, camera string) {
 	img, err := b.Frigate.GetBytes(ctx, frigate.LatestPath(camera), 10<<20)
 	if err != nil {
-		b.reply(ctx, chat, "⚠️ Snapshot indisponible pour "+esc(camera))
+		b.reply(ctx, chat, b.Config.Language.T("⚠️ No snapshot available for ", "⚠️ Snapshot indisponible pour ")+esc(camera))
 		return
 	}
 	caption := "📷 <b>" + esc(camera) + "</b> — " + b.Now().In(b.Config.Location).Format("15:04:05")
@@ -225,12 +237,13 @@ func (b *Bot) sendLiveSnapshot(ctx context.Context, chat int64, camera string) {
 func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 	if !b.Config.IsAdmin(q.From.ID) {
 		b.Log.Warn("bouton refusé : utilisateur non autorisé", "user", q.From.ID)
-		b.answer(ctx, q.ID, "⛔ Non autorisé")
+		b.answer(ctx, q.ID, b.Config.Language.T("⛔ Not allowed", "⛔ Non autorisé"))
 		return
 	}
+	l := b.Config.Language
 	a, err := actions.Parse(q.Data)
 	if err != nil {
-		b.answer(ctx, q.ID, "Action inconnue")
+		b.answer(ctx, q.ID, l.T("Unknown action", "Action inconnue"))
 		return
 	}
 	var chat int64
@@ -243,27 +256,27 @@ func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 	case actions.KindMute:
 		until := now.Add(a.Duration)
 		if err := b.State.Mute(a.Camera, until); err != nil {
-			b.answer(ctx, q.ID, "⚠️ Erreur d'enregistrement")
+			b.answer(ctx, q.ID, l.T("⚠️ Could not save", "⚠️ Erreur d'enregistrement"))
 			return
 		}
-		b.answer(ctx, q.ID, "🔇 "+a.Camera+" coupée "+b.untilText(until))
+		b.answer(ctx, q.ID, "🔇 "+l.Tf("%s muted ", "%s coupée ", a.Camera)+b.untilText(until))
 	case actions.KindPause:
 		until := now.Add(a.Duration)
 		if err := b.State.Pause(until); err != nil {
-			b.answer(ctx, q.ID, "⚠️ Erreur d'enregistrement")
+			b.answer(ctx, q.ID, l.T("⚠️ Could not save", "⚠️ Erreur d'enregistrement"))
 			return
 		}
-		b.answer(ctx, q.ID, "⏸ Pause "+b.untilText(until))
+		b.answer(ctx, q.ID, l.T("⏸ Paused ", "⏸ Pause ")+b.untilText(until))
 	case actions.KindClip, actions.KindSnapshot:
 		if chat == 0 {
-			b.answer(ctx, q.ID, "⚠️ Message trop ancien")
+			b.answer(ctx, q.ID, l.T("⚠️ Message too old", "⚠️ Message trop ancien"))
 			return
 		}
 		if a.Kind == actions.KindClip {
-			b.answer(ctx, q.ID, "🎬 Envoi du clip…")
+			b.answer(ctx, q.ID, l.T("🎬 Sending the clip…", "🎬 Envoi du clip…"))
 			b.async(func() {
 				if err := b.Notifier.SendClipTo(ctx, chat, replyTo, a.ID); err != nil {
-					b.reply(ctx, chat, "⚠️ Clip indisponible : "+esc(err.Error()))
+					b.reply(ctx, chat, l.T("⚠️ Clip unavailable: ", "⚠️ Clip indisponible : ")+esc(l.Message(err)))
 				}
 			})
 			return
@@ -280,14 +293,16 @@ func (b *Bot) checkCamera(ctx context.Context, camera string) string {
 	if err != nil || slices.Contains(cams, camera) {
 		return ""
 	}
-	return "Caméra inconnue : " + esc(camera) + ". Caméras : " + esc(strings.Join(cams, ", "))
+	return b.Config.Language.Tf("Unknown camera: %s. Cameras: %s", "Caméra inconnue : %s. Caméras : %s",
+		esc(camera), esc(strings.Join(cams, ", ")))
 }
 
 func (b *Bot) untilText(until time.Time) string {
 	if !until.Before(state.Forever) {
-		return "jusqu'à /resume"
+		return b.Config.Language.T("until /resume", "jusqu'à /resume")
 	}
-	return "jusqu'à " + until.In(b.Config.Location).Format("02/01 15:04")
+	l := b.Config.Language
+	return l.T("until ", "jusqu'à ") + until.In(b.Config.Location).Format(l.DateTimeShort())
 }
 
 func (b *Bot) reply(ctx context.Context, chat int64, text string) {

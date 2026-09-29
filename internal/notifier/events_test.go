@@ -37,7 +37,7 @@ func TestNewEventSendsSnapshotToEveryChat(t *testing.T) {
 		t.Fatalf("photos = %d, attendu 2", len(photos))
 	}
 	for _, c := range photos {
-		if !strings.Contains(c.Text, "Personne") || !strings.Contains(c.Text, "garage") {
+		if !strings.Contains(c.Text, "Person") || !strings.Contains(c.Text, "garage") {
 			t.Errorf("légende inattendue : %q", c.Text)
 		}
 		if c.Opts.Markup == nil || len(c.Opts.Markup.InlineKeyboard[0]) != 3 {
@@ -204,7 +204,7 @@ func TestMissingSnapshotFallsBackToText(t *testing.T) {
 	h := newHarness(t, "events")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	msgs := h.tg.byMethod("sendMessage")
-	if len(msgs) != 2 || !strings.Contains(msgs[0].Text, "Personne") {
+	if len(msgs) != 2 || !strings.Contains(msgs[0].Text, "Person") {
 		t.Fatalf("messages = %+v", msgs)
 	}
 	if h.fr.countCalls(frigate.EventSnapshotPath(evID)) != 2 {
