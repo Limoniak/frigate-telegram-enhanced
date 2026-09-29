@@ -215,7 +215,7 @@ func (b *Bot) cmdCameras(ctx context.Context) string {
 
 func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 	if len(args) > 0 {
-		b.sendLiveSnapshot(ctx, chat, args[0])
+		b.sendLiveSnapshot(ctx, chat, 0, args[0])
 		return
 	}
 	cams, err := b.cameras(ctx)
@@ -236,15 +236,18 @@ func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 	}
 }
 
-func (b *Bot) sendLiveSnapshot(ctx context.Context, chat int64, camera string) {
+// sendLiveSnapshot envoie l'image en direct d'une caméra, en réponse au message
+// replyTo s'il n'est pas nul (la notification dont on a touché « 📷 Maintenant »).
+func (b *Bot) sendLiveSnapshot(ctx context.Context, chat int64, replyTo int, camera string) {
 	img, err := b.Frigate.GetBytes(ctx, frigate.LatestPath(camera), 10<<20)
 	if err != nil {
 		b.reply(ctx, chat, b.Config.Language.T("⚠️ No snapshot available for ", "⚠️ Snapshot indisponible pour ")+esc(camera))
 		return
 	}
-	caption := "📷 <b>" + esc(camera) + "</b> — " + b.Now().In(b.Config.Location).Format("15:04:05")
+	caption := "📷 <b>" + esc(camera) + "</b> — " + b.Config.Language.T("live at ", "en direct à ") +
+		b.Now().In(b.Config.Location).Format("15:04:05")
 	if _, err := b.Telegram.SendPhoto(ctx, chat, telegram.InputFile{Name: camera + ".jpg", Data: img},
-		telegram.SendOptions{Caption: caption}); err != nil {
+		telegram.SendOptions{Caption: caption, ReplyTo: replyTo}); err != nil {
 		b.Log.Warn("sending the snapshot failed", "camera", camera, "err", err)
 	}
 }
@@ -314,8 +317,8 @@ func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 			})
 			return
 		}
-		b.answer(ctx, q.ID, "")
-		b.async(func() { b.sendLiveSnapshot(ctx, chat, a.Camera) })
+		b.answer(ctx, q.ID, l.T("📷 Live image…", "📷 Image en direct…"))
+		b.async(func() { b.sendLiveSnapshot(ctx, chat, replyTo, a.Camera) })
 	}
 }
 

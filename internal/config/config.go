@@ -111,6 +111,9 @@ type Notify struct {
 	Snapshot         bool
 	Crop             bool // image recadrée sur l'objet plutôt que le plan large
 	Clip             bool
+	// MediaInPlace : à la fin de l'événement, la vidéo (ou le GIF) remplace l'image
+	// dans le message de la notification, au lieu d'arriver en réponse.
+	MediaInPlace     bool
 	GIF              bool
 	GenAIDescription bool
 	ClipDelay        time.Duration
@@ -230,6 +233,7 @@ type NotifyPatch struct {
 	Severity         *[]string    `yaml:"severity,omitempty" json:"severity,omitempty"`
 	Snapshot         *bool        `yaml:"snapshot,omitempty" json:"snapshot,omitempty"`
 	Crop             *bool        `yaml:"crop,omitempty" json:"crop,omitempty"`
+	MediaInPlace     *bool        `yaml:"media_in_place,omitempty" json:"media_in_place,omitempty"`
 	Clip             *bool        `yaml:"clip,omitempty" json:"clip,omitempty"`
 	GIF              *bool        `yaml:"gif,omitempty" json:"gif,omitempty"`
 	GenAIDescription *bool        `yaml:"genai_description,omitempty" json:"genai_description,omitempty"`
@@ -265,6 +269,7 @@ func (y NotifyPatch) ApplyTo(base Notify) Notify {
 	set(&n.Severity, y.Severity)
 	set(&n.Snapshot, y.Snapshot)
 	set(&n.Crop, y.Crop)
+	set(&n.MediaInPlace, y.MediaInPlace)
 	set(&n.Clip, y.Clip)
 	set(&n.GIF, y.GIF)
 	set(&n.GenAIDescription, y.GenAIDescription)
@@ -282,7 +287,7 @@ func FullPatch(n Notify) NotifyPatch {
 	return NotifyPatch{
 		Enabled: &n.Enabled, Chats: &n.Chats, Labels: &n.Labels, Zones: &n.Zones,
 		MinScore: &n.MinScore, Cooldown: &cooldown, IgnoreStationary: &n.IgnoreStationary,
-		Severity: &n.Severity, Snapshot: &n.Snapshot, Crop: &n.Crop, Clip: &n.Clip, GIF: &n.GIF,
+		Severity: &n.Severity, Snapshot: &n.Snapshot, Crop: &n.Crop, Clip: &n.Clip, GIF: &n.GIF, MediaInPlace: &n.MediaInPlace,
 		GenAIDescription: &n.GenAIDescription, ClipDelay: &clipDelay,
 		QuietHours: &n.QuietHours, OffHours: &n.OffHours, WhenHome: &n.WhenHome, Group: &group,
 	}
@@ -306,6 +311,7 @@ func DiffPatch(base, n Notify) NotifyPatch {
 	diffSlice(&p.Severity, base.Severity, n.Severity)
 	diff(&p.Snapshot, base.Snapshot, n.Snapshot)
 	diff(&p.Crop, base.Crop, n.Crop)
+	diff(&p.MediaInPlace, base.MediaInPlace, n.MediaInPlace)
 	diff(&p.Clip, base.Clip, n.Clip)
 	diff(&p.GIF, base.GIF, n.GIF)
 	diff(&p.GenAIDescription, base.GenAIDescription, n.GenAIDescription)
@@ -346,6 +352,7 @@ func defaultNotify(chats map[string]int64) Notify {
 		Severity:         []string{"alert"},
 		Snapshot:         true,
 		Clip:             true,
+		MediaInPlace:     true,
 		GenAIDescription: true,
 		ClipDelay:        5 * time.Second,
 		WhenHome:         HomeSkip,

@@ -71,12 +71,22 @@ func TestBuildCaptionTruncatesDescription(t *testing.T) {
 }
 
 func TestButtons(t *testing.T) {
-	row := buttons("jardin", "abc").InlineKeyboard[0]
-	if len(row) != 3 || row[0].CallbackData != "m:jardin:3600" || row[1].CallbackData != "p:1800" || row[2].CallbackData != "c:abc" {
-		t.Errorf("boutons = %+v", row)
+	kb := buttons("jardin", "abc", i18n.EN).InlineKeyboard
+	if len(kb) != 2 {
+		t.Fatalf("deux lignes attendues : %+v", kb)
+	}
+	see, quiet := kb[0], kb[1]
+	if len(see) != 2 || see[0].Text != "📷 Now" || see[0].CallbackData != "s:jardin" || see[1].CallbackData != "c:abc" {
+		t.Errorf("ligne voir = %+v", see)
+	}
+	if len(quiet) != 2 || quiet[0].CallbackData != "m:jardin:3600" || quiet[1].CallbackData != "p:1800" {
+		t.Errorf("ligne faire taire = %+v", quiet)
+	}
+	if fr := buttons("jardin", "abc", i18n.FR).InlineKeyboard[0][0].Text; fr != "📷 Maintenant" {
+		t.Errorf("libellé français = %q", fr)
 	}
 	long := strings.Repeat("x", 70)
-	if row := buttons("jardin", long).InlineKeyboard[0]; len(row) != 2 {
+	if row := buttons("jardin", long, i18n.EN).InlineKeyboard[0]; len(row) != 1 || row[0].Text != "📷 Now" {
 		t.Errorf("un callback_data > 64 octets doit être omis : %+v", row)
 	}
 }

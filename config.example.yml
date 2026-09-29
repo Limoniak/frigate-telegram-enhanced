@@ -60,6 +60,7 @@ notify:                          # réglages globaux, surchargeables par caméra
   snapshot: true
   crop: false                    # true = image recadrée sur l'objet (bien plus lisible sur téléphone)
   clip: true
+  media_in_place: true           # la vidéo (ou le GIF) remplace l'image dans le même message ; false = en réponse
   gif: false
   genai_description: true        # ajoute la description GenAI de Frigate quand elle arrive
   clip_delay: 5s                 # attente après la fin de l'événement avant de récupérer le clip

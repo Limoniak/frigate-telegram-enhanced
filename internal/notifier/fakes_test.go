@@ -171,6 +171,16 @@ func (f *fakeTelegram) EditMessageText(_ context.Context, chatID int64, messageI
 	return nil
 }
 
+func (f *fakeTelegram) EditMessageMedia(_ context.Context, chatID int64, messageID int, kind string, file telegram.InputFile, caption string, _ *telegram.InlineKeyboardMarkup) (telegram.Message, error) {
+	id := f.add(tgCall{Method: "editMessageMedia:" + kind, ChatID: chatID, Target: messageID, Text: caption, FileID: file.FileID, Data: fileData(file)})
+	return telegram.Message{MessageID: id, Video: &telegram.Video{FileID: "video-file"}}, nil
+}
+
+// videos renvoie les clips livrés, qu'ils remplacent l'image ou arrivent en réponse.
+func (f *fakeTelegram) videos() []tgCall {
+	return append(f.byMethod("editMessageMedia:video"), f.byMethod("sendVideo")...)
+}
+
 func (f *fakeTelegram) byMethod(method string) []tgCall {
 	f.mu.Lock()
 	defer f.mu.Unlock()

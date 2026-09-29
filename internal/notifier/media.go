@@ -81,7 +81,7 @@ func (n *Notifier) fetchSnapshot(ctx context.Context, path string) []byte {
 // silent indique, chat par chat, s'il la reçoit sans son.
 func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption string, silent func(chat string) bool, chats []string) {
 	defer close(t.ready)
-	markup := buttons(t.camera, t.id)
+	markup := buttons(t.camera, t.id, n.Config.Language)
 	photo := n.fetchSnapshot(ctx, path)
 	if photo == nil {
 		n.deliver(ctx, chats, "text", telegram.InputFile{},
@@ -98,8 +98,10 @@ func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption s
 		func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID}) })
 }
 
-// sendFollowUp envoie le clip ("video") ou le GIF ("animation") en réponse au snapshot.
-func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path string, chats []string, delay time.Duration) {
+// sendFollowUp envoie le clip ("video") ou le GIF ("animation"). Avec inPlace, il
+// remplace l'image du message de la notification (même message, pas de nouvelle
+// sonnerie) ; sinon, ou si ce message n'a pas d'image, il arrive en réponse.
+func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path string, chats []string, delay time.Duration, inPlace bool) {
 	select {
 	case <-t.ready:
 	case <-ctx.Done():
@@ -132,7 +134,19 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	}
 	n.deliver(ctx, chats, kind, telegram.InputFile{Name: name, Path: file},
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
-			o := telegram.SendOptions{Silent: true, ReplyTo: t.message(chat).id}
+			m := t.message(chat)
+			if inPlace && m.id != 0 && !m.text {
+				n.mu.Lock()
+				caption := n.captionFor(t, chat)
+				n.mu.Unlock()
+				edited, err := n.Telegram.EditMessageMedia(ctx, chatID, m.id, kind, f, caption, buttons(t.camera, t.id, n.Config.Language))
+				if err == nil {
+					return edited, nil
+				}
+				// Message supprimé entre-temps, par exemple : on retombe sur une réponse.
+				n.Log.Warn("replacing the image failed, sending as a reply", "kind", kind, "chat", chat, "err", err)
+			}
+			o := telegram.SendOptions{Silent: true, ReplyTo: m.id}
 			if kind == "animation" {
 				return n.Telegram.SendAnimation(ctx, chatID, f, o)
 			}

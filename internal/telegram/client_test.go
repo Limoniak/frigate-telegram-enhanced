@@ -194,3 +194,48 @@ func TestGetUpdates(t *testing.T) {
 		t.Errorf("décodage incorrect : %+v", ups)
 	}
 }
+
+func TestEditMessageMedia(t *testing.T) {
+	var got []map[string]string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/editMessageMedia") {
+			t.Errorf("méthode = %s", r.URL.Path)
+		}
+		fields := map[string]string{}
+		if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				t.Fatal(err)
+			}
+			for k, v := range r.MultipartForm.Value {
+				fields[k] = v[0]
+			}
+			if f := r.MultipartForm.File["file"]; len(f) == 1 {
+				fields["file"] = f[0].Filename
+			}
+		} else {
+			r.ParseForm()
+			for k := range r.PostForm {
+				fields[k] = r.PostForm.Get(k)
+			}
+		}
+		got = append(got, fields)
+		w.Write([]byte(`{"ok":true,"result":{"message_id":7,"video":{"file_id":"VID"}}}`))
+	}))
+	defer ts.Close()
+	c := New("123:abc", WithBaseURL(ts.URL), WithBackoff(0))
+
+	m, err := c.EditMessageMedia(context.Background(), 42, 7, "video", InputFile{Name: "clip.mp4", Data: []byte("mp4")}, "<b>Person</b>", nil)
+	if err != nil || m.FileID() != "VID" {
+		t.Fatalf("upload : %+v, %v", m, err)
+	}
+	if got[0]["file"] != "clip.mp4" || !strings.Contains(got[0]["media"], `"media":"attach://file"`) ||
+		!strings.Contains(got[0]["media"], `"type":"video"`) || got[0]["message_id"] != "7" {
+		t.Errorf("champs envoyés = %v", got[0])
+	}
+	if _, err := c.EditMessageMedia(context.Background(), 43, 8, "video", InputFile{FileID: "VID"}, "x", nil); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got[1]["media"], `"media":"VID"`) || got[1]["file"] != "" {
+		t.Errorf("réutilisation du file_id : %v", got[1])
+	}
+}

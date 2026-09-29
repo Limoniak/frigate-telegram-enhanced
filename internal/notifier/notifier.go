@@ -39,6 +39,7 @@ type Telegram interface {
 	SendAnimation(ctx context.Context, chatID int64, f telegram.InputFile, o telegram.SendOptions) (telegram.Message, error)
 	EditMessageCaption(ctx context.Context, chatID int64, messageID int, caption string, markup *telegram.InlineKeyboardMarkup) error
 	EditMessageText(ctx context.Context, chatID int64, messageID int, text string, markup *telegram.InlineKeyboardMarkup) error
+	EditMessageMedia(ctx context.Context, chatID int64, messageID int, kind string, f telegram.InputFile, caption string, markup *telegram.InlineKeyboardMarkup) (telegram.Message, error)
 }
 
 type Deps struct {
@@ -377,12 +378,14 @@ func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool) {
 	if len(chats) == 0 {
 		return // regroupée dans le message d'une autre notification : ni clip ni GIF
 	}
-	if cfg.Clip && hasClip {
+	clip := cfg.Clip && hasClip
+	if clip {
 		path := t.clipPath
-		n.goAsync(func() { n.sendFollowUp(ctx, t, "video", path, chats, cfg.ClipDelay) })
+		n.goAsync(func() { n.sendFollowUp(ctx, t, "video", path, chats, cfg.ClipDelay, cfg.MediaInPlace) })
 	}
 	if cfg.GIF && t.gifPath != "" {
-		path := t.gifPath
-		n.goAsync(func() { n.sendFollowUp(ctx, t, "animation", path, chats, 0) })
+		// Avec un clip, c'est lui qui prend la place de l'image : le GIF arrive en réponse.
+		path, inPlace := t.gifPath, cfg.MediaInPlace && !clip
+		n.goAsync(func() { n.sendFollowUp(ctx, t, "animation", path, chats, 0, inPlace) })
 	}
 }

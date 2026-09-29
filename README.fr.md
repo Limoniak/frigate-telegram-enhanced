@@ -3,7 +3,7 @@
 [English](README.md) · **Français**
 
 Notifications Telegram pour [Frigate NVR](https://frigate.video) : un snapshot dès la
-détection, puis le clip vidéo en réponse, avec des filtres fins, une interface web pour
+détection, puis le clip vidéo dans le même message, avec des filtres fins, une interface web pour
 tout régler en quelques clics et un pilotage depuis Telegram.
 
 <p align="center">
@@ -13,12 +13,12 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 ## Fonctionnalités
 
 - Mode **events** (un message par objet détecté) ou **reviews** (alertes regroupées, Frigate ≥ 0.14)
-- Snapshot immédiat, clip MP4 en réponse, et GIF en option ; au-delà de 50 Mo, un lien vers le clip
+- Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, un lien vers le clip
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
 - Filtres par caméra, objet, zone, score minimum et sévérité ; cooldown ; plages silencieuses et plages coupées
 - **Interface web** pour régler tout cela sans éditer de YAML, appliquée sans redémarrage
 - Plusieurs destinataires avec routage par caméra
-- Boutons 🔇 *couper la caméra 1 h*, ⏸ *pause 30 min*, 🎬 *clip*
+- Boutons sur chaque notification : 📷 *maintenant* (image en direct, pour voir si la personne est toujours là), 🎬 *clip*, 🔇 *couper la caméra 1 h*, ⏸ *pause 30 min*
 - `/menu` : un tableau de contrôle avec des boutons pour mettre en pause, reprendre et couper chaque caméra
 - Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Regroupement des rafales** : les détections rapprochées s'ajoutent au premier message au lieu d'en envoyer de nouveaux

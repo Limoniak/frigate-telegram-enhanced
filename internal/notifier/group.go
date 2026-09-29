@@ -111,7 +111,7 @@ func (n *Notifier) editCaption(ctx context.Context, t *tracked, chat string) {
 	n.mu.Lock()
 	caption := n.captionFor(t, chat)
 	n.mu.Unlock()
-	chatID, markup := n.Config.ChatID(chat), buttons(t.camera, t.id)
+	chatID, markup := n.Config.ChatID(chat), buttons(t.camera, t.id, n.Config.Language)
 	var err error
 	if m.text {
 		err = n.Telegram.EditMessageText(ctx, chatID, m.id, caption, markup)

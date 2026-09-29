@@ -36,7 +36,7 @@ func TestMediaPoolBoundsConcurrentDownloads(t *testing.T) {
 	if max := atomic.LoadInt32(&h.fr.maxConcurrent); max != 1 {
 		t.Errorf("concurrence max des téléchargements = %d, attendu 1", max)
 	}
-	if n := len(h.tg.byMethod("sendVideo")); n != 4 {
+	if n := len(h.tg.videos()); n != 4 {
 		t.Errorf("vidéos envoyées = %d, attendu 4 (2 événements x 2 chats)", n)
 	}
 }

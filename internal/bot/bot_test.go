@@ -18,13 +18,14 @@ import (
 )
 
 type fakeTG struct {
-	mu         sync.Mutex
-	messages   []string
-	photos     []string
-	answers    []string
-	keyboards  int
-	edits      []string
-	lastMarkup *telegram.InlineKeyboardMarkup
+	mu           sync.Mutex
+	messages     []string
+	photos       []string
+	answers      []string
+	keyboards    int
+	edits        []string
+	lastMarkup   *telegram.InlineKeyboardMarkup
+	photoReplyTo int
 }
 
 func (f *fakeTG) GetUpdates(context.Context, int, time.Duration) ([]telegram.Update, error) {
@@ -45,6 +46,7 @@ func (f *fakeTG) SendPhoto(_ context.Context, _ int64, _ telegram.InputFile, o t
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.photos = append(f.photos, o.Caption)
+	f.photoReplyTo = o.ReplyTo
 	return telegram.Message{MessageID: 1}, nil
 }
 func (f *fakeTG) AnswerCallbackQuery(_ context.Context, _, text string) error {
@@ -435,5 +437,22 @@ func TestMenu(t *testing.T) {
 	press(btns["▶️ Resume"])
 	if e.st.IsPaused(now) {
 		t.Error("reprise attendue")
+	}
+}
+
+// « 📷 Maintenant » sur une notification : l'image en direct, en réponse à celle-ci.
+func TestNowButtonRepliesWithLiveImage(t *testing.T) {
+	e := newEnv(t)
+	e.b.HandleUpdate(context.Background(), telegram.Update{CallbackQuery: &telegram.CallbackQuery{
+		ID: "q", From: telegram.User{ID: 1}, Data: "s:garage",
+		Message: &telegram.Message{MessageID: 42, Chat: telegram.Chat{ID: 1}}}})
+	e.b.Wait()
+	e.tg.mu.Lock()
+	defer e.tg.mu.Unlock()
+	if len(e.tg.photos) != 1 || !strings.Contains(e.tg.photos[0], "garage") || !strings.Contains(e.tg.photos[0], "live at") {
+		t.Errorf("photos = %q", e.tg.photos)
+	}
+	if e.tg.photoReplyTo != 42 {
+		t.Errorf("réponse à %d, attendu 42 (la notification)", e.tg.photoReplyTo)
 	}
 }

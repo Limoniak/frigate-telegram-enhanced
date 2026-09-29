@@ -38,10 +38,10 @@ func TestReviewAlertSendsDetectionSnapshotAndRecordingClip(t *testing.T) {
 	if len(photos) != 2 || countData(photos, "jpeg") != 1 {
 		t.Fatalf("photos = %+v", photos)
 	}
-	if !strings.Contains(photos[0].Opts.Markup.InlineKeyboard[0][2].CallbackData, revID) {
+	if !strings.Contains(photos[0].Opts.Markup.InlineKeyboard[0][1].CallbackData, revID) {
 		t.Error("le bouton clip doit porter l'id de la review")
 	}
-	if videos := h.tg.byMethod("sendVideo"); len(videos) != 2 || countData(videos, "mp4") != 1 {
+	if videos := h.tg.videos(); len(videos) != 2 || countData(videos, "mp4") != 1 {
 		t.Fatalf("vidéos = %+v", videos)
 	}
 }

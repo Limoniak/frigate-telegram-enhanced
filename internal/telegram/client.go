@@ -344,3 +344,35 @@ func (c *Client) GetMe(ctx context.Context) (User, error) {
 	err := c.call(ctx, request{method: "getMe", timeout: 10 * time.Second, noRetry: true}, &u)
 	return u, err
 }
+
+// EditMessageMedia remplace le média d'un message (photo → vidéo ou animation),
+// avec sa légende et ses boutons : le message ne change pas de place et ne refait
+// pas sonner le téléphone. kind vaut "video" ou "animation". Renvoie le message
+// modifié, dont le file_id sert à réutiliser le média pour d'autres chats.
+func (c *Client) EditMessageMedia(ctx context.Context, chatID int64, messageID int, kind string, f InputFile, caption string, markup *InlineKeyboardMarkup) (Message, error) {
+	media := map[string]any{"type": kind, "caption": caption, "parse_mode": "HTML"}
+	if kind == "video" {
+		media["supports_streaming"] = true
+	}
+	var file *fileParam
+	timeout := 30 * time.Second
+	if f.FileID != "" {
+		media["media"] = f.FileID
+	} else {
+		media["media"] = "attach://file"
+		file = &fileParam{field: "file", file: f}
+		timeout = 5 * time.Minute // upload jusqu'à 50 Mo
+	}
+	mb, err := json.Marshal(media)
+	if err != nil {
+		return Message{}, err
+	}
+	p := map[string]string{"chat_id": chatParam(chatID), "message_id": strconv.Itoa(messageID), "media": string(mb)}
+	if markup != nil {
+		b, _ := json.Marshal(markup)
+		p["reply_markup"] = string(b)
+	}
+	var m Message
+	err = c.call(ctx, request{method: "editMessageMedia", chatID: chatID, params: p, file: file, timeout: timeout}, &m)
+	return m, err
+}

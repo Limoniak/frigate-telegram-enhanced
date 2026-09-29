@@ -85,7 +85,7 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 		Score: ev.Score(), HasScore: true, Start: frigate.UnixTime(ev.StartTime),
 		Link: n.uiLink("/explore?event_id=" + url.QueryEscape(ev.ID)),
 	}, n.Config.Location, n.Config.Language)
-	markup := buttons(ev.Camera, ev.ID)
+	markup := buttons(ev.Camera, ev.ID, n.Config.Language)
 
 	var msg telegram.Message
 	if ev.HasSnapshot {

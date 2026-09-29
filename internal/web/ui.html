@@ -74,12 +74,15 @@ section > .lead { margin: 0; padding: 0 16px 12px; color: var(--muted); font-siz
 .photo.small { height: 58px; }
 .photo.zoom .bbox { left: 26%; top: 4%; width: 48%; height: 92%; }
 .photo.zoom .who { left: 37%; top: 12%; font-size: 52px; }
-.framing { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 16px 12px; }
+.framing { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px; }
+.framing .row { gap: 10px; }
+.framing .row > .hint { min-width: 5.5em; margin: 0; }
 .framing .pills { margin-top: 0; }
 .cap { padding: 6px 8px; }
 .cap b { font-weight: 600; }
 .cap .link { color: var(--tg-link); }
 .kb { display: flex; gap: 3px; padding: 0 3px 3px; }
+.kb + .kb { margin-top: -1px; }
 .kb span { flex: 1; text-align: center; background: var(--tg-btn); border-radius: 6px; padding: 3px 0; font-size: 11px; white-space: nowrap; }
 .quote { border-left: 2px solid var(--tg-link); margin: 6px 8px 0; padding-left: 6px; color: var(--tg-link); font-size: 11px; }
 
@@ -353,15 +356,22 @@ function api(path, opts) {
 // effectifs lui correspondent ; si aucun ne correspond, la question affiche
 // « Personnalisé » et renvoie aux réglages avancés.
 
+// inPlace : la vidéo (ou le GIF) remplace l'image dans le message de la notification.
+const inPlace = () => !overlay || overlay.notify.media_in_place !== false;
+
 const STYLES = () => [
   {id: "clip", label: T("Photo + video", "Photo + vidéo"), tag: T("Recommended", "Recommandé"),
-   desc: T("The image right away, then the video clip when the event ends.", "L'image tout de suite, puis le clip vidéo à la fin de l'événement."),
+   desc: inPlace()
+     ? T("The image right away, then the video takes its place in the same message.", "L'image tout de suite, puis la vidéo prend sa place dans le même message.")
+     : T("The image right away, then the video clip as a reply when the event ends.", "L'image tout de suite, puis le clip vidéo en réponse à la fin de l'événement."),
    patch: {snapshot: true, clip: true, gif: false}},
   {id: "photo", label: T("Photo only", "Photo seule"),
    desc: T("Light. The clip stays one tap away with the 🎬 button.", "Léger. Le clip reste à portée du bouton 🎬."),
    patch: {snapshot: true, clip: false, gif: false}},
   {id: "gif", label: T("Photo + GIF", "Photo + GIF"),
-   desc: T("A short animated preview instead of the video.", "Un court aperçu animé au lieu de la vidéo."),
+   desc: inPlace()
+     ? T("The image, then a short animated preview in its place.", "L'image, puis un court aperçu animé à sa place.")
+     : T("A short animated preview instead of the video.", "Un court aperçu animé au lieu de la vidéo."),
    patch: {snapshot: true, clip: false, gif: true}},
   {id: "text", label: T("Text only", "Texte seul"),
    desc: T("The most discreet: just the message and the buttons.", "Le plus discret : juste le message et les boutons."),
@@ -434,6 +444,9 @@ const FIELDS = () => [
   {key: "crop", type: "bool", name: T("Crop the image on the object", "Recadrer l'image sur l'objet"),
    hint: T("Much more readable on a phone. Applies to event snapshots.", "Bien plus lisible sur un téléphone. S'applique aux snapshots d'événements.")},
   {key: "clip", type: "bool", name: T("Send the video clip", "Envoyer le clip vidéo")},
+  {key: "media_in_place", type: "bool", name: T("Video in the same message", "Vidéo dans le même message"),
+   hint: T("The clip (or GIF) replaces the image in the notification, instead of arriving as a new message.",
+     "Le clip (ou le GIF) remplace l'image dans la notification, au lieu d'arriver dans un nouveau message.")},
   {key: "gif", type: "bool", name: T("Send an animated GIF", "Envoyer un GIF animé")},
   {key: "genai_description", type: "bool", name: T("Add the GenAI description", "Ajouter la description GenAI"),
    hint: T("When Frigate publishes it, it is added to the notification's caption.", "Quand Frigate la publie, elle est ajoutée à la légende de la notification.")},
@@ -556,17 +569,23 @@ function preview(style) {
     el("br"), document.createTextNode(T("📍 driveway · 87%", "📍 allée · 87 %")),
     el("br"), document.createTextNode("🕑 14:32:05"),
     el("br"), el("span", {class: "link", text: T("🔗 Open in Frigate", "🔗 Ouvrir dans Frigate")}));
-  const kb = el("div", {class: "kb"}, el("span", {text: "🔇 1 h"}), el("span", {text: "⏸️ 30 min"}), el("span", {text: "🎬 Clip"}));
+  const kb = el("div", {class: "kb"}, el("span", {text: T("📷 Now", "📷 Maintenant")}), el("span", {text: "🎬 Clip"}));
+  const kb2 = el("div", {class: "kb"}, el("span", {text: "🔇 1 h"}), el("span", {text: "⏸️ 30 min"}));
 
+  // La vidéo (ou le GIF) prend la place de l'image : un seul message, montré à la fin.
+  const replaced = p.snapshot && (p.clip || p.gif) && inPlace();
   const first = el("div", {class: "bubble"});
   if (p.snapshot) {
     const zoom = overlay && overlay.notify.crop;
-    first.append(el("div", {class: "photo" + (zoom ? " zoom" : "")}, el("div", {class: "bbox"}), el("div", {class: "who", text: "🚶"})));
+    const photo = el("div", {class: "photo" + (zoom ? " zoom" : "")}, el("div", {class: "bbox"}), el("div", {class: "who", text: "🚶"}));
+    if (replaced && p.clip) photo.append(el("div", {class: "play", text: "▶"}), el("div", {class: "dur", text: "0:14"}));
+    else if (replaced) photo.append(el("div", {class: "gif", text: "GIF"}));
+    first.append(photo);
   }
-  first.append(caption, kb);
+  first.append(caption, kb, kb2);
   tg.append(first);
 
-  if (p.clip || p.gif) {
+  if ((p.clip || p.gif) && !replaced) {
     const media = el("div", {class: "photo small"});
     if (p.clip) media.append(el("div", {class: "play", text: "▶"}), el("div", {class: "dur", text: "0:14"}));
     else media.append(el("div", {class: "who", text: "🚶"}), el("div", {class: "gif", text: "GIF"}));
@@ -654,16 +673,25 @@ function renderStyles() {
   }
 }
 
-// renderFraming : plan large ou zoom sur l'objet, pour les modèles avec image.
+// renderFraming : cadrage de l'image et place de la vidéo, pour les modèles concernés.
 function renderFraming() {
   const box = $("framing");
   box.innerHTML = "";
-  if (!overlay.notify.snapshot) return;
-  box.append(el("span", {class: "hint", text: T("Framing:", "Cadrage :")}),
-    pills([
-      {label: T("🖼 Wide shot", "🖼 Plan large"), patch: {crop: false}},
-      {label: T("🔍 Zoom on the object", "🔍 Zoom sur l'objet"), patch: {crop: true}},
-    ], null));
+  const n = overlay.notify;
+  if (n.snapshot) {
+    box.append(el("div", {class: "row"}, el("span", {class: "hint", text: T("Framing:", "Cadrage :")}),
+      pills([
+        {label: T("🖼 Wide shot", "🖼 Plan large"), patch: {crop: false}},
+        {label: T("🔍 Zoom on the object", "🔍 Zoom sur l'objet"), patch: {crop: true}},
+      ], null)));
+  }
+  if (n.snapshot && (n.clip || n.gif)) {
+    box.append(el("div", {class: "row"}, el("span", {class: "hint", text: T("Video:", "Vidéo :")}),
+      pills([
+        {label: T("🔁 In the same message", "🔁 Dans le même message"), patch: {media_in_place: true}},
+        {label: T("↩️ As a reply", "↩️ En réponse"), patch: {media_in_place: false}},
+      ], null)));
+  }
 }
 
 // pills rend un groupe de choix exclusifs. Pour une caméra, « Par défaut » en

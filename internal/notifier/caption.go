@@ -94,16 +94,23 @@ func truncate(s string, max int) string {
 	return string(r[:max-1]) + "…"
 }
 
-// buttons renvoie les boutons d'une notification ; un bouton dont le callback_data dépasse 64 octets est omis.
-func buttons(camera, id string) *telegram.InlineKeyboardMarkup {
-	var row []telegram.InlineKeyboardButton
-	add := func(text, data string) {
-		if len(data) <= 64 {
-			row = append(row, telegram.InlineKeyboardButton{Text: text, CallbackData: data})
+// buttons renvoie les boutons d'une notification, sur deux lignes : voir (image en
+// direct, clip) puis faire taire (caméra 1 h, tout 30 min). Un bouton dont le
+// callback_data dépasse 64 octets est omis.
+func buttons(camera, id string, lang i18n.Lang) *telegram.InlineKeyboardMarkup {
+	var rows [][]telegram.InlineKeyboardButton
+	row := func(keys ...[2]string) {
+		var r []telegram.InlineKeyboardButton
+		for _, k := range keys {
+			if len(k[1]) <= 64 {
+				r = append(r, telegram.InlineKeyboardButton{Text: k[0], CallbackData: k[1]})
+			}
+		}
+		if len(r) > 0 {
+			rows = append(rows, r)
 		}
 	}
-	add("🔇 1 h", actions.Mute(camera, time.Hour))
-	add("⏸ 30 min", actions.Pause(30*time.Minute))
-	add("🎬 Clip", actions.Clip(id))
-	return &telegram.InlineKeyboardMarkup{InlineKeyboard: [][]telegram.InlineKeyboardButton{row}}
+	row([2]string{lang.T("📷 Now", "📷 Maintenant"), actions.Snapshot(camera)}, [2]string{"🎬 Clip", actions.Clip(id)})
+	row([2]string{"🔇 1 h", actions.Mute(camera, time.Hour)}, [2]string{"⏸ 30 min", actions.Pause(30 * time.Minute)})
+	return &telegram.InlineKeyboardMarkup{InlineKeyboard: rows}
 }

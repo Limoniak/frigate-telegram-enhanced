@@ -41,8 +41,8 @@ func TestNewEventSendsSnapshotToEveryChat(t *testing.T) {
 		if !strings.Contains(c.Text, "Person") || !strings.Contains(c.Text, "garage") {
 			t.Errorf("légende inattendue : %q", c.Text)
 		}
-		if c.Opts.Markup == nil || len(c.Opts.Markup.InlineKeyboard[0]) != 3 {
-			t.Error("boutons manquants")
+		if c.Opts.Markup == nil || len(c.Opts.Markup.InlineKeyboard) != 2 || c.Opts.Markup.InlineKeyboard[0][0].CallbackData != "s:garage" {
+			t.Error("boutons manquants (📷 Maintenant, 🎬 Clip, 🔇, ⏸)")
 		}
 	}
 	if countData(photos, "jpeg") != 1 || photos[0].FileID != "" {
@@ -68,8 +68,41 @@ func TestNewEventSendsSnapshotToEveryChat(t *testing.T) {
 	}
 }
 
+// Par défaut, le clip remplace l'image dans le message de la notification.
+func TestEndReplacesSnapshotWithClip(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	photos, edits := h.tg.byMethod("sendPhoto"), h.tg.byMethod("editMessageMedia:video")
+	if len(edits) != 2 || len(h.tg.byMethod("sendVideo")) != 0 {
+		t.Fatalf("remplacements = %d, réponses = %d ; attendu 2 remplacements", len(edits), len(h.tg.byMethod("sendVideo")))
+	}
+	for _, e := range edits {
+		p, _ := find(photos, e.ChatID)
+		if e.Target != p.Result {
+			t.Errorf("chat %d : message modifié %d, attendu %d (la notification)", e.ChatID, e.Target, p.Result)
+		}
+		if !strings.Contains(e.Text, "Person") {
+			t.Errorf("la légende doit être conservée : %q", e.Text)
+		}
+	}
+	if countData(edits, "mp4") != 1 {
+		t.Error("le clip doit être uploadé une seule fois")
+	}
+}
+
+// Avec media_in_place désactivé, le clip arrive en réponse à la notification.
 func TestEndSendsClipAsReplyToSnapshot(t *testing.T) {
 	h := newHarness(t, "events")
+	o := h.n.Config.CurrentOverlay()
+	no := false
+	o.Notify.MediaInPlace = &no
+	if err := h.n.Config.ApplyOverlay(&o); err != nil {
+		t.Fatal(err)
+	}
 	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
 	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
@@ -181,8 +214,8 @@ func TestClipRetriedUntilAvailable(t *testing.T) {
 	h.fr.fails[clip] = 2
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
-	if len(h.tg.byMethod("sendVideo")) != 2 || h.fr.countCalls(clip) != 3 {
-		t.Errorf("vidéos=%d appels clip=%d", len(h.tg.byMethod("sendVideo")), h.fr.countCalls(clip))
+	if len(h.tg.videos()) != 2 || h.fr.countCalls(clip) != 3 {
+		t.Errorf("vidéos=%d appels clip=%d", len(h.tg.videos()), h.fr.countCalls(clip))
 	}
 }
 
@@ -196,7 +229,7 @@ func TestClipTooLargeSendsLink(t *testing.T) {
 	if len(msgs) != 2 || !strings.Contains(msgs[0].Text, "https://nvr.example/api/events/"+evID+"/clip.mp4") {
 		t.Fatalf("messages = %+v", msgs)
 	}
-	if len(h.tg.byMethod("sendVideo")) != 0 {
+	if len(h.tg.videos()) != 0 {
 		t.Error("aucune vidéo attendue")
 	}
 }
@@ -279,5 +312,26 @@ func TestCroppedSnapshot(t *testing.T) {
 	}
 	if got := frigate.Cropped(frigate.LatestPath("garage")); got != frigate.LatestPath("garage") {
 		t.Errorf("l'image en direct ne se recadre pas : %q", got)
+	}
+}
+
+// Un message texte (pas d'image) ne peut pas recevoir de média : le clip arrive en réponse.
+func TestClipRepliesToTextOnlyNotification(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4") // pas de snapshot : repli en texte
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+	if n := len(h.tg.byMethod("editMessageMedia:video")); n != 0 {
+		t.Errorf("remplacements = %d, attendu 0", n)
+	}
+	replies := h.tg.byMethod("sendVideo")
+	texts := h.tg.byMethod("sendMessage")
+	if len(replies) != 2 {
+		t.Fatalf("réponses vidéo = %d, attendu 2", len(replies))
+	}
+	for _, v := range replies {
+		if m, _ := find(texts, v.ChatID); v.Opts.ReplyTo != m.Result {
+			t.Errorf("chat %d : réponse à %d, attendu %d", v.ChatID, v.Opts.ReplyTo, m.Result)
+		}
 	}
 }
