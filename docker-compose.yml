@@ -12,5 +12,6 @@ services:
     tmpfs:
       - /tmp:size=256m        # clips temporaires (50 Mo max chacun)
     ports:
-      - "127.0.0.1:8080:8080" # /healthz et /metrics, accessibles seulement depuis l'hôte ;
+      - "127.0.0.1:8080:8080" # interface web, /healthz et /metrics, accessibles seulement depuis l'hôte ;
                                # remplacer par "8080:8080" pour l'exposer sur toutes les interfaces
+                               # (renseigner alors WEB_PASSWORD dans .env)

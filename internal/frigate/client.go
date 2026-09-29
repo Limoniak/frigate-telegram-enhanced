@@ -186,15 +186,58 @@ func (c *Client) getJSON(ctx context.Context, path string, out any) error {
 	return json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(out)
 }
 
+// CameraInfo décrit une caméra telle que Frigate la déclare : ses zones et les
+// objets qu'elle suit, dont l'interface web se sert pour proposer des listes de
+// choix plutôt que de la saisie libre.
+type CameraInfo struct {
+	Name   string   `json:"name"`
+	Zones  []string `json:"zones"`
+	Labels []string `json:"labels"`
+}
+
+// apiConfig est la partie de /api/config que l'on exploite.
+type apiConfig struct {
+	Cameras map[string]struct {
+		Zones   map[string]json.RawMessage `json:"zones"`
+		Objects struct {
+			Track []string `json:"track"`
+		} `json:"objects"`
+	} `json:"cameras"`
+	Objects struct {
+		Track []string `json:"track"`
+	} `json:"objects"`
+}
+
 // Cameras renvoie les noms des caméras déclarées dans Frigate, triés.
 func (c *Client) Cameras(ctx context.Context) ([]string, error) {
-	var cfg struct {
-		Cameras map[string]json.RawMessage `json:"cameras"`
-	}
+	var cfg apiConfig
 	if err := c.getJSON(ctx, "/api/config", &cfg); err != nil {
 		return nil, err
 	}
 	return slices.Sorted(maps.Keys(cfg.Cameras)), nil
+}
+
+// CameraDetails renvoie, par caméra et triés, les zones et les objets suivis.
+// Une caméra qui ne redéfinit pas objects.track hérite de la liste globale.
+func (c *Client) CameraDetails(ctx context.Context) ([]CameraInfo, error) {
+	var cfg apiConfig
+	if err := c.getJSON(ctx, "/api/config", &cfg); err != nil {
+		return nil, err
+	}
+	out := make([]CameraInfo, 0, len(cfg.Cameras))
+	for _, name := range slices.Sorted(maps.Keys(cfg.Cameras)) {
+		cam := cfg.Cameras[name]
+		labels := cam.Objects.Track
+		if len(labels) == 0 {
+			labels = cfg.Objects.Track
+		}
+		out = append(out, CameraInfo{
+			Name:   name,
+			Zones:  slices.Sorted(maps.Keys(cam.Zones)),
+			Labels: slices.Sorted(slices.Values(labels)),
+		})
+	}
+	return out, nil
 }
 
 // Events renvoie les derniers événements, éventuellement d'une seule caméra.

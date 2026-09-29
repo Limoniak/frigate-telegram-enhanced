@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>frigate-telegram — notifications</title>
+<style>
+:root {
+  --bg: #f5f6f8; --card: #fff; --fg: #16181d; --muted: #6b7280; --line: #dfe3e8;
+  --accent: #2b6cb0; --accent-fg: #fff; --danger: #b42318; --ok: #2f7a3e;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --card: #1c1f25; --fg: #e8eaed; --muted: #9aa3af; --line: #2c313a;
+    --accent: #5b9bd5; --accent-fg: #0d1014; --danger: #f07171; --ok: #6fbf73;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+header {
+  position: sticky; top: 0; z-index: 10; background: var(--card);
+  border-bottom: 1px solid var(--line); padding: 12px 16px;
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+header .spacer { flex: 1; }
+.badge {
+  font-size: 12px; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+}
+main { max-width: 860px; margin: 0 auto; padding: 16px; }
+section {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  margin-bottom: 16px; overflow: hidden;
+}
+section > h2 {
+  font-size: 15px; margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--line);
+  font-weight: 600;
+}
+.body { padding: 4px 16px 16px; }
+.field { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.field:last-child { border-bottom: 0; }
+.field-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.field-head > .name { font-weight: 500; }
+.field-head > .spacer { flex: 1; }
+.hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.control { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.control.off { opacity: .45; }
+.override { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+input[type=text], input[type=number], input[type=time], select {
+  font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px;
+}
+input[type=number] { width: 7em; }
+input[type=text].dur { width: 7em; }
+input:invalid { border-color: var(--danger); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  border: 1px solid var(--line); background: var(--bg); color: var(--muted);
+  border-radius: 999px; padding: 4px 11px; font-size: 13px; cursor: pointer;
+  user-select: none; font-family: inherit;
+}
+.chip[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.control.off .chip { cursor: default; }
+.rows { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row .grow { flex: 1; min-width: 0; }
+.row .lbl { min-width: 6em; }
+button {
+  font: inherit; font-size: 14px; cursor: pointer; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--bg); color: inherit; padding: 6px 12px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 500; }
+button.link { border: 0; background: none; color: var(--accent); padding: 4px 6px; }
+button:disabled { opacity: .5; cursor: default; }
+button.icon { padding: 4px 9px; line-height: 1; }
+.switch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+details.camera { border-bottom: 1px solid var(--line); }
+details.camera:last-child { border-bottom: 0; }
+details.camera > summary {
+  padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  list-style: none;
+}
+details.camera > summary::-webkit-details-marker { display: none; }
+details.camera > summary::before { content: "▸"; color: var(--muted); }
+details.camera[open] > summary::before { content: "▾"; }
+summary .cam-name { font-weight: 500; }
+summary .cam-state { font-size: 12px; color: var(--muted); }
+summary .off-tag { color: var(--danger); }
+.notice { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+.notice.warn { background: #fdf3cd; color: #6b4e00; }
+.notice.err { background: #fde4e1; color: var(--danger); white-space: pre-wrap; }
+@media (prefers-color-scheme: dark) {
+  .notice.warn { background: #3a3116; color: #f0d68a; }
+  .notice.err { background: #3b1f1f; color: #f5a3a3; }
+}
+.status { font-size: 13px; color: var(--muted); }
+.status.saved { color: var(--ok); }
+.status.dirty { color: var(--fg); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Notifications</h1>
+  <span class="badge" id="mode"></span>
+  <span class="badge" id="tz"></span>
+  <span class="spacer"></span>
+  <span class="status" id="status"></span>
+  <button id="reset">Revenir à config.yml</button>
+  <button class="primary" id="save" disabled>Enregistrer</button>
+</header>
+<main>
+  <div id="messages"></div>
+  <section>
+    <h2>Réglages par défaut</h2>
+    <div class="body" id="global"></div>
+  </section>
+  <section>
+    <h2>Caméras</h2>
+    <div id="cameras"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const DUR = /^(\d+(\.\d+)?(ns|us|ms|s|m|h))+$/;
+
+// En-tête exigé par le serveur sur les écritures. Ce n'est pas un secret : un en-tête
+// non standard force le navigateur à un contrôle préalable CORS, qu'un site tiers ne
+// peut pas franchir — il ne peut donc pas faire écrire l'interface à notre place.
+const TOKEN = "frigate-telegram";
+
+// Chaque réglage est décrit une fois et rendu deux fois : dans les réglages par
+// défaut, et dans chaque caméra où il devient une surcharge optionnelle.
+const FIELDS = [
+  {key: "enabled", type: "bool", name: "Notifications activées",
+   hint: "Décoché, la caméra est totalement ignorée."},
+  {key: "chats", type: "chips", name: "Destinataires", source: "chats",
+   hint: "Chats déclarés dans telegram.chats de config.yml."},
+  {key: "labels", type: "chips", name: "Objets", source: "labels", free: true,
+   hint: "Aucun objet sélectionné = tous les objets sont notifiés."},
+  {key: "zones", type: "chips", name: "Zones", source: "zones", free: true,
+   hint: "Aucune zone sélectionnée = pas de contrainte. Sinon l'objet doit être entré dans une des zones."},
+  {key: "min_score", type: "score", name: "Score minimal", source: "labels"},
+  {key: "cooldown", type: "duration", name: "Délai entre deux notifications",
+   hint: "Par caméra et par objet. Ex. 60s, 5m, 1h30m."},
+  {key: "ignore_stationary", type: "bool", name: "Ignorer les objets immobiles",
+   hint: "Voitures garées, mobilier de jardin…"},
+  {key: "severity", type: "chips", name: "Sévérité", source: "severity", mode: "reviews",
+   hint: "Quelles revues Frigate déclenchent une notification."},
+  {key: "snapshot", type: "bool", name: "Envoyer l'image"},
+  {key: "clip", type: "bool", name: "Envoyer le clip vidéo"},
+  {key: "gif", type: "bool", name: "Envoyer un GIF animé"},
+  {key: "genai_description", type: "bool", name: "Ajouter la description GenAI",
+   hint: "Quand Frigate la publie, elle arrive en message complémentaire."},
+  {key: "clip_delay", type: "duration", name: "Attente avant récupération du clip",
+   hint: "Laisse à Frigate le temps de finaliser l'enregistrement."},
+  {key: "quiet_hours", type: "ranges", name: "Heures calmes",
+   hint: "Notifications envoyées sans son."},
+  {key: "off_hours", type: "ranges", name: "Heures coupées",
+   hint: "Aucune notification pendant ces plages."},
+];
+
+let data = null;      // réponse de /api/settings
+let overlay = null;   // ce que l'on enregistrera
+let saved = null;     // sérialisation du dernier état enregistré, pour détecter les changements
+
+const $ = (id) => document.getElementById(id);
+
+function clone(v) { return JSON.parse(JSON.stringify(v)); }
+
+function dirty() { return JSON.stringify(overlay) !== saved; }
+
+function touched() {
+  $("save").disabled = !dirty();
+  const s = $("status");
+  if (dirty()) { s.textContent = "Modifications non enregistrées"; s.className = "status dirty"; }
+  else { s.textContent = ""; s.className = "status"; }
+}
+
+function message(text, kind) {
+  const box = $("messages");
+  box.innerHTML = "";
+  if (!text) return;
+  const d = document.createElement("div");
+  d.className = "notice " + kind;
+  d.textContent = text;
+  box.appendChild(d);
+}
+
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined) n.setAttribute(k, v);
+  }
+  for (const c of kids) if (c) n.append(c);
+  return n;
+}
+
+// ---- valeurs par défaut d'un champ, quand une caméra commence à le surcharger ----
+
+// Valeur vide par type. Elle sert quand le global n'a rien à hériter : envoyer null
+// reviendrait à ne rien surcharger du tout, le serveur traitant null comme « absent ».
+const EMPTY = {bool: false, chips: [], ranges: [], duration: "0s", score: {default: 0}};
+
+function defaultFor(field, inherited) {
+  return clone(inherited === undefined || inherited === null ? EMPTY[field.type] : inherited);
+}
+
+// ---- rendu d'un contrôle ---------------------------------------------------
+
+// Chaque constructeur renvoie un élément ; `on(v)` remonte la nouvelle valeur.
+const CONTROLS = {
+  bool(field, value, on, ctx) {
+    const input = el("input", {type: "checkbox"});
+    input.checked = !!value;
+    input.disabled = ctx.disabled;
+    input.addEventListener("change", () => on(input.checked));
+    return el("label", {class: "switch"}, input, el("span", {text: value ? "Oui" : "Non"}));
+  },
+
+  duration(field, value, on, ctx) {
+    const input = el("input", {type: "text", class: "dur", placeholder: "60s", pattern: DUR.source});
+    input.value = value || "0s";
+    input.disabled = ctx.disabled;
+    input.addEventListener("change", () => {
+      if (!DUR.test(input.value.trim())) { input.reportValidity(); return; }
+      on(input.value.trim());
+    });
+    return input;
+  },
+
+  chips(field, value, on, ctx) {
+    const selected = Array.isArray(value) ? value.slice() : [];
+    const known = ctx.options.slice();
+    for (const v of selected) if (!known.includes(v)) known.push(v);
+    const wrap = el("div", {class: "chips"});
+    for (const opt of known) {
+      const active = selected.includes(opt);
+      const b = el("button", {
+        type: "button", class: "chip", "aria-pressed": String(active), text: opt,
+        onclick: () => {
+          if (ctx.disabled) return;
+          const next = selected.includes(opt) ? selected.filter((x) => x !== opt) : selected.concat([opt]);
+          on(next);
+        },
+      });
+      if (ctx.disabled) b.disabled = true;
+      wrap.append(b);
+    }
+    if (field.free && !ctx.disabled) {
+      const add = el("input", {type: "text", placeholder: "ajouter…", size: "12"});
+      add.addEventListener("change", () => {
+        const v = add.value.trim();
+        if (v && !selected.includes(v)) on(selected.concat([v]));
+        add.value = "";
+      });
+      wrap.append(add);
+    }
+    if (!known.length && ctx.disabled) wrap.append(el("span", {class: "hint", text: "aucun"}));
+    return wrap;
+  },
+
+  score(field, value, on, ctx) {
+    const v = value && typeof value === "object" ? value : {default: 0};
+    const byLabel = v.by_label && Object.keys(v.by_label).length ? v.by_label : null;
+    const rows = el("div", {class: "rows"});
+
+    const sel = el("select", {onchange: () => {
+      on(sel.value === "global" ? {default: 0.7} : {default: 0, by_label: {[ctx.options[0] || "person"]: 0.7}});
+    }});
+    sel.disabled = ctx.disabled;
+    for (const [val, label] of [["global", "Une valeur pour tous les objets"], ["label", "Une valeur par objet"]]) {
+      const o = el("option", {value: val, text: label});
+      if ((val === "label") === !!byLabel) o.selected = true;
+      sel.append(o);
+    }
+    rows.append(el("div", {class: "row"}, sel));
+
+    if (!byLabel) {
+      const n = el("input", {type: "number", min: "0", max: "1", step: "0.05"});
+      n.value = v.default ?? 0;
+      n.disabled = ctx.disabled;
+      n.addEventListener("change", () => on({default: clampScore(n.value)}));
+      rows.append(el("div", {class: "row"}, n, el("span", {class: "hint", text: "0 = aucun filtre, 1 = certitude"})));
+    } else {
+      for (const [label, score] of Object.entries(byLabel)) {
+        const n = el("input", {type: "number", min: "0", max: "1", step: "0.05"});
+        n.value = score;
+        n.disabled = ctx.disabled;
+        n.addEventListener("change", () => {
+          const next = Object.assign({}, byLabel, {[label]: clampScore(n.value)});
+          on({default: 0, by_label: next});
+        });
+        const del = el("button", {type: "button", class: "icon", text: "✕", title: "Supprimer",
+          onclick: () => {
+            const next = Object.assign({}, byLabel); delete next[label];
+            on(Object.keys(next).length ? {default: 0, by_label: next} : {default: 0.7});
+          }});
+        del.disabled = ctx.disabled;
+        rows.append(el("div", {class: "row"}, el("span", {class: "lbl", text: label}), n, del));
+      }
+      const remaining = ctx.options.filter((o) => !(o in byLabel));
+      if (remaining.length && !ctx.disabled) {
+        const sel2 = el("select", {onchange: () => {
+          if (!sel2.value) return;
+          on({default: 0, by_label: Object.assign({}, byLabel, {[sel2.value]: 0.7})});
+        }});
+        sel2.append(el("option", {value: "", text: "Ajouter un objet…"}));
+        for (const o of remaining) sel2.append(el("option", {value: o, text: o}));
+        rows.append(el("div", {class: "row"}, sel2));
+      }
+      rows.append(el("p", {class: "hint", text: "Un objet absent de cette liste n'est pas filtré sur le score."}));
+    }
+    return rows;
+  },
+
+  ranges(field, value, on, ctx) {
+    const list = Array.isArray(value) ? value : [];
+    const rows = el("div", {class: "rows"});
+    list.forEach((r, i) => {
+      const from = el("input", {type: "time"}); from.value = r.from; from.disabled = ctx.disabled;
+      const to = el("input", {type: "time"}); to.value = r.to; to.disabled = ctx.disabled;
+      const upd = () => {
+        const next = clone(list);
+        next[i] = {from: from.value, to: to.value};
+        on(next);
+      };
+      from.addEventListener("change", upd);
+      to.addEventListener("change", upd);
+      const del = el("button", {type: "button", class: "icon", text: "✕", title: "Supprimer",
+        onclick: () => on(list.filter((_, j) => j !== i))});
+      del.disabled = ctx.disabled;
+      rows.append(el("div", {class: "row"}, el("span", {text: "de"}), from, el("span", {text: "à"}), to, del));
+    });
+    if (!ctx.disabled) {
+      rows.append(el("div", {class: "row"},
+        el("button", {type: "button", class: "link", text: "+ Ajouter une plage",
+          onclick: () => on(list.concat([{from: "22:00", to: "07:00"}]))})));
+    } else if (!list.length) {
+      rows.append(el("span", {class: "hint", text: "aucune"}));
+    }
+    return rows;
+  },
+};
+
+function clampScore(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return 0;
+  return Math.min(1, Math.max(0, Math.round(n * 100) / 100));
+}
+
+function optionsFor(field, camera) {
+  switch (field.source) {
+    case "chats": return data.chats || [];
+    case "severity": return ["alert", "detection"];
+    case "labels": return unionOf("labels", camera);
+    case "zones": return unionOf("zones", camera);
+    default: return [];
+  }
+}
+
+// unionOf rassemble les valeurs proposées : celles de la caméra, ou celles de
+// toutes les caméras pour les réglages par défaut.
+function unionOf(kind, camera) {
+  const cams = camera ? (data.cameras || []).filter((c) => c.name === camera) : (data.cameras || []);
+  const out = [];
+  for (const c of cams) for (const v of c[kind] || []) if (!out.includes(v)) out.push(v);
+  return out.sort();
+}
+
+// renderField dessine un réglage. Sans `camera`, il porte sur les réglages par
+// défaut ; avec, il porte sur la surcharge de cette caméra et gagne une case
+// « personnaliser » qui la crée ou la retire.
+function renderField(field, camera) {
+  if (field.mode && field.mode !== data.mode) return null;
+
+  const patch = camera ? overlay.cameras[camera] : overlay.notify;
+  const inherited = camera ? overlay.notify[field.key] : undefined;
+  const custom = !camera || field.key in patch;
+  const value = custom ? patch[field.key] : inherited;
+
+  const head = el("div", {class: "field-head"}, el("span", {class: "name", text: field.name}));
+  if (camera) {
+    head.append(el("span", {class: "spacer"}));
+    const box = el("input", {type: "checkbox"});
+    box.checked = custom;
+    box.addEventListener("change", () => {
+      if (box.checked) patch[field.key] = defaultFor(field, inherited);
+      else delete patch[field.key];
+      render();
+      touched();
+    });
+    head.append(el("label", {class: "override"}, box, el("span", {text: "personnaliser"})));
+  }
+
+  const ctx = {disabled: !custom, options: optionsFor(field, camera)};
+  const control = CONTROLS[field.type](field, value, (v) => {
+    patch[field.key] = v;
+    render();
+    touched();
+  }, ctx);
+
+  const wrap = el("div", {class: "field"}, head, el("div", {class: "control" + (custom ? "" : " off")}, control));
+  if (field.hint) wrap.append(el("p", {class: "hint", text: field.hint}));
+  return wrap;
+}
+
+function cameraSummary(name) {
+  const patch = overlay.cameras[name];
+  const eff = Object.assign({}, overlay.notify, patch);
+  const bits = [];
+  if (eff.enabled === false) return el("span", {class: "cam-state off-tag", text: "désactivée"});
+  const n = Object.keys(patch).length;
+  bits.push(n ? n + " réglage" + (n > 1 ? "s" : "") + " personnalisé" + (n > 1 ? "s" : "") : "réglages par défaut");
+  const labels = eff.labels || [];
+  bits.push(labels.length ? labels.join(", ") : "tous les objets");
+  return el("span", {class: "cam-state", text: bits.join(" · ")});
+}
+
+function render() {
+  const g = $("global");
+  g.innerHTML = "";
+  for (const f of FIELDS) {
+    const node = renderField(f, null);
+    if (node) g.append(node);
+  }
+
+  const box = $("cameras");
+  const open = new Set([...box.querySelectorAll("details[open]")].map((d) => d.dataset.name));
+  box.innerHTML = "";
+  const names = (data.cameras || []).map((c) => c.name);
+  for (const name of Object.keys(overlay.cameras)) if (!names.includes(name)) names.push(name);
+  if (!names.length) {
+    box.append(el("div", {class: "body"}, el("p", {class: "hint", text: "Aucune caméra connue."})));
+    return;
+  }
+  for (const name of names.sort()) {
+    if (!overlay.cameras[name]) overlay.cameras[name] = {};
+    const d = el("details", {class: "camera", "data-name": name});
+    if (open.has(name)) d.open = true;
+    d.append(el("summary", {}, el("span", {class: "cam-name", text: name}), cameraSummary(name)));
+    const body = el("div", {class: "body"});
+    for (const f of FIELDS) {
+      const node = renderField(f, name);
+      if (node) body.append(node);
+    }
+    body.append(el("div", {class: "row"},
+      el("button", {type: "button", class: "link", text: "Tout remettre par défaut",
+        onclick: () => { overlay.cameras[name] = {}; render(); touched(); }})));
+    d.append(body);
+    box.append(d);
+  }
+}
+
+// toSend retire les caméras sans aucune surcharge : elles suivent les réglages
+// par défaut et n'ont rien à faire dans le fichier enregistré.
+function toSend() {
+  const cameras = {};
+  for (const [name, patch] of Object.entries(overlay.cameras)) {
+    if (Object.keys(patch).length) cameras[name] = patch;
+  }
+  return {notify: overlay.notify, cameras};
+}
+
+async function load() {
+  const resp = await fetch("api/settings", {headers: {"Accept": "application/json"}});
+  if (!resp.ok) throw new Error("HTTP " + resp.status + " : " + (await resp.text()));
+  data = await resp.json();
+  overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}};
+  $("mode").textContent = "mode " + data.mode;
+  $("tz").textContent = data.timezone;
+  $("reset").disabled = !data.custom;
+  message(data.warning || "", "warn");
+  render();
+  saved = JSON.stringify(overlay);
+  touched();
+}
+
+async function save() {
+  const btn = $("save");
+  btn.disabled = true;
+  try {
+    const resp = await fetch("api/settings", {
+      method: "PUT",
+      headers: {"Content-Type": "application/json", "X-Requested-With": TOKEN},
+      body: JSON.stringify(toSend()),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.error || "HTTP " + resp.status);
+    saved = JSON.stringify(overlay);
+    message("", "");
+    data.custom = true;
+    $("reset").disabled = false;
+    $("status").textContent = "Enregistré";
+    $("status").className = "status saved";
+    setTimeout(touched, 2500);
+  } catch (e) {
+    message("Enregistrement refusé :\n" + e.message, "err");
+    btn.disabled = false;
+  }
+}
+
+async function reset() {
+  if (!confirm("Supprimer les réglages enregistrés ici et revenir à ceux de config.yml ?")) return;
+  try {
+    const resp = await fetch("api/settings/reset", {method: "POST", headers: {"X-Requested-With": TOKEN}});
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.error || "HTTP " + resp.status);
+    }
+    await load();
+  } catch (e) {
+    message("Retour à config.yml impossible :\n" + e.message, "err");
+  }
+}
+
+$("save").addEventListener("click", save);
+$("reset").addEventListener("click", reset);
+window.addEventListener("beforeunload", (e) => { if (dirty()) e.preventDefault(); });
+
+load().catch((e) => message("Chargement impossible :\n" + e.message, "err"));
+</script>
+</body>
+</html>

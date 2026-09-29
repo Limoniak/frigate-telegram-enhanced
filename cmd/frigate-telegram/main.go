@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"frigate-telegram/internal/server"
 	"frigate-telegram/internal/state"
 	"frigate-telegram/internal/telegram"
+	"frigate-telegram/internal/web"
 )
 
 func main() {
@@ -52,6 +54,21 @@ func run(configPath string) error {
 	}
 	log := newLogger(cfg.LogLevel)
 	slog.SetDefault(log)
+
+	// Les réglages enregistrés par l'interface web priment sur les sections notify
+	// et cameras de config.yml. Un fichier illisible ou devenu invalide (un chat
+	// renommé entre-temps, par exemple) ne doit pas empêcher le service de démarrer :
+	// on le signale et on repart sur config.yml.
+	overlayPath := filepath.Join(filepath.Dir(cfg.StateFile), "notify.yml")
+	if o, err := config.LoadOverlay(overlayPath); err != nil {
+		log.Warn("réglages de l'interface web ignorés", "fichier", overlayPath, "err", err)
+	} else if o != nil {
+		if err := cfg.ApplyOverlay(o); err != nil {
+			log.Warn("réglages de l'interface web ignorés", "fichier", overlayPath, "err", err)
+		} else {
+			log.Info("réglages de notification chargés", "fichier", overlayPath)
+		}
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -85,6 +102,11 @@ func run(configPath string) error {
 		Log: log, MQTTConnected: sub.Connected,
 	})
 
+	var mount []func(*http.ServeMux)
+	if cfg.Web.Enabled {
+		ui := web.New(cfg, overlayPath, fr, log)
+		mount = append(mount, ui.Mount)
+	}
 	srv := server.New(cfg.HTTPListen, func() error {
 		if !sub.Connected() {
 			return errors.New("MQTT déconnecté")
@@ -93,7 +115,7 @@ func run(configPath string) error {
 			return errors.New("Telegram injoignable")
 		}
 		return nil
-	}, m.Registry)
+	}, m.Registry, mount...)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("serveur HTTP arrêté", "err", err)
@@ -116,6 +138,10 @@ func run(configPath string) error {
 	}()
 	sub.Start()
 	log.Info("frigate-telegram démarré", "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
+	if cfg.Web.Enabled {
+		log.Info("interface web disponible", "adresse", cfg.HTTPListen,
+			"authentification", cfg.Web.Password != "")
+	}
 
 	flush := time.NewTicker(30 * time.Second)
 	defer flush.Stop()

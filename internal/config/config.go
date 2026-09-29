@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -44,6 +45,13 @@ type Telegram struct {
 	Chats  map[string]int64 `yaml:"chats"`
 }
 
+// Web configure l'interface de réglage des notifications, servie par le même
+// serveur HTTP que /healthz et /metrics.
+type Web struct {
+	Enabled  bool
+	Password string // vide = pas d'authentification
+}
+
 // Notify est la configuration de notification effective d'une caméra.
 type Notify struct {
 	Enabled          bool
@@ -63,6 +71,9 @@ type Notify struct {
 	OffHours         []TimeRange
 }
 
+// Config rassemble les réglages du service. Les sections notify et cameras sont
+// modifiables à chaud par l'interface web : elles ne sont accessibles qu'à travers
+// les méthodes ci-dessous, qui les protègent par un verrou.
 type Config struct {
 	Timezone   string
 	Location   *time.Location
@@ -70,57 +81,91 @@ type Config struct {
 	Frigate    Frigate
 	MQTT       MQTT
 	Telegram   Telegram
-	Notify     Notify
-	Cameras    map[string]Notify
+	Web        Web
 	StateFile  string
 	HTTPListen string
 	LogLevel   string
+
+	mu      sync.RWMutex
+	notify  Notify
+	cameras map[string]Notify
+
+	// état issu du seul config.yml, conservé pour pouvoir revenir en arrière
+	// quand l'interface web supprime ses surcharges.
+	fileNotify  Notify
+	fileCameras map[string]Notify
 }
 
 // ForCamera renvoie la configuration effective d'une caméra (globale si non listée).
 func (c *Config) ForCamera(name string) Notify {
-	if n, ok := c.Cameras[name]; ok {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if n, ok := c.cameras[name]; ok {
 		return n
 	}
-	return c.Notify
+	return c.notify
+}
+
+// Global renvoie les réglages de notification par défaut.
+func (c *Config) Global() Notify {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.notify
+}
+
+// CameraNames renvoie, triés, les noms des caméras ayant des réglages propres.
+func (c *Config) CameraNames() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return slices.Sorted(maps.Keys(c.cameras))
 }
 
 // ChatID renvoie l'identifiant Telegram d'un chat nommé.
 func (c *Config) ChatID(name string) int64 { return c.Telegram.Chats[name] }
 
+// ChatNames renvoie, triés, les noms de chats déclarés.
+func (c *Config) ChatNames() []string { return slices.Sorted(maps.Keys(c.Telegram.Chats)) }
+
 // IsAdmin indique si l'utilisateur Telegram peut piloter le bot.
 func (c *Config) IsAdmin(userID int64) bool { return slices.Contains(c.Telegram.Admins, userID) }
 
 type fileYAML struct {
-	Timezone   string                `yaml:"timezone"`
-	Mode       string                `yaml:"mode"`
-	Frigate    Frigate               `yaml:"frigate"`
-	MQTT       MQTT                  `yaml:"mqtt"`
-	Telegram   Telegram              `yaml:"telegram"`
-	Notify     notifyYAML            `yaml:"notify"`
-	Cameras    map[string]notifyYAML `yaml:"cameras"`
-	StateFile  string                `yaml:"state_file"`
-	HTTPListen string                `yaml:"http_listen"`
-	LogLevel   string                `yaml:"log_level"`
+	Timezone   string                 `yaml:"timezone"`
+	Mode       string                 `yaml:"mode"`
+	Frigate    Frigate                `yaml:"frigate"`
+	MQTT       MQTT                   `yaml:"mqtt"`
+	Telegram   Telegram               `yaml:"telegram"`
+	Web        webYAML                `yaml:"web"`
+	Notify     NotifyPatch            `yaml:"notify"`
+	Cameras    map[string]NotifyPatch `yaml:"cameras"`
+	StateFile  string                 `yaml:"state_file"`
+	HTTPListen string                 `yaml:"http_listen"`
+	LogLevel   string                 `yaml:"log_level"`
 }
 
-// notifyYAML utilise des pointeurs pour distinguer « absent » de « valeur zéro ».
-type notifyYAML struct {
-	Enabled          *bool          `yaml:"enabled"`
-	Chats            *[]string      `yaml:"chats"`
-	Labels           *[]string      `yaml:"labels"`
-	Zones            *[]string      `yaml:"zones"`
-	MinScore         *MinScore      `yaml:"min_score"`
-	Cooldown         *time.Duration `yaml:"cooldown"`
-	IgnoreStationary *bool          `yaml:"ignore_stationary"`
-	Severity         *[]string      `yaml:"severity"`
-	Snapshot         *bool          `yaml:"snapshot"`
-	Clip             *bool          `yaml:"clip"`
-	GIF              *bool          `yaml:"gif"`
-	GenAIDescription *bool          `yaml:"genai_description"`
-	ClipDelay        *time.Duration `yaml:"clip_delay"`
-	QuietHours       *[]TimeRange   `yaml:"quiet_hours"`
-	OffHours         *[]TimeRange   `yaml:"off_hours"`
+type webYAML struct {
+	Enabled  *bool  `yaml:"enabled"`
+	Password string `yaml:"password"`
+}
+
+// NotifyPatch est une surcharge partielle de Notify : les champs absents laissent
+// la valeur de base inchangée. Les pointeurs distinguent « absent » de « valeur zéro ».
+type NotifyPatch struct {
+	Enabled          *bool        `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Chats            *[]string    `yaml:"chats,omitempty" json:"chats,omitempty"`
+	Labels           *[]string    `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Zones            *[]string    `yaml:"zones,omitempty" json:"zones,omitempty"`
+	MinScore         *MinScore    `yaml:"min_score,omitempty" json:"min_score,omitempty"`
+	Cooldown         *Duration    `yaml:"cooldown,omitempty" json:"cooldown,omitempty"`
+	IgnoreStationary *bool        `yaml:"ignore_stationary,omitempty" json:"ignore_stationary,omitempty"`
+	Severity         *[]string    `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Snapshot         *bool        `yaml:"snapshot,omitempty" json:"snapshot,omitempty"`
+	Clip             *bool        `yaml:"clip,omitempty" json:"clip,omitempty"`
+	GIF              *bool        `yaml:"gif,omitempty" json:"gif,omitempty"`
+	GenAIDescription *bool        `yaml:"genai_description,omitempty" json:"genai_description,omitempty"`
+	ClipDelay        *Duration    `yaml:"clip_delay,omitempty" json:"clip_delay,omitempty"`
+	QuietHours       *[]TimeRange `yaml:"quiet_hours,omitempty" json:"quiet_hours,omitempty"`
+	OffHours         *[]TimeRange `yaml:"off_hours,omitempty" json:"off_hours,omitempty"`
 }
 
 func set[T any](dst *T, src *T) {
@@ -129,25 +174,86 @@ func set[T any](dst *T, src *T) {
 	}
 }
 
-// applyTo superpose les champs présents sur base (remplacement champ par champ).
-func (y notifyYAML) applyTo(base Notify) Notify {
+func setDuration(dst *time.Duration, src *Duration) {
+	if src != nil {
+		*dst = time.Duration(*src)
+	}
+}
+
+// ApplyTo superpose les champs présents sur base (remplacement champ par champ).
+func (y NotifyPatch) ApplyTo(base Notify) Notify {
 	n := base
 	set(&n.Enabled, y.Enabled)
 	set(&n.Chats, y.Chats)
 	set(&n.Labels, y.Labels)
 	set(&n.Zones, y.Zones)
 	set(&n.MinScore, y.MinScore)
-	set(&n.Cooldown, y.Cooldown)
+	setDuration(&n.Cooldown, y.Cooldown)
 	set(&n.IgnoreStationary, y.IgnoreStationary)
 	set(&n.Severity, y.Severity)
 	set(&n.Snapshot, y.Snapshot)
 	set(&n.Clip, y.Clip)
 	set(&n.GIF, y.GIF)
 	set(&n.GenAIDescription, y.GenAIDescription)
-	set(&n.ClipDelay, y.ClipDelay)
+	setDuration(&n.ClipDelay, y.ClipDelay)
 	set(&n.QuietHours, y.QuietHours)
 	set(&n.OffHours, y.OffHours)
 	return n
+}
+
+// FullPatch décrit n entièrement : tous les champs sont renseignés.
+func FullPatch(n Notify) NotifyPatch {
+	cooldown, clipDelay := Duration(n.Cooldown), Duration(n.ClipDelay)
+	return NotifyPatch{
+		Enabled: &n.Enabled, Chats: &n.Chats, Labels: &n.Labels, Zones: &n.Zones,
+		MinScore: &n.MinScore, Cooldown: &cooldown, IgnoreStationary: &n.IgnoreStationary,
+		Severity: &n.Severity, Snapshot: &n.Snapshot, Clip: &n.Clip, GIF: &n.GIF,
+		GenAIDescription: &n.GenAIDescription, ClipDelay: &clipDelay,
+		QuietHours: &n.QuietHours, OffHours: &n.OffHours,
+	}
+}
+
+// DiffPatch ne décrit que les champs par lesquels n s'écarte de base.
+func DiffPatch(base, n Notify) NotifyPatch {
+	var p NotifyPatch
+	diff(&p.Enabled, base.Enabled, n.Enabled)
+	diffSlice(&p.Chats, base.Chats, n.Chats)
+	diffSlice(&p.Labels, base.Labels, n.Labels)
+	diffSlice(&p.Zones, base.Zones, n.Zones)
+	if base.MinScore.Default != n.MinScore.Default || !maps.Equal(base.MinScore.ByLabel, n.MinScore.ByLabel) {
+		p.MinScore = &n.MinScore
+	}
+	if base.Cooldown != n.Cooldown {
+		d := Duration(n.Cooldown)
+		p.Cooldown = &d
+	}
+	diff(&p.IgnoreStationary, base.IgnoreStationary, n.IgnoreStationary)
+	diffSlice(&p.Severity, base.Severity, n.Severity)
+	diff(&p.Snapshot, base.Snapshot, n.Snapshot)
+	diff(&p.Clip, base.Clip, n.Clip)
+	diff(&p.GIF, base.GIF, n.GIF)
+	diff(&p.GenAIDescription, base.GenAIDescription, n.GenAIDescription)
+	if base.ClipDelay != n.ClipDelay {
+		d := Duration(n.ClipDelay)
+		p.ClipDelay = &d
+	}
+	diffSlice(&p.QuietHours, base.QuietHours, n.QuietHours)
+	diffSlice(&p.OffHours, base.OffHours, n.OffHours)
+	return p
+}
+
+func diff[T comparable](dst **T, base, v T) {
+	if base != v {
+		dst2 := v
+		*dst = &dst2
+	}
+}
+
+func diffSlice[T comparable](dst **[]T, base, v []T) {
+	if !slices.Equal(base, v) {
+		s := v
+		*dst = &s
+	}
 }
 
 func defaultNotify(chats map[string]int64) Notify {
@@ -195,6 +301,7 @@ func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 		Frigate:    f.Frigate,
 		MQTT:       f.MQTT,
 		Telegram:   f.Telegram,
+		Web:        Web{Enabled: f.Web.Enabled == nil || *f.Web.Enabled, Password: f.Web.Password},
 		StateFile:  orDefault(f.StateFile, "/data/state.json"),
 		HTTPListen: orDefault(f.HTTPListen, ":8080"),
 		LogLevel:   orDefault(f.LogLevel, "info"),
@@ -203,11 +310,12 @@ func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 	c.Frigate.ExternalURL = strings.TrimRight(c.Frigate.ExternalURL, "/")
 	c.MQTT.ClientID = orDefault(c.MQTT.ClientID, "frigate-telegram")
 	c.MQTT.TopicPrefix = orDefault(c.MQTT.TopicPrefix, "frigate")
-	c.Notify = f.Notify.applyTo(defaultNotify(c.Telegram.Chats))
-	c.Cameras = make(map[string]Notify, len(f.Cameras))
+	c.notify = f.Notify.ApplyTo(defaultNotify(c.Telegram.Chats))
+	c.cameras = make(map[string]Notify, len(f.Cameras))
 	for name, y := range f.Cameras {
-		c.Cameras[name] = y.applyTo(c.Notify)
+		c.cameras[name] = y.ApplyTo(c.notify)
 	}
+	c.fileNotify, c.fileCameras = c.notify, maps.Clone(c.cameras)
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -302,9 +410,9 @@ func (c *Config) validate() error {
 	default:
 		add("log_level %q invalide (debug, info, warn, error)", c.LogLevel)
 	}
-	errs = append(errs, c.validateNotify("notify", c.Notify)...)
-	for _, name := range slices.Sorted(maps.Keys(c.Cameras)) {
-		errs = append(errs, c.validateNotify("cameras."+name, c.Cameras[name])...)
+	errs = append(errs, c.validateNotify("notify", c.notify)...)
+	for _, name := range slices.Sorted(maps.Keys(c.cameras)) {
+		errs = append(errs, c.validateNotify("cameras."+name, c.cameras[name])...)
 	}
 	return errors.Join(errs...)
 }

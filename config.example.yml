@@ -27,6 +27,15 @@ telegram:
     moi: 123456789
     # famille: -1001234567890    # un groupe a un identifiant négatif
 
+web:                             # interface de réglage des notifications, sur http_listen
+  enabled: true
+  password: "${WEB_PASSWORD:-}"  # vide = aucune authentification (ne l'exposer alors que sur 127.0.0.1)
+
+# Les sections notify et cameras ci-dessous sont celles que l'interface web modifie.
+# Dès le premier enregistrement, elle écrit /data/notify.yml, qui les remplace toutes
+# les deux ; ce fichier-ci reste la source des secrets et des ${VAR}. Le bouton
+# « Revenir à config.yml » de l'interface supprime /data/notify.yml.
+
 notify:                          # réglages globaux, surchargeables par caméra
   chats: [moi]
   labels: [person, car]          # vide = tous les objets

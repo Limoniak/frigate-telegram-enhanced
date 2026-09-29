@@ -1,4 +1,4 @@
-// Package server expose /healthz et /metrics.
+// Package server expose /healthz, /metrics et, si elle est activée, l'interface web.
 package server
 
 import (
@@ -12,7 +12,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func New(addr string, health func() error, reg *prometheus.Registry) *http.Server {
+// New construit le serveur HTTP. Chaque fonction de mount reçoit le routeur pour y
+// ajouter ses propres routes — l'interface web s'y greffe sans que ce paquet ait à
+// la connaître.
+func New(addr string, health func() error, reg *prometheus.Registry, mount ...func(*http.ServeMux)) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		if err := health(); err != nil {
@@ -22,6 +25,9 @@ func New(addr string, health func() error, reg *prometheus.Registry) *http.Serve
 		io.WriteString(w, "ok\n")
 	})
 	mux.Handle("GET /metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+	for _, m := range mount {
+		m(mux)
+	}
 	return &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 }
 

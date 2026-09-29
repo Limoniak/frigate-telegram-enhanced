@@ -1,17 +1,55 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
+// Duration est une durée sérialisée en texte ("60s", "1h30m") aussi bien en YAML
+// qu'en JSON. time.Duration s'encoderait en nanosecondes, illisible dans le fichier
+// d'overlay écrit par l'interface web.
+type Duration time.Duration
+
+func (d Duration) String() string { return time.Duration(d).String() }
+
+func (d *Duration) parse(s string) error {
+	v, err := time.ParseDuration(s)
+	if err != nil {
+		return fmt.Errorf("durée invalide %q (ex. 60s, 1h30m)", s)
+	}
+	*d = Duration(v)
+	return nil
+}
+
+func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
+	var s string
+	if err := n.Decode(&s); err != nil {
+		return err
+	}
+	return d.parse(s)
+}
+
+func (d Duration) MarshalYAML() (any, error) { return d.String(), nil }
+
+func (d *Duration) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	return d.parse(s)
+}
+
+func (d Duration) MarshalJSON() ([]byte, error) { return json.Marshal(d.String()) }
+
 // MinScore est un score minimal global ou par label.
 // En YAML : `min_score: 0.7` ou `min_score: {person: 0.7, car: 0.85}`.
+// En JSON (interface web) : `{"default": 0.7}` ou `{"by_label": {"person": 0.7}}`.
 type MinScore struct {
-	Default float64
-	ByLabel map[string]float64
+	Default float64            `json:"default"`
+	ByLabel map[string]float64 `json:"by_label,omitempty"`
 }
 
 func (m *MinScore) UnmarshalYAML(n *yaml.Node) error {
@@ -19,6 +57,13 @@ func (m *MinScore) UnmarshalYAML(n *yaml.Node) error {
 		return n.Decode(&m.ByLabel)
 	}
 	return n.Decode(&m.Default)
+}
+
+func (m MinScore) MarshalYAML() (any, error) {
+	if len(m.ByLabel) > 0 {
+		return m.ByLabel, nil
+	}
+	return m.Default, nil
 }
 
 // For renvoie le score minimal applicable à un label.
@@ -48,14 +93,13 @@ type TimeRange struct {
 	From, To int
 }
 
-func (t *TimeRange) UnmarshalYAML(n *yaml.Node) error {
-	var raw struct {
-		From string `yaml:"from"`
-		To   string `yaml:"to"`
-	}
-	if err := n.Decode(&raw); err != nil {
-		return err
-	}
+// clockRange est la forme sérialisée d'une plage : {from: "22:00", to: "07:00"}.
+type clockRange struct {
+	From string `yaml:"from" json:"from"`
+	To   string `yaml:"to" json:"to"`
+}
+
+func (t *TimeRange) fromClock(raw clockRange) error {
 	var err error
 	if t.From, err = parseClock(raw.From); err != nil {
 		return err
@@ -64,6 +108,30 @@ func (t *TimeRange) UnmarshalYAML(n *yaml.Node) error {
 	return err
 }
 
+func (t TimeRange) clock() clockRange {
+	return clockRange{From: formatClock(t.From), To: formatClock(t.To)}
+}
+
+func (t *TimeRange) UnmarshalYAML(n *yaml.Node) error {
+	var raw clockRange
+	if err := n.Decode(&raw); err != nil {
+		return err
+	}
+	return t.fromClock(raw)
+}
+
+func (t TimeRange) MarshalYAML() (any, error) { return t.clock(), nil }
+
+func (t *TimeRange) UnmarshalJSON(b []byte) error {
+	var raw clockRange
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	return t.fromClock(raw)
+}
+
+func (t TimeRange) MarshalJSON() ([]byte, error) { return json.Marshal(t.clock()) }
+
 func parseClock(s string) (int, error) {
 	tm, err := time.Parse("15:04", s)
 	if err != nil {
@@ -71,6 +139,8 @@ func parseClock(s string) (int, error) {
 	}
 	return tm.Hour()*60 + tm.Minute(), nil
 }
+
+func formatClock(minute int) string { return fmt.Sprintf("%02d:%02d", minute/60, minute%60) }
 
 // Contains indique si la minute de la journée tombe dans la plage (borne de fin exclue).
 func (t TimeRange) Contains(minute int) bool {

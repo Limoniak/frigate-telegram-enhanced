@@ -17,4 +17,8 @@ func TestExampleConfigIsValid(t *testing.T) {
 	if c.ForCamera("salon").Enabled {
 		t.Error("l'exemple désactive la caméra salon")
 	}
+	// WEB_PASSWORD n'est pas défini : l'interface doit rester servie, sans mot de passe.
+	if !c.Web.Enabled || c.Web.Password != "" {
+		t.Errorf("web = %+v", c.Web)
+	}
 }

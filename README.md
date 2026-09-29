@@ -8,6 +8,7 @@ Notifications Telegram pour [Frigate NVR](https://frigate.video) : un snapshot d
 - Snapshot immédiat, clip MP4 en réponse, et GIF en option ; au-delà de 50 Mo, un lien vers le clip
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
 - Filtres par caméra, objet, zone, score minimum et sévérité ; cooldown ; plages silencieuses et plages coupées
+- **Interface web** pour régler tout cela sans éditer de YAML, appliquée sans redémarrage
 - Plusieurs destinataires avec routage par caméra
 - Boutons 🔇 *couper la caméra 1 h*, ⏸ *pause 30 min*, 🎬 *clip*
 - Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
@@ -61,6 +62,35 @@ Tout est documenté dans [`config.example.yml`](config.example.yml). Points clé
 - Mode `reviews` : `severity: [alert]` suit la configuration `review.alerts` de Frigate.
 - Les secrets passent par `.env` (`${TELEGRAM_TOKEN}`…). Mettre les valeurs entre guillemets dans le YAML.
 
+## Interface web
+
+`http://127.0.0.1:8080/` sert une page de réglage des notifications : destinataires,
+objets, zones, score minimal, cooldown, médias envoyés, heures calmes et heures coupées,
+en global puis caméra par caméra. Les zones et les objets proposés viennent de l'API de
+Frigate ; chaque réglage d'une caméra se coche pour la personnaliser, sinon elle suit le
+global.
+
+Un enregistrement prend effet **immédiatement**, sans redémarrage, et n'est accepté que
+s'il est valide — un réglage refusé laisse le service sur les précédents.
+
+Les réglages sont écrits dans `/data/notify.yml`, à côté de l'état, et **remplacent les
+sections `notify` et `cameras` de `config.yml`** tant que ce fichier existe ; le bouton
+*Revenir à config.yml* le supprime. `config.yml` reste la source des secrets, des `${VAR}`
+et des commentaires, et n'est jamais réécrit — c'est d'ailleurs nécessaire, le conteneur
+le monte en lecture seule.
+
+```yaml
+web:
+  enabled: true                  # false pour ne pas servir l'interface du tout
+  password: "${WEB_PASSWORD:-}"  # vide = aucune authentification
+```
+
+Sans mot de passe, l'interface est ouverte à quiconque atteint le port : le
+`docker-compose.yml` fourni ne publie `8080` que sur `127.0.0.1`. Pour y accéder depuis
+le réseau ou un reverse proxy, renseigner `WEB_PASSWORD` dans `.env`. L'authentification
+ne couvre que l'interface : `/healthz` et `/metrics` restent libres pour la sonde du
+conteneur et pour Prometheus.
+
 ## Commandes
 
 | Commande | Effet |
@@ -78,12 +108,14 @@ Seuls les utilisateurs listés dans `telegram.admins` peuvent utiliser les comma
 
 - `GET /healthz` : 200 si MQTT est connecté et Telegram joignable (utilisé par le `HEALTHCHECK` Docker)
 - `GET /metrics` : métriques Prometheus préfixées par `ft_`
+- Ces deux routes ne sont jamais protégées par `web.password`
 
 ## Dépannage
 
 - **Aucune notification** : `log_level: debug`, puis vérifier `ft_events_received_total` et `ft_events_filtered_total{reason=...}` sur `/metrics`.
 - **Clip manquant** : augmenter `clip_delay` (Frigate n'a pas encore fini d'écrire le clip).
-- **`permission denied` sur `/data`** : voir le `chown` de l'installation.
+- **`permission denied` sur `/data`** : voir le `chown` de l'installation. L'interface web ne peut pas enregistrer sans ce droit.
+- **Réglages de l'interface ignorés au démarrage** : le journal indique pourquoi `/data/notify.yml` a été écarté (un chat supprimé de `telegram.chats`, par exemple). Le service repart alors sur `config.yml`.
 
 ## Développement
 

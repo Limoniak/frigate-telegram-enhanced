@@ -55,7 +55,7 @@ func TestParseMinimalAppliesDefaults(t *testing.T) {
 	if c.StateFile != "/data/state.json" || c.HTTPListen != ":8080" || c.LogLevel != "info" {
 		t.Errorf("défauts = %q %q %q", c.StateFile, c.HTTPListen, c.LogLevel)
 	}
-	n := c.Notify
+	n := c.Global()
 	if !n.Enabled || !n.Snapshot || !n.Clip || n.GIF || !n.GenAIDescription || !n.IgnoreStationary {
 		t.Errorf("booléens par défaut incorrects : %+v", n)
 	}
