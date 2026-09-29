@@ -19,6 +19,7 @@ import (
 
 func helpText(l i18n.Lang) string {
 	return l.T(`<b>Commands</b>
+/menu — control panel with buttons
 /pause [duration] [camera] — pause (1 h by default, 0 = until /resume)
 /resume [camera] — resume (no argument: resume everything)
 /status — service status
@@ -26,6 +27,7 @@ func helpText(l i18n.Lang) string {
 /snapshot [camera] — live image
 /last [camera] — latest event
 Durations: 30m, 2h, 1h30m, 1d`, `<b>Commandes</b>
+/menu — tableau de contrôle avec boutons
 /pause [durée] [caméra] — pause (1 h par défaut, 0 = jusqu'à /resume)
 /resume [caméra] — reprendre (sans argument : tout reprendre)
 /status — état du service
@@ -75,7 +77,7 @@ func (b *Bot) handleCommand(ctx context.Context, m telegram.Message) {
 		if m.From != nil {
 			from = m.From.ID
 		}
-		b.Log.Warn("commande refusée : utilisateur non autorisé", "user", from, "text", m.Text)
+		b.Log.Warn("command refused: user not allowed", "user", from, "text", m.Text)
 		return
 	}
 	name, args := parseCommand(m.Text)
@@ -101,6 +103,8 @@ func (b *Bot) handleCommand(ctx context.Context, m telegram.Message) {
 				b.reply(ctx, chat, "⚠️ "+esc(err.Error()))
 			}
 		})
+	case "menu":
+		b.serial(func() { b.cmdMenu(ctx, chat) })
 	case "help", "start":
 		b.serial(func() { b.reply(ctx, chat, helpText(b.Config.Language)) })
 	default:
@@ -173,6 +177,17 @@ func (b *Bot) cmdStatus() string {
 	for _, cam := range slices.Sorted(maps.Keys(st.Mutes)) {
 		sb.WriteString("\n🔇 " + esc(cam) + " " + b.untilText(st.Mutes[cam]))
 	}
+	if b.Config.Presence.Enabled() {
+		if len(st.Home) > 0 {
+			names := make([]string, len(st.Home))
+			for i, t := range st.Home {
+				names[i] = esc(PresenceName(t))
+			}
+			sb.WriteString(l.T("\n🏠 At home: ", "\n🏠 À la maison : ") + strings.Join(names, ", "))
+		} else {
+			sb.WriteString(l.T("\n🚪 Nobody at home", "\n🚪 Personne à la maison"))
+		}
+	}
 	sb.WriteString(l.Tf("\n📨 %d notification(s) in the last 24 h", "\n📨 %d notification(s) sur 24 h", b.Notifier.Count24h()))
 	return sb.String()
 }
@@ -217,7 +232,7 @@ func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 	}
 	if _, err := b.Telegram.SendMessage(ctx, chat, b.Config.Language.T("📷 Pick a camera:", "📷 Choisis une caméra :"),
 		telegram.SendOptions{Markup: &telegram.InlineKeyboardMarkup{InlineKeyboard: rows}}); err != nil {
-		b.Log.Warn("envoi du clavier échoué", "err", err)
+		b.Log.Warn("sending the keyboard failed", "err", err)
 	}
 }
 
@@ -230,13 +245,13 @@ func (b *Bot) sendLiveSnapshot(ctx context.Context, chat int64, camera string) {
 	caption := "📷 <b>" + esc(camera) + "</b> — " + b.Now().In(b.Config.Location).Format("15:04:05")
 	if _, err := b.Telegram.SendPhoto(ctx, chat, telegram.InputFile{Name: camera + ".jpg", Data: img},
 		telegram.SendOptions{Caption: caption}); err != nil {
-		b.Log.Warn("envoi du snapshot échoué", "camera", camera, "err", err)
+		b.Log.Warn("sending the snapshot failed", "camera", camera, "err", err)
 	}
 }
 
 func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 	if !b.Config.IsAdmin(q.From.ID) {
-		b.Log.Warn("bouton refusé : utilisateur non autorisé", "user", q.From.ID)
+		b.Log.Warn("button refused: user not allowed", "user", q.From.ID)
 		b.answer(ctx, q.ID, b.Config.Language.T("⛔ Not allowed", "⛔ Non autorisé"))
 		return
 	}
@@ -252,7 +267,25 @@ func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 		chat, replyTo = q.Message.Chat.ID, q.Message.MessageID
 	}
 	now := b.Now()
+	if a.Menu {
+		// Après l'action (plus bas), le menu est redessiné pour montrer le nouvel état.
+		defer b.refreshMenu(ctx, q)
+	}
 	switch a.Kind {
+	case actions.KindUnmute:
+		if err := b.State.Unmute(a.Camera); err != nil {
+			b.answer(ctx, q.ID, l.T("⚠️ Could not save", "⚠️ Erreur d'enregistrement"))
+			return
+		}
+		b.answer(ctx, q.ID, "🔔 "+l.Tf("%s back on", "%s réactivée", a.Camera))
+	case actions.KindResume:
+		if err := b.State.Resume(); err != nil {
+			b.answer(ctx, q.ID, l.T("⚠️ Could not save", "⚠️ Erreur d'enregistrement"))
+			return
+		}
+		b.answer(ctx, q.ID, l.T("▶️ Notifications resumed", "▶️ Notifications réactivées"))
+	case actions.KindRefresh:
+		b.answer(ctx, q.ID, "")
 	case actions.KindMute:
 		until := now.Add(a.Duration)
 		if err := b.State.Mute(a.Camera, until); err != nil {
@@ -307,12 +340,22 @@ func (b *Bot) untilText(until time.Time) string {
 
 func (b *Bot) reply(ctx context.Context, chat int64, text string) {
 	if _, err := b.Telegram.SendMessage(ctx, chat, text, telegram.SendOptions{}); err != nil {
-		b.Log.Warn("réponse Telegram échouée", "chat", chat, "err", err)
+		b.Log.Warn("Telegram reply failed", "chat", chat, "err", err)
 	}
 }
 
 func (b *Bot) answer(ctx context.Context, id, text string) {
 	if err := b.Telegram.AnswerCallbackQuery(ctx, id, text); err != nil {
-		b.Log.Warn("answerCallbackQuery échoué", "err", err)
+		b.Log.Warn("answerCallbackQuery failed", "err", err)
 	}
+}
+
+// PresenceName tire un nom lisible d'un topic de présence :
+// "homeassistant/person/alice/state" donne "alice".
+func PresenceName(topic string) string {
+	parts := strings.Split(topic, "/")
+	if n := len(parts); n >= 2 && parts[n-1] == "state" {
+		return parts[n-2]
+	}
+	return parts[len(parts)-1]
 }

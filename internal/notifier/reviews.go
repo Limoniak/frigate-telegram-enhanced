@@ -85,27 +85,9 @@ func (n *Notifier) handleUpdate(ctx context.Context, u frigate.TrackedObjectUpda
 		return
 	}
 	t.description = u.Description
-	caption := n.caption(t)
-	markup := buttons(t.camera, t.id)
-	n.goAsync(func() {
-		select {
-		case <-t.ready:
-		case <-ctx.Done():
-			return
-		}
-		for chat, m := range t.messagesCopy() {
-			chatID := n.Config.ChatID(chat)
-			var err error
-			if m.text {
-				err = n.Telegram.EditMessageText(ctx, chatID, m.id, caption, markup)
-			} else {
-				err = n.Telegram.EditMessageCaption(ctx, chatID, m.id, caption, markup)
-			}
-			if err != nil {
-				n.Log.Warn("mise à jour de la légende échouée", "chat", chat, "event_id", t.id, "err", err)
-			}
-		}
-	})
+	for _, chat := range t.chats {
+		n.goAsync(func() { n.editCaption(ctx, t, chat) })
+	}
 }
 
 // findByEventID retrouve un suivi par son id, ou par l'id d'un événement Frigate lié.

@@ -72,6 +72,10 @@ section > .lead { margin: 0; padding: 0 16px 12px; color: var(--muted); font-siz
 .photo .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; }
 .photo .dur { position: absolute; left: 6px; bottom: 5px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 0 5px; border-radius: 4px; }
 .photo.small { height: 58px; }
+.photo.zoom .bbox { left: 26%; top: 4%; width: 48%; height: 92%; }
+.photo.zoom .who { left: 37%; top: 12%; font-size: 52px; }
+.framing { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 16px 12px; }
+.framing .pills { margin-top: 0; }
 .cap { padding: 6px 8px; }
 .cap b { font-weight: 600; }
 .cap .link { color: var(--tg-link); }
@@ -172,6 +176,28 @@ button.icon { padding: 4px 9px; line-height: 1; }
 .live .sub .row { gap: 6px; }
 @media (prefers-color-scheme: dark) { .live.paused { background: #3a3116; } }
 
+/* ---- destinataires ---- */
+.recipient { padding: 12px 16px; border-top: 1px solid var(--line); }
+.recipient .who { font-weight: 600; }
+.recipient .sub-q { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.recipient .pills { margin-top: 4px; }
+
+/* ---- sensibilité ---- */
+.sens { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.sens input[type=range] { flex: 1; min-width: 180px; accent-color: var(--accent); }
+.sens .val { font-weight: 600; min-width: 3.5em; text-align: right; }
+.sens-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.sens-effect { font-size: 13px; margin: 6px 0 0; }
+
+/* ---- état des connexions ---- */
+.health { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 10px 16px; font-size: 14px; }
+.health .comp { display: inline-flex; gap: 6px; align-items: baseline; }
+.health .comp .d { color: var(--muted); font-size: 13px; }
+.health-errors { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px; }
+.health-error { border-left: 3px solid var(--danger); background: #fde4e1; border-radius: 6px; padding: 8px 12px; font-size: 14px; }
+.health-error .fix { color: var(--fg); margin-top: 2px; }
+@media (prefers-color-scheme: dark) { .health-error { background: #3b1f1f; } }
+
 /* ---- essai ---- */
 .try { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 16px 16px; }
 .try-one { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -209,18 +235,27 @@ footer .spacer { flex: 1; }
 <main>
   <div id="messages"></div>
 
+  <section id="health-box" hidden><div class="health" id="health"></div><div class="health-errors" id="health-errors"></div></section>
+
   <section id="live-box" hidden><div class="live" id="live"></div></section>
 
   <section>
     <h2 data-t="What should your notifications look like?|À quoi ressemblent vos notifications ?"></h2>
     <p class="lead" data-t="Pick a style: every camera uses it, except the ones you set differently below.|Choisissez un modèle : toutes les caméras l'utiliseront, sauf celles que vous réglez autrement plus bas."></p>
     <div class="styles" id="styles"></div>
+    <div class="framing" id="framing"></div>
     <div class="try" id="try"></div>
   </section>
 
   <section>
     <h2 data-t="When should you be notified?|Quand être prévenu ?"></h2>
     <div class="body" id="questions"></div>
+  </section>
+
+  <section id="recipients-box" hidden>
+    <h2 data-t="Recipients|Destinataires"></h2>
+    <p class="lead" data-t="What each person receives, on top of the camera settings.|Ce que reçoit chaque personne, en plus des réglages des caméras."></p>
+    <div id="recipients"></div>
   </section>
 
   <section>
@@ -301,6 +336,7 @@ function setLang(l) {
   render();
   renderLive();
   renderHistory();
+  if (data.can_health) loadHealth(); // messages du serveur : redemandés dans la nouvelle langue
   touched();
 }
 
@@ -352,6 +388,22 @@ const QUESTIONS = () => [
     {label: T("1 per minute", "1 par minute"), patch: {cooldown: "1m"}},
     {label: T("1 every 10 min", "1 toutes les 10 min"), patch: {cooldown: "10m"}},
   ]},
+  {title: T("Bursts", "Rafales"),
+   hint: T("Detections close in time are added to the first message (edited, no new sound) instead of sending new ones.",
+     "Les détections rapprochées s'ajoutent au premier message (modifié, sans nouvelle sonnerie) au lieu d'en envoyer d'autres."),
+   options: [
+    {label: T("One message per detection", "Un message par détection"), patch: {group: "0s"}},
+    {label: T("📦 Group over 2 min", "📦 Regrouper sur 2 min"), patch: {group: "2m"}},
+    {label: T("📦 Group over 5 min", "📦 Regrouper sur 5 min"), patch: {group: "5m"}},
+  ]},
+  {title: T("When someone is home", "Quand quelqu'un est à la maison"), presence: true,
+   hint: T("Someone is home as soon as one of the presence topics says so (Home Assistant, sensor…).",
+     "Quelqu'un est à la maison dès qu'un des topics de présence l'indique (Home Assistant, capteur…)."),
+   options: [
+    {label: T("🔔 Notify as usual", "🔔 Notifier normalement"), patch: {when_home: "notify"}},
+    {label: T("🔕 Silent", "🔕 Sans son"), patch: {when_home: "silent"}},
+    {label: T("🏠 Nothing", "🏠 Rien"), patch: {when_home: "skip"}},
+  ]},
   {title: T("At night (10 pm – 7 am)", "La nuit (22 h – 7 h)"), options: [
     {label: T("Same as daytime", "Comme le jour"), patch: {quiet_hours: [], off_hours: []}},
     {label: T("🔕 Silent", "🔕 Sans son"), patch: {quiet_hours: NIGHT, off_hours: []}},
@@ -379,12 +431,18 @@ const FIELDS = () => [
   {key: "severity", type: "chips", name: T("Severity", "Sévérité"), source: "severity", mode: "reviews",
    hint: T("Which Frigate reviews trigger a notification.", "Quelles revues Frigate déclenchent une notification.")},
   {key: "snapshot", type: "bool", name: T("Send the image", "Envoyer l'image")},
+  {key: "crop", type: "bool", name: T("Crop the image on the object", "Recadrer l'image sur l'objet"),
+   hint: T("Much more readable on a phone. Applies to event snapshots.", "Bien plus lisible sur un téléphone. S'applique aux snapshots d'événements.")},
   {key: "clip", type: "bool", name: T("Send the video clip", "Envoyer le clip vidéo")},
   {key: "gif", type: "bool", name: T("Send an animated GIF", "Envoyer un GIF animé")},
   {key: "genai_description", type: "bool", name: T("Add the GenAI description", "Ajouter la description GenAI"),
    hint: T("When Frigate publishes it, it is added to the notification's caption.", "Quand Frigate la publie, elle est ajoutée à la légende de la notification.")},
+  {key: "group", type: "duration", globalOnly: true, name: T("Group bursts over", "Regrouper les rafales sur"),
+   hint: T("0s = one message per detection. Applies to every camera.", "0s = un message par détection. S'applique à toutes les caméras.")},
   {key: "clip_delay", type: "duration", name: T("Wait before fetching the clip", "Attente avant récupération du clip"),
    hint: T("Gives Frigate time to finish the recording.", "Laisse à Frigate le temps de finaliser l'enregistrement.")},
+  {key: "when_home", type: "choice", name: T("When someone is home", "Quand quelqu'un est à la maison"), presence: true,
+   choices: () => [["notify", T("Notify as usual", "Notifier normalement")], ["silent", T("Silent", "Sans son")], ["skip", T("Nothing", "Rien")]]},
   {key: "quiet_hours", type: "ranges", name: T("Quiet hours", "Heures calmes"),
    hint: T("Notifications sent without sound.", "Notifications envoyées sans son.")},
   {key: "off_hours", type: "ranges", name: T("Off hours", "Heures coupées"),
@@ -501,7 +559,10 @@ function preview(style) {
   const kb = el("div", {class: "kb"}, el("span", {text: "🔇 1 h"}), el("span", {text: "⏸️ 30 min"}), el("span", {text: "🎬 Clip"}));
 
   const first = el("div", {class: "bubble"});
-  if (p.snapshot) first.append(el("div", {class: "photo"}, el("div", {class: "bbox"}), el("div", {class: "who", text: "🚶"})));
+  if (p.snapshot) {
+    const zoom = overlay && overlay.notify.crop;
+    first.append(el("div", {class: "photo" + (zoom ? " zoom" : "")}, el("div", {class: "bbox"}), el("div", {class: "who", text: "🚶"})));
+  }
   first.append(caption, kb);
   tg.append(first);
 
@@ -593,6 +654,18 @@ function renderStyles() {
   }
 }
 
+// renderFraming : plan large ou zoom sur l'objet, pour les modèles avec image.
+function renderFraming() {
+  const box = $("framing");
+  box.innerHTML = "";
+  if (!overlay.notify.snapshot) return;
+  box.append(el("span", {class: "hint", text: T("Framing:", "Cadrage :")}),
+    pills([
+      {label: T("🖼 Wide shot", "🖼 Plan large"), patch: {crop: false}},
+      {label: T("🔍 Zoom on the object", "🔍 Zoom sur l'objet"), patch: {crop: true}},
+    ], null));
+}
+
 // pills rend un groupe de choix exclusifs. Pour une caméra, « Par défaut » en
 // tête retire la surcharge.
 function pills(options, camera) {
@@ -651,6 +724,59 @@ function question(title, hint, content) {
   return q;
 }
 
+// ---- sensibilité ----------------------------------------------------------------
+
+// scoredHistory : les détections récentes qui ont un score (mode events).
+function scoredHistory() {
+  return (history || []).filter((e) => e.score > 0);
+}
+
+// sensitivityEffect décrit, sur l'activité récente, l'effet d'un score minimal.
+function sensitivityEffect(threshold) {
+  const scored = scoredHistory();
+  if (!scored.length) {
+    return T("Recent activity will show the effect of this setting once there are detections.",
+      "L'activité récente montrera l'effet de ce réglage dès qu'il y aura des détections.");
+  }
+  const dropped = scored.filter((e) => e.score < threshold);
+  const lost = dropped.filter((e) => e.sent).length;
+  if (!dropped.length) {
+    return T(`None of the last ${scored.length} detections would be ignored for a low score.`,
+      `Aucune des ${scored.length} dernières détections ne serait ignorée pour un score trop bas.`);
+  }
+  return T(
+    `Out of the last ${scored.length} detections, ${dropped.length} would be ignored for a low score` +
+      (lost ? `, including ${lost} that were sent.` : "."),
+    `Sur les ${scored.length} dernières détections, ${dropped.length} seraient ignorées pour score trop bas` +
+      (lost ? `, dont ${lost} qui ont été envoyées.` : "."));
+}
+
+function sensitivity() {
+  const ms = overlay.notify.min_score || {default: 0};
+  if (ms.by_label && Object.keys(ms.by_label).length) {
+    return el("p", {class: "hint", text: T("Set per object in Advanced settings.", "Réglé objet par objet dans les réglages avancés.")});
+  }
+  const pct = (v) => Math.round(v * 100) + T("%", " %");
+  const range = el("input", {type: "range", min: "0", max: "0.95", step: "0.05",
+    "aria-label": T("Minimum score", "Score minimal")});
+  range.value = ms.default || 0;
+  const val = el("span", {class: "val", text: pct(Number(range.value))});
+  const effect = el("p", {class: "hint sens-effect", text: sensitivityEffect(Number(range.value))});
+  // Pendant le glissement, on ne met à jour que le texte : redessiner la page ferait
+  // perdre le curseur à l'utilisateur. La valeur est retenue au relâchement.
+  range.addEventListener("input", () => {
+    val.textContent = pct(Number(range.value));
+    effect.textContent = sensitivityEffect(Number(range.value));
+  });
+  range.addEventListener("change", () => { overlay.notify.min_score = {default: clampScore(range.value)}; changed(); });
+  return el("div", {},
+    el("div", {class: "sens"}, range, val),
+    el("div", {class: "sens-ends"},
+      el("span", {text: T("◀ more notifications", "◀ plus de notifications")}),
+      el("span", {text: T("fewer false alarms ▶", "moins de fausses alertes ▶")})),
+    effect);
+}
+
 function renderQuestions() {
   const box = $("questions");
   box.innerHTML = "";
@@ -661,7 +787,76 @@ function renderQuestions() {
   }
   for (const q of QUESTIONS()) {
     if (q.mode && q.mode !== data.mode) continue;
+    if (q.presence && !data.presence) continue;
     box.append(question(q.title, q.hint, pills(q.options, null)));
+  }
+  // Le score n'existe qu'en mode events : Frigate n'en donne pas pour une revue.
+  if (data.mode !== "reviews") {
+    box.append(question(T("Sensitivity", "Sensibilité"),
+      T("Frigate's confidence that the object is real. Higher = fewer false alarms, but more risk of missing something.",
+        "La confiance de Frigate dans la détection. Plus haut = moins de fausses alertes, mais plus de risque d'en manquer une."),
+      sensitivity()));
+  }
+}
+
+// ---- destinataires ------------------------------------------------------------
+//
+// Chaque destinataire peut restreindre ce qu'il reçoit : certains objets, certains
+// moments. Vide, il reçoit tout ce que les caméras lui envoient.
+
+const DAY = [{from: "07:00", to: "22:00"}];
+
+const RECIPIENT_OBJECTS = () => [
+  {label: T("Everything", "Tout"), patch: {labels: []}},
+  {label: T("🚶 People", "🚶 Personnes"), patch: {labels: ["person"]}},
+  {label: T("🚶🚗 People and cars", "🚶🚗 Personnes et voitures"), patch: {labels: ["car", "person"]}},
+];
+
+const RECIPIENT_WHEN = () => [
+  {label: T("All the time", "Tout le temps"), patch: {quiet_hours: [], off_hours: []}},
+  {label: T("🌙 Only at night", "🌙 Seulement la nuit"), patch: {quiet_hours: [], off_hours: DAY}},
+  {label: T("☀️ Only during the day", "☀️ Seulement le jour"), patch: {quiet_hours: [], off_hours: NIGHT}},
+  {label: T("🔕 Silent at night", "🔕 Sans son la nuit"), patch: {quiet_hours: NIGHT, off_hours: []}},
+];
+
+function recipientValues(chat) {
+  const r = overlay.recipients[chat] || {};
+  return {labels: r.labels || [], quiet_hours: r.quiet_hours || [], off_hours: r.off_hours || []};
+}
+
+function setRecipient(chat, patch) {
+  const r = Object.assign(recipientValues(chat), clone(patch));
+  for (const k of Object.keys(r)) if (!r[k].length) delete r[k];
+  if (Object.keys(r).length) overlay.recipients[chat] = r;
+  else delete overlay.recipients[chat];
+  changed();
+}
+
+function recipientPills(chat, options) {
+  const eff = recipientValues(chat);
+  const wrap = el("div", {class: "pills"});
+  let any = false;
+  for (const o of options) {
+    const active = !any && matches(o.patch, eff);
+    any = any || active;
+    wrap.append(el("button", {type: "button", class: "pill", "aria-pressed": String(active), text: o.label,
+      onclick: () => setRecipient(chat, o.patch)}));
+  }
+  if (!any) wrap.append(el("span", {class: "pill custom", "aria-pressed": "true", text: T("Custom", "Personnalisé")}));
+  return wrap;
+}
+
+function renderRecipients() {
+  const chats = data.chats || [];
+  $("recipients-box").hidden = chats.length < 2;
+  const box = $("recipients");
+  box.innerHTML = "";
+  if (chats.length < 2) return;
+  for (const chat of chats) {
+    box.append(el("div", {class: "recipient"},
+      el("div", {class: "who", text: "👤 " + chat}),
+      el("div", {class: "sub-q", text: T("Receives", "Reçoit")}), recipientPills(chat, RECIPIENT_OBJECTS()),
+      el("div", {class: "sub-q", text: T("When", "Quand")}), recipientPills(chat, RECIPIENT_WHEN())));
   }
 }
 
@@ -730,6 +925,11 @@ function renderCameras() {
         "⚠️ Frigate ne suit pas " + list + " sur cette caméra : ces objets ne seront jamais signalés. Ajoutez-les à objects.track dans la configuration de Frigate.")}));
     }
     body.append(q);
+    if (data.presence) {
+      const hq = QUESTIONS().find((q) => q.presence);
+      body.append(question(hq.title, T("E.g. keep outdoor cameras on while you're home.",
+        "Par exemple, garder les caméras extérieures pendant que vous êtes là."), pills(hq.options, name)));
+    }
     const zones = unionOf("zones", name);
     if (zones.length) {
       body.append(question(T("Where?", "Où ?"), T("Only when the object enters one of the chosen zones (defined in Frigate).",
@@ -759,7 +959,7 @@ function renderCameras() {
 
 // Valeur vide par type. Elle sert quand le global n'a rien à hériter : envoyer null
 // reviendrait à ne rien surcharger du tout, le serveur traitant null comme « absent ».
-const EMPTY = {bool: false, chips: [], ranges: [], duration: "0s", score: {default: 0}};
+const EMPTY = {bool: false, chips: [], ranges: [], duration: "0s", score: {default: 0}, choice: "skip"};
 
 function defaultFor(field, inherited) {
   return clone(inherited === undefined || inherited === null ? EMPTY[field.type] : inherited);
@@ -767,6 +967,17 @@ function defaultFor(field, inherited) {
 
 // Chaque constructeur renvoie un élément ; `on(v)` remonte la nouvelle valeur.
 const CONTROLS = {
+  choice(field, value, on, ctx) {
+    const sel = el("select", {onchange: () => on(sel.value)});
+    sel.disabled = ctx.disabled;
+    for (const [v, label] of field.choices()) {
+      const o = el("option", {value: v, text: label});
+      if (v === (value || "skip")) o.selected = true;
+      sel.append(o);
+    }
+    return sel;
+  },
+
   bool(field, value, on, ctx) {
     const input = el("input", {type: "checkbox"});
     input.checked = !!value;
@@ -930,6 +1141,8 @@ function unionOf(kind, camera) {
 // « personnaliser » qui la crée ou la retire.
 function renderField(field, camera) {
   if (field.mode && field.mode !== data.mode) return null;
+  if (field.presence && !data.presence) return null;
+  if (field.globalOnly && camera) return null;
 
   const patch = camera ? overlay.cameras[camera] : overlay.notify;
   const inherited = camera ? overlay.notify[field.key] : undefined;
@@ -971,8 +1184,10 @@ function renderAdvanced() {
 
 function render() {
   renderStyles();
+  renderFraming();
   renderTry();
   renderQuestions();
+  renderRecipients();
   renderCameras();
   renderAdvanced();
 }
@@ -980,6 +1195,12 @@ function render() {
 // ---- pause et reprise ---------------------------------------------------------
 
 let live = null; // réponse de /api/state
+
+// presenceName : "homeassistant/person/alice/state" → "alice".
+function presenceName(topic) {
+  const p = topic.split("/");
+  return p.length >= 2 && p[p.length - 1] === "state" ? p[p.length - 2] : p[p.length - 1];
+}
 
 function untilText(iso) {
   if (!iso) return T("until resumed", "jusqu'à reprise");
@@ -1028,16 +1249,54 @@ function renderLive() {
         onclick: () => stateCall("api/pause", {minutes})}));
     }
   }
+  const sub = el("div", {class: "sub"});
+  if (data && data.presence) {
+    const home = (live.home || []).map(presenceName);
+    sub.append(el("div", {class: "row"}, el("span", {text: home.length
+      ? T("🏠 At home: ", "🏠 À la maison : ") + home.join(", ")
+      : T("🚪 Nobody at home", "🚪 Personne à la maison")})));
+  }
   if (live.mutes.length) {
-    const sub = el("div", {class: "sub"});
     for (const m of live.mutes) {
       sub.append(el("div", {class: "row"},
         el("span", {text: "🔇 " + m.camera + T(" muted ", " coupée ") + untilText(m.until)}),
         el("button", {type: "button", class: "link", text: T("Re-enable", "Réactiver"),
           onclick: () => stateCall("api/resume", {camera: m.camera})})));
     }
-    box.append(sub);
   }
+  if (sub.children.length) box.append(sub);
+}
+
+// ---- état des connexions ----------------------------------------------------------
+
+let health = null; // réponse de /api/health
+
+async function loadHealth() {
+  try {
+    const resp = await api("api/health");
+    if (!resp.ok) return;
+    health = (await resp.json()).components;
+    renderHealth();
+  } catch (e) { /* l'état est un plus : on n'interrompt rien */ }
+}
+
+function renderHealth() {
+  $("health-box").hidden = !health;
+  if (!health) return;
+  const line = $("health"), errors = $("health-errors");
+  line.innerHTML = ""; errors.innerHTML = "";
+  const icon = {ok: "✅", pending: "⏳", error: "❌"};
+  for (const c of health) {
+    const comp = el("span", {class: "comp"}, el("span", {text: icon[c.state] + " " + c.name}));
+    if (c.state !== "error" && c.detail) comp.append(el("span", {class: "d", text: c.detail}));
+    line.append(comp);
+    if (c.state === "error") {
+      const box = el("div", {class: "health-error"}, el("b", {text: c.name + " — "}), document.createTextNode(c.detail));
+      if (c.hint) box.append(el("div", {class: "fix", text: "👉 " + c.hint}));
+      errors.append(box);
+    }
+  }
+  errors.hidden = !errors.children.length;
 }
 
 // ---- activité récente ---------------------------------------------------------
@@ -1064,6 +1323,8 @@ const REASONS = () => ({
   zone: {text: T("outside the chosen zones", "hors des zones choisies"), fix: true},
   paused: {text: T("notifications paused", "notifications en pause")},
   muted: {text: T("camera muted", "caméra coupée")},
+  home: {text: T("someone was home", "quelqu'un était à la maison"), fix: true},
+  recipients: {text: T("no recipient for this object or at this time", "aucun destinataire pour cet objet ou à cette heure")},
   off_hours: {text: T("during off hours", "pendant les heures coupées"), fix: true},
   cooldown: {text: T("already reported a moment ago", "déjà signalé il y a peu"), fix: true},
 });
@@ -1094,8 +1355,10 @@ async function loadHistory() {
   try {
     const resp = await api("api/history");
     if (!resp.ok) return;
+    const first = history === null;
     history = (await resp.json()).entries;
     renderHistory();
+    if (first && overlay) renderQuestions(); // l'effet du curseur de sensibilité dépend de l'historique
   } catch (e) { /* l'activité est un plus : on n'interrompt rien */ }
 }
 
@@ -1123,7 +1386,7 @@ function renderHistory() {
 
     const out = el("div", {class: "out"});
     if (e.sent) {
-      out.append(el("span", {class: "ok", text: T("✅ Sent", "✅ Envoyée")}));
+      out.append(el("span", {class: "ok", text: e.grouped ? T("📦 Grouped", "📦 Regroupée") : T("✅ Sent", "✅ Envoyée")}));
     } else {
       const r = REASONS()[e.reason] || {text: e.reason || T("ignored", "ignorée")};
       out.append(el("span", {class: "no", text: "⛔ " + r.text}));
@@ -1160,14 +1423,14 @@ function toSend() {
   for (const [name, patch] of Object.entries(overlay.cameras)) {
     if (Object.keys(patch).length) cameras[name] = patch;
   }
-  return {notify: overlay.notify, cameras};
+  return {notify: overlay.notify, cameras, recipients: overlay.recipients};
 }
 
 async function load() {
   const resp = await api("api/settings", {headers: {"Accept": "application/json"}});
   if (!resp.ok) throw new Error("HTTP " + resp.status + " : " + (await resp.text()));
   data = await resp.json();
-  overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}};
+  overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}, recipients: data.overlay.recipients || {}};
   // Chaque caméra connue a une entrée (vide = suit le global) avant la mémorisation
   // de l'état enregistré, sinon la page se croirait modifiée dès l'ouverture.
   for (const c of data.cameras || []) if (!overlay.cameras[c.name]) overlay.cameras[c.name] = {};
@@ -1178,6 +1441,7 @@ async function load() {
   saved = JSON.stringify(overlay);
   if (data.can_pause) await stateCall("api/state");
   if (data.can_history) await loadHistory();
+  if (data.can_health) loadHealth(); // peut prendre quelques secondes (essai MQTT) : sans attendre
   render();
   touched();
 }
@@ -1234,6 +1498,7 @@ setInterval(() => {
   if (!data || document.hidden) return;
   if (data.can_pause) stateCall("api/state");
   if (data.can_history) loadHistory();
+  if (data.can_health) loadHealth();
 }, 30000);
 </script>
 </body>

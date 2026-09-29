@@ -18,7 +18,8 @@ import (
 // FRIGATE_PASSWORD, FRIGATE_INSECURE_SKIP_VERIFY, MQTT_USERNAME, MQTT_PASSWORD,
 // MQTT_TOPIC_PREFIX, MQTT_CLIENT_ID, MQTT_INSECURE_SKIP_VERIFY, MODE, TZ,
 // WEB_ENABLED, WEB_PASSWORD, WEB_ALLOWED_HOSTS, WEB_PROTECT_METRICS, LOG_LEVEL,
-// STATE_FILE, HTTP_LISTEN, LANGUAGE (en par défaut, ou fr).
+// STATE_FILE, HTTP_LISTEN, LANGUAGE (en par défaut, ou fr), PRESENCE_TOPICS,
+// PRESENCE_HOME_VALUES.
 func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 	get := func(name string) string {
 		v, _ := lookup(name)
@@ -93,6 +94,7 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 			AllowedHosts:   splitList(get("WEB_ALLOWED_HOSTS")),
 			ProtectMetrics: boolean("WEB_PROTECT_METRICS", false),
 		},
+		Presence:   Presence{Topics: splitList(get("PRESENCE_TOPICS")), HomeValues: splitList(get("PRESENCE_HOME_VALUES"))},
 		StateFile:  get("STATE_FILE"),
 		HTTPListen: get("HTTP_LISTEN"),
 		LogLevel:   get("LOG_LEVEL"),

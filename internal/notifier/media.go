@@ -20,7 +20,7 @@ func (n *Notifier) deliver(ctx context.Context, chats []string, kind string, f t
 	one := func(chat string, f telegram.InputFile) (telegram.Message, error) {
 		m, err := send(ctx, n.Config.ChatID(chat), chat, f)
 		if err != nil {
-			n.Log.Error("envoi Telegram échoué", "kind", kind, "chat", chat, "err", err)
+			n.Log.Error("Telegram send failed", "kind", kind, "chat", chat, "err", err)
 			return m, err
 		}
 		n.Metrics.NotificationsSent.WithLabelValues(kind).Inc()
@@ -69,7 +69,7 @@ func (n *Notifier) fetchSnapshot(ctx context.Context, path string) []byte {
 		if err == nil {
 			return b
 		}
-		n.Log.Warn("snapshot indisponible", "path", path, "attempt", attempt+1, "err", err)
+		n.Log.Warn("snapshot unavailable", "path", path, "attempt", attempt+1, "err", err)
 		if !frigate.Retryable(err) {
 			return nil
 		}
@@ -78,21 +78,22 @@ func (n *Notifier) fetchSnapshot(ctx context.Context, path string) []byte {
 }
 
 // sendSnapshot envoie la notification initiale (photo, ou texte si pas de snapshot), puis ferme t.ready.
-func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption string, silent bool, chats []string) {
+// silent indique, chat par chat, s'il la reçoit sans son.
+func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption string, silent func(chat string) bool, chats []string) {
 	defer close(t.ready)
 	markup := buttons(t.camera, t.id)
 	photo := n.fetchSnapshot(ctx, path)
 	if photo == nil {
 		n.deliver(ctx, chats, "text", telegram.InputFile{},
-			func(ctx context.Context, chatID int64, _ string, _ telegram.InputFile) (telegram.Message, error) {
-				return n.Telegram.SendMessage(ctx, chatID, caption, telegram.SendOptions{Silent: silent, Markup: markup})
+			func(ctx context.Context, chatID int64, chat string, _ telegram.InputFile) (telegram.Message, error) {
+				return n.Telegram.SendMessage(ctx, chatID, caption, telegram.SendOptions{Silent: silent(chat), Markup: markup})
 			},
 			func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID, text: true}) })
 		return
 	}
 	n.deliver(ctx, chats, "photo", telegram.InputFile{Name: "snapshot.jpg", Data: photo},
-		func(ctx context.Context, chatID int64, _ string, f telegram.InputFile) (telegram.Message, error) {
-			return n.Telegram.SendPhoto(ctx, chatID, f, telegram.SendOptions{Caption: caption, Silent: silent, Markup: markup})
+		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
+			return n.Telegram.SendPhoto(ctx, chatID, f, telegram.SendOptions{Caption: caption, Silent: silent(chat), Markup: markup})
 		},
 		func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID}) })
 }
@@ -121,7 +122,7 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 		return
 	}
 	if err != nil {
-		n.Log.Warn("média indisponible", "kind", kind, "event_id", t.id, "path", path, "err", err)
+		n.Log.Warn("media unavailable", "kind", kind, "event_id", t.id, "path", path, "err", err)
 		return
 	}
 	defer os.Remove(file)

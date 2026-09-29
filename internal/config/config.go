@@ -23,6 +23,17 @@ const (
 	ModeReviews = "reviews"
 )
 
+// Comportement d'une caméra quand quelqu'un est à la maison (voir Presence).
+const (
+	HomeNotify = "notify" // notifier normalement
+	HomeSilent = "silent" // notifier sans son
+	HomeSkip   = "skip"   // ne rien envoyer
+)
+
+// DefaultHomeValues sont les valeurs d'un topic de présence qui signifient « à la
+// maison » : celles de Home Assistant (person, device_tracker) et des capteurs binaires.
+var DefaultHomeValues = []string{"home", "on", "true", "1", "present"}
+
 // DefaultHTTPListen est l'adresse d'écoute par défaut de l'interface web, de
 // /healthz et de /metrics. 8431 : un port qu'aucun service courant n'utilise.
 const DefaultHTTPListen = ":8431"
@@ -50,6 +61,31 @@ type Telegram struct {
 	Chats  map[string]int64 `yaml:"chats"`
 }
 
+// Recipient restreint ce que reçoit un destinataire, en plus des réglages des
+// caméras : seulement certains objets, pas à certaines heures, sans son à d'autres.
+// Vide, il reçoit tout ce que les caméras lui envoient.
+type Recipient struct {
+	Labels     []string    `yaml:"labels,omitempty" json:"labels"`           // vide = tous les objets
+	QuietHours []TimeRange `yaml:"quiet_hours,omitempty" json:"quiet_hours"` // sans son pour lui
+	OffHours   []TimeRange `yaml:"off_hours,omitempty" json:"off_hours"`     // rien pour lui
+}
+
+// IsZero indique un destinataire sans restriction.
+func (r Recipient) IsZero() bool {
+	return len(r.Labels) == 0 && len(r.QuietHours) == 0 && len(r.OffHours) == 0
+}
+
+// Presence décrit qui est à la maison, lu sur des topics MQTT (Home Assistant,
+// capteur…). Quelqu'un est à la maison dès qu'un des topics porte une des valeurs de
+// HomeValues. Les topics acceptent les jokers MQTT + et #.
+type Presence struct {
+	Topics     []string `yaml:"topics"`
+	HomeValues []string `yaml:"home_values"`
+}
+
+// Enabled indique si la présence est suivie.
+func (p Presence) Enabled() bool { return len(p.Topics) > 0 }
+
 // Web configure l'interface de réglage des notifications, servie par le même
 // serveur HTTP que /healthz et /metrics.
 type Web struct {
@@ -73,12 +109,18 @@ type Notify struct {
 	IgnoreStationary bool
 	Severity         []string
 	Snapshot         bool
+	Crop             bool // image recadrée sur l'objet plutôt que le plan large
 	Clip             bool
 	GIF              bool
 	GenAIDescription bool
 	ClipDelay        time.Duration
 	QuietHours       []TimeRange
 	OffHours         []TimeRange
+	WhenHome         string // HomeNotify, HomeSilent ou HomeSkip
+	// Group regroupe les rafales : pendant ce délai après une notification, les
+	// détections suivantes s'ajoutent à son message au lieu d'en envoyer un nouveau.
+	// Réglage global (celui de notify) ; 0 = désactivé.
+	Group time.Duration
 }
 
 // Config rassemble les réglages du service. Les sections notify et cameras sont
@@ -92,20 +134,23 @@ type Config struct {
 	MQTT       MQTT
 	Telegram   Telegram
 	Web        Web
+	Presence   Presence
 	StateFile  string
 	HTTPListen string
 	LogLevel   string
 	Source     string    // fichier lu, ou "environment"
 	Language   i18n.Lang // langue des messages Telegram et des erreurs (en par défaut)
 
-	mu      sync.RWMutex
-	notify  Notify
-	cameras map[string]Notify
+	mu         sync.RWMutex
+	notify     Notify
+	cameras    map[string]Notify
+	recipients map[string]Recipient
 
 	// état issu du seul config.yml, conservé pour pouvoir revenir en arrière
 	// quand l'interface web supprime ses surcharges.
-	fileNotify  Notify
-	fileCameras map[string]Notify
+	fileNotify     Notify
+	fileCameras    map[string]Notify
+	fileRecipients map[string]Recipient
 }
 
 // ForCamera renvoie la configuration effective d'une caméra (globale si non listée).
@@ -116,6 +161,13 @@ func (c *Config) ForCamera(name string) Notify {
 		return n
 	}
 	return c.notify
+}
+
+// Recipient renvoie les restrictions d'un destinataire (vides s'il n'en a pas).
+func (c *Config) Recipient(chat string) Recipient {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.recipients[chat]
 }
 
 // Global renvoie les réglages de notification par défaut.
@@ -149,6 +201,8 @@ type fileYAML struct {
 	MQTT       MQTT                   `yaml:"mqtt"`
 	Telegram   Telegram               `yaml:"telegram"`
 	Web        webYAML                `yaml:"web"`
+	Presence   Presence               `yaml:"presence"`
+	Recipients map[string]Recipient   `yaml:"recipients"`
 	Notify     NotifyPatch            `yaml:"notify"`
 	Cameras    map[string]NotifyPatch `yaml:"cameras"`
 	StateFile  string                 `yaml:"state_file"`
@@ -175,12 +229,15 @@ type NotifyPatch struct {
 	IgnoreStationary *bool        `yaml:"ignore_stationary,omitempty" json:"ignore_stationary,omitempty"`
 	Severity         *[]string    `yaml:"severity,omitempty" json:"severity,omitempty"`
 	Snapshot         *bool        `yaml:"snapshot,omitempty" json:"snapshot,omitempty"`
+	Crop             *bool        `yaml:"crop,omitempty" json:"crop,omitempty"`
 	Clip             *bool        `yaml:"clip,omitempty" json:"clip,omitempty"`
 	GIF              *bool        `yaml:"gif,omitempty" json:"gif,omitempty"`
 	GenAIDescription *bool        `yaml:"genai_description,omitempty" json:"genai_description,omitempty"`
 	ClipDelay        *Duration    `yaml:"clip_delay,omitempty" json:"clip_delay,omitempty"`
 	QuietHours       *[]TimeRange `yaml:"quiet_hours,omitempty" json:"quiet_hours,omitempty"`
 	OffHours         *[]TimeRange `yaml:"off_hours,omitempty" json:"off_hours,omitempty"`
+	WhenHome         *string      `yaml:"when_home,omitempty" json:"when_home,omitempty"`
+	Group            *Duration    `yaml:"group,omitempty" json:"group,omitempty"`
 }
 
 func set[T any](dst *T, src *T) {
@@ -207,24 +264,27 @@ func (y NotifyPatch) ApplyTo(base Notify) Notify {
 	set(&n.IgnoreStationary, y.IgnoreStationary)
 	set(&n.Severity, y.Severity)
 	set(&n.Snapshot, y.Snapshot)
+	set(&n.Crop, y.Crop)
 	set(&n.Clip, y.Clip)
 	set(&n.GIF, y.GIF)
 	set(&n.GenAIDescription, y.GenAIDescription)
 	setDuration(&n.ClipDelay, y.ClipDelay)
 	set(&n.QuietHours, y.QuietHours)
 	set(&n.OffHours, y.OffHours)
+	set(&n.WhenHome, y.WhenHome)
+	setDuration(&n.Group, y.Group)
 	return n
 }
 
 // FullPatch décrit n entièrement : tous les champs sont renseignés.
 func FullPatch(n Notify) NotifyPatch {
-	cooldown, clipDelay := Duration(n.Cooldown), Duration(n.ClipDelay)
+	cooldown, clipDelay, group := Duration(n.Cooldown), Duration(n.ClipDelay), Duration(n.Group)
 	return NotifyPatch{
 		Enabled: &n.Enabled, Chats: &n.Chats, Labels: &n.Labels, Zones: &n.Zones,
 		MinScore: &n.MinScore, Cooldown: &cooldown, IgnoreStationary: &n.IgnoreStationary,
-		Severity: &n.Severity, Snapshot: &n.Snapshot, Clip: &n.Clip, GIF: &n.GIF,
+		Severity: &n.Severity, Snapshot: &n.Snapshot, Crop: &n.Crop, Clip: &n.Clip, GIF: &n.GIF,
 		GenAIDescription: &n.GenAIDescription, ClipDelay: &clipDelay,
-		QuietHours: &n.QuietHours, OffHours: &n.OffHours,
+		QuietHours: &n.QuietHours, OffHours: &n.OffHours, WhenHome: &n.WhenHome, Group: &group,
 	}
 }
 
@@ -245,6 +305,7 @@ func DiffPatch(base, n Notify) NotifyPatch {
 	diff(&p.IgnoreStationary, base.IgnoreStationary, n.IgnoreStationary)
 	diffSlice(&p.Severity, base.Severity, n.Severity)
 	diff(&p.Snapshot, base.Snapshot, n.Snapshot)
+	diff(&p.Crop, base.Crop, n.Crop)
 	diff(&p.Clip, base.Clip, n.Clip)
 	diff(&p.GIF, base.GIF, n.GIF)
 	diff(&p.GenAIDescription, base.GenAIDescription, n.GenAIDescription)
@@ -254,6 +315,11 @@ func DiffPatch(base, n Notify) NotifyPatch {
 	}
 	diffSlice(&p.QuietHours, base.QuietHours, n.QuietHours)
 	diffSlice(&p.OffHours, base.OffHours, n.OffHours)
+	diff(&p.WhenHome, base.WhenHome, n.WhenHome)
+	if base.Group != n.Group {
+		d := Duration(n.Group)
+		p.Group = &d
+	}
 	return p
 }
 
@@ -282,6 +348,7 @@ func defaultNotify(chats map[string]int64) Notify {
 		Clip:             true,
 		GenAIDescription: true,
 		ClipDelay:        5 * time.Second,
+		WhenHome:         HomeSkip,
 	}
 }
 
@@ -350,6 +417,7 @@ func build(f fileYAML) (*Config, error) {
 			AllowedHosts:   f.Web.AllowedHosts,
 			ProtectMetrics: f.Web.ProtectMetrics,
 		},
+		Presence:   f.Presence,
 		StateFile:  orDefault(f.StateFile, "/data/state.json"),
 		HTTPListen: orDefault(f.HTTPListen, DefaultHTTPListen),
 		LogLevel:   orDefault(f.LogLevel, "info"),
@@ -358,12 +426,16 @@ func build(f fileYAML) (*Config, error) {
 	c.Frigate.ExternalURL = strings.TrimRight(c.Frigate.ExternalURL, "/")
 	c.MQTT.ClientID = orDefault(c.MQTT.ClientID, "frigate-telegram-enhanced")
 	c.MQTT.TopicPrefix = orDefault(c.MQTT.TopicPrefix, "frigate")
+	if c.Presence.Enabled() && len(c.Presence.HomeValues) == 0 {
+		c.Presence.HomeValues = DefaultHomeValues
+	}
 	c.notify = f.Notify.ApplyTo(defaultNotify(c.Telegram.Chats))
 	c.cameras = make(map[string]Notify, len(f.Cameras))
 	for name, y := range f.Cameras {
 		c.cameras[name] = y.ApplyTo(c.notify)
 	}
-	c.fileNotify, c.fileCameras = c.notify, maps.Clone(c.cameras)
+	c.recipients = maps.Clone(f.Recipients)
+	c.fileNotify, c.fileCameras, c.fileRecipients = c.notify, maps.Clone(c.cameras), maps.Clone(c.recipients)
 	if err := errors.Join(langErr, c.validate()); err != nil {
 		return nil, err
 	}
@@ -462,11 +534,23 @@ func (c *Config) validate() error {
 	default:
 		add("invalid log_level %q (debug, info, warn, error)", "log_level %q invalide (debug, info, warn, error)", c.LogLevel)
 	}
+	errs = append(errs, c.validateRecipients(c.recipients, c.Language)...)
 	errs = append(errs, c.validateNotify("notify", c.notify, c.Language)...)
 	for _, name := range slices.Sorted(maps.Keys(c.cameras)) {
 		errs = append(errs, c.validateNotify("cameras."+name, c.cameras[name], c.Language)...)
 	}
 	return errors.Join(errs...)
+}
+
+func (c *Config) validateRecipients(rs map[string]Recipient, l i18n.Lang) []error {
+	var errs []error
+	for _, name := range slices.Sorted(maps.Keys(rs)) {
+		if _, ok := c.Telegram.Chats[name]; !ok {
+			errs = append(errs, l.Errorf("recipients: unknown chat %q (see telegram.chats)",
+				"recipients : chat %q inconnu (voir telegram.chats)", name))
+		}
+	}
+	return errs
 }
 
 func (c *Config) validateNotify(where string, n Notify, l i18n.Lang) []error {
@@ -484,7 +568,16 @@ func (c *Config) validateNotify(where string, n Notify, l i18n.Lang) []error {
 	if !n.MinScore.valid() {
 		errs = append(errs, l.Errorf("%s.min_score must be between 0 and 1", "%s.min_score doit être compris entre 0 et 1", where))
 	}
-	if n.Cooldown < 0 || n.ClipDelay < 0 {
+	switch n.WhenHome {
+	case HomeNotify, HomeSilent, HomeSkip, "": // vide : réglage antérieur à when_home, vaut HomeSkip
+	default:
+		errs = append(errs, l.Errorf("%s.when_home: invalid value %q (notify, silent or skip)",
+			"%s.when_home : valeur %q invalide (notify, silent ou skip)", where, n.WhenHome))
+	}
+	if n.Group > time.Hour {
+		errs = append(errs, l.Errorf("%s.group: at most 1h", "%s.group : 1 h au maximum", where))
+	}
+	if n.Cooldown < 0 || n.ClipDelay < 0 || n.Group < 0 {
 		errs = append(errs, l.Errorf("%s: durations cannot be negative", "%s : les durées ne peuvent pas être négatives", where))
 	}
 	return errs

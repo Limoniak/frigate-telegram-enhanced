@@ -19,8 +19,13 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - **Web interface** to configure all of this without editing YAML, applied without a restart
 - Several recipients, with per-camera routing
 - Inline buttons: 🔇 *mute camera for 1 h*, ⏸ *pause 30 min*, 🎬 *clip*
+- `/menu`: a control panel with buttons to pause, resume and mute each camera
 - Commands: `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
+- **Burst grouping**: detections close in time are added to the first message instead of sending new ones
+- **Cropped snapshots**: the image zoomed on the detected object, much more readable on a phone
 - In **English** or **French**: Telegram messages (`LANGUAGE`) and the web interface (EN / FR switch)
+- **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
+- **Per-recipient settings**: e.g. you get everything, the family only people at night
 - Persistent state, `/healthz`, Prometheus metrics, multi-arch distroless image (amd64 and arm64)
 
 ## A tour of the web interface
@@ -117,7 +122,7 @@ To update: `docker compose pull && docker compose up -d`.
 | `FRIGATE_URL` | ✅ | Frigate API, e.g. `http://192.168.1.10:5000` (5000 without auth, 8971 with auth) |
 | `MQTT_BROKER` | ✅ | MQTT broker used by Frigate: `host`, `host:port`, or `tcp://…` / `ssl://…` |
 | `TZ` | | Time zone, e.g. `Europe/Paris` (default: `UTC`) |
-| `LANGUAGE` | | Language of Telegram messages and error messages: `en` (default) or `fr` |
+| `LANGUAGE` | | Language of Telegram messages and error messages: `en` (default) or `fr` (logs are always in English) |
 | `WEB_PASSWORD` | | Password for the web interface (empty = none) |
 | `TELEGRAM_ADMINS` | | User IDs allowed to control the bot (default: the private chats of `TELEGRAM_CHAT_ID`; required if it only lists groups) |
 | `FRIGATE_EXTERNAL_URL` | | Public Frigate URL, for the "open in Frigate" links |
@@ -131,6 +136,8 @@ To update: `docker compose pull && docker compose up -d`.
 | `WEB_ENABLED` | | `false` to disable the web interface |
 | `WEB_ALLOWED_HOSTS` | | Host names accepted without a password, e.g. `nas.lan` (see [Access and security](#access-and-security)) |
 | `WEB_PROTECT_METRICS` | | `true` so that `/metrics` requires the password too |
+| `PRESENCE_TOPICS` | | MQTT topics telling who is home, comma-separated, `+` and `#` wildcards allowed (see [Presence](#presence)) |
+| `PRESENCE_HOME_VALUES` | | Values meaning "home" (default: `home,on,true,1,present`) |
 | `LOG_LEVEL` | | `debug`, `info` (default), `warn`, `error` |
 
 ### Advanced: configuration file
@@ -159,10 +166,22 @@ values in it are read from the container's environment. Key points:
 up in a few clicks. It follows the browser's language (English or French); the
 **EN / FR** switch in the header changes it and is remembered.
 
+- **Connection status**: Frigate, MQTT and Telegram at a glance; when one fails, the
+  cause in plain words and the variable to fix (wrong password, unreachable address,
+  invalid token, `localhost` used inside Docker…).
 - **Notification styles**: photo + video, photo only, photo + GIF or text only, each
   with a preview of the message as it will arrive in Telegram.
 - **Simple questions**: what to report (people, people and cars, everything), how often
-  at most, and what to do at night (same as daytime, silent, nothing).
+  at most, what to do at night (same as daytime, silent, nothing) and, with presence
+  set up, when someone is home.
+- **Bursts**: one message per detection, or detections within 2 or 5 minutes added to
+  the first message (edited, so no extra sound). **Framing**: wide shot or zoom on the
+  object.
+- **Sensitivity**: a slider for the minimum score that shows, on recent activity, how
+  many detections would have been ignored.
+- **Recipients** (with several chats): what each person receives — every object, people
+  only, people and cars — and when — all the time, only at night, only during the day,
+  silent at night.
 - **Cameras**: one switch per camera; open it to give it another style or other
   objects, otherwise it follows the choices above.
 - **Where?**: for a camera with zones defined in Frigate, "everywhere" or only some
@@ -190,6 +209,27 @@ cooldowns), so they survive restarts and updates. With a configuration file, the
 *Back to the config.yml settings* button deletes them.
 `config.yml` itself is never rewritten.
 
+### Presence
+
+Set `PRESENCE_TOPICS` to one or more MQTT topics that tell whether someone is home.
+Someone is home as soon as one of them carries `home` (or `on`, `true`, `1`,
+`present`). While someone is home, each camera follows its *When someone is home*
+setting: nothing (default), silent, or as usual — handy to keep outdoor cameras on.
+
+With Home Assistant, publish the `person` entities to MQTT, for instance with
+[`mqtt_statestream`](https://www.home-assistant.io/integrations/mqtt_statestream/):
+
+```yaml
+# Home Assistant configuration.yaml
+mqtt_statestream:
+  base_topic: homeassistant
+  include:
+    domains: [person]
+```
+
+then `PRESENCE_TOPICS: "homeassistant/person/+/state"`. `/status` in Telegram and the
+web interface show who is home.
+
 ### Access and security
 
 Without a password, the interface is open to anyone who can reach the port, and the
@@ -205,6 +245,8 @@ browser points its own domain at `127.0.0.1` to drive the interface behind your 
 To use a host name, add it to `WEB_ALLOWED_HOSTS`, or set a password (which lifts this
 check).
 
+After 5 wrong passwords within a minute, an address is blocked for 5 minutes.
+
 Authentication only covers the interface: `/healthz` always stays open for the
 container probe, and so does `/metrics`, unless `protect_metrics: true`. Keep this in
 mind if the port is exposed to the network: per-camera and per-object counters reveal
@@ -215,6 +257,7 @@ Prometheus then authenticates with `basic_auth` (any user name, password `WEB_PA
 
 | Command | Effect |
 |---|---|
+| `/menu` | Control panel: pause / resume, and a button per camera to mute it for 1 h or turn it back on |
 | `/pause [duration] [camera]` | Pause everything or one camera (1 h by default, `0` = until `/resume`). Durations: `30m`, `2h`, `1d` |
 | `/resume [camera]` | Resume one camera, or everything without an argument |
 | `/status` | MQTT connection, active pauses, notifications over 24 h |

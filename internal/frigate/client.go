@@ -15,6 +15,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +23,10 @@ import (
 )
 
 // ErrTooLarge signale un média plus gros que la limite demandée.
-var ErrTooLarge = errors.New("média trop volumineux")
+var ErrTooLarge = errors.New("media too large")
+
+// ErrAuth signale des identifiants Frigate refusés.
+var ErrAuth = errors.New("credentials refused by Frigate")
 
 // HTTPError est une réponse non-200 de Frigate.
 type HTTPError struct {
@@ -54,7 +58,7 @@ type Client struct {
 
 func NewClient(cfg config.Frigate) (*Client, error) {
 	if _, err := url.Parse(cfg.URL); err != nil {
-		return nil, fmt.Errorf("frigate.url invalide: %w", err)
+		return nil, fmt.Errorf("invalid frigate.url: %w", err)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -120,7 +124,7 @@ func (c *Client) login(ctx context.Context) error {
 	defer resp.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("login frigate refusé: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("%w: HTTP %d", ErrAuth, resp.StatusCode)
 	}
 	return nil
 }
@@ -257,4 +261,21 @@ func (c *Client) Review(ctx context.Context, id string) (Review, error) {
 	var r Review
 	err := c.getJSON(ctx, "/api/review/"+url.PathEscape(id), &r)
 	return r, err
+}
+
+// Version renvoie la version de Frigate (GET /api/version) ; sert à vérifier la
+// connexion et les identifiants.
+func (c *Client) Version(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	resp, err := c.do(ctx, "/api/version")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 128))
+	if err != nil {
+		return "", err
+	}
+	return strings.Trim(strings.TrimSpace(string(b)), `"`), nil
 }

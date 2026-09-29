@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -44,19 +46,19 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	// on le signale et on repart sur config.yml.
 	overlayPath := filepath.Join(filepath.Dir(cfg.StateFile), "notify.yml")
 	if o, err := config.LoadOverlay(overlayPath); err != nil {
-		log.Warn("réglages de l'interface web ignorés", "fichier", overlayPath, "err", err)
+		log.Warn("web interface settings ignored", "file", overlayPath, "err", err)
 	} else if o != nil {
 		if err := cfg.ApplyOverlay(o); err != nil {
-			log.Warn("réglages de l'interface web ignorés", "fichier", overlayPath, "err", err)
+			log.Warn("web interface settings ignored", "file", overlayPath, "err", err)
 		} else {
-			log.Info("réglages de notification chargés", "fichier", overlayPath)
+			log.Info("notification settings loaded", "file", overlayPath)
 		}
 	}
 
 	m := metrics.New()
 	st, err := state.Load(cfg.StateFile, time.Now())
 	if err != nil {
-		log.Warn("état précédent ignoré", "err", err)
+		log.Warn("previous state ignored", "err", err)
 	}
 	fr, err := frigate.NewClient(cfg.Frigate)
 	if err != nil {
@@ -70,7 +72,13 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 		Config: cfg, Engine: filter.New(cfg, st), State: st,
 		Frigate: fr, Telegram: tg, Metrics: m, Log: log,
 	})
-	sub := mqttsub.New(cfg.MQTT, notif.Topics(), notif.Handle, log, func(up bool) {
+	topics, handle := notif.Topics(), notif.Handle
+	if cfg.Presence.Enabled() {
+		topics = append(topics, cfg.Presence.Topics...)
+		handle = presenceRouter(cfg.Presence, st, log, notif.Handle)
+		log.Info("presence tracked", "topics", cfg.Presence.Topics)
+	}
+	sub := mqttsub.New(cfg.MQTT, topics, handle, log, func(up bool) {
 		if up {
 			m.MQTTConnected.Set(1)
 		} else {
@@ -83,26 +91,33 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	})
 
 	var mount []func(*http.ServeMux)
+	var protect func(http.Handler) http.Handler // mot de passe de l'interface, décompte d'échecs commun
 	if cfg.Web.Enabled {
-		ui := web.New(cfg, overlayPath, fr, log, web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr))
+		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg}
+		ui := web.New(cfg, overlayPath, fr, log, web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr),
+			web.WithHealth(chk.check))
 		mount = append(mount, ui.Mount)
+		protect = ui.Protect
 	}
 	var metricsHandler http.Handler = promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{})
 	if cfg.Web.ProtectMetrics {
-		metricsHandler = web.BasicAuth(cfg.Web.Password, metricsHandler)
+		if protect == nil {
+			protect = web.NewAuth(cfg.Web.Password, log).Wrap
+		}
+		metricsHandler = protect(metricsHandler)
 	}
 	srv := server.New(cfg.HTTPListen, func() error {
 		if !sub.Connected() {
-			return errors.New("MQTT déconnecté")
+			return errors.New("MQTT disconnected")
 		}
 		if time.Since(b.LastPoll()) > 2*time.Minute {
-			return errors.New("aucune réponse de Telegram depuis plus de 2 min")
+			return errors.New("no answer from Telegram for more than 2 min")
 		}
 		return nil
 	}, metricsHandler, mount...)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("serveur HTTP arrêté", "err", err)
+			log.Error("HTTP server stopped", "err", err)
 		}
 	}()
 
@@ -121,10 +136,10 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 		close(botDone)
 	}()
 	sub.Start()
-	log.Info("frigate-telegram-enhanced démarré", "configuration", cfg.Source, "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
+	log.Info("frigate-telegram-enhanced started", "configuration", cfg.Source, "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
 	if cfg.Web.Enabled {
-		log.Info("interface web disponible", "adresse", cfg.HTTPListen,
-			"authentification", cfg.Web.Password != "")
+		log.Info("web interface available", "address", cfg.HTTPListen,
+			"authentication", cfg.Web.Password != "")
 	}
 
 	flush := time.NewTicker(30 * time.Second)
@@ -135,23 +150,23 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 			running = false
 		case <-flush.C:
 			if err := st.FlushIfDirty(); err != nil {
-				log.Warn("sauvegarde de l'état échouée", "err", err)
+				log.Warn("saving the state failed", "err", err)
 			}
 		}
 	}
 
-	log.Info("arrêt en cours…")
+	log.Info("shutting down…")
 	sub.Stop()
 	if err := st.Save(); err != nil {
-		log.Warn("sauvegarde de l'état échouée", "err", err)
+		log.Warn("saving the state failed", "err", err)
 	}
 	<-runDone
 	if !notif.Shutdown(10 * time.Second) {
-		log.Warn("des envois ont été interrompus à l'arrêt")
+		log.Warn("some notifications were interrupted by the shutdown")
 	}
 	<-botDone
 	if err := st.Save(); err != nil {
-		log.Warn("sauvegarde de l'état échouée", "err", err)
+		log.Warn("saving the state failed", "err", err)
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -162,4 +177,22 @@ func newLogger(level string) *slog.Logger {
 	var l slog.Level
 	_ = l.UnmarshalText([]byte(level)) // niveau déjà validé par la config
 	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: l}))
+}
+
+// presenceRouter aiguille les messages MQTT : ceux des topics de présence mettent à
+// jour qui est à la maison, les autres vont au notifier (next).
+func presenceRouter(p config.Presence, st *state.Store, log *slog.Logger, next mqttsub.Handler) mqttsub.Handler {
+	return func(topic string, payload []byte) {
+		for _, f := range p.Topics {
+			if mqttsub.Match(f, topic) {
+				// Home Assistant publie l'état brut ("home"), parfois entre guillemets.
+				v := strings.ToLower(strings.Trim(strings.TrimSpace(string(payload)), `"`))
+				home := slices.Contains(p.HomeValues, v)
+				st.SetPresence(topic, home)
+				log.Debug("presence", "topic", topic, "value", v, "home", home)
+				return
+			}
+		}
+		next(topic, payload)
+	}
 }

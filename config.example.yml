@@ -58,6 +58,7 @@ notify:                          # réglages globaux, surchargeables par caméra
   ignore_stationary: true        # ignorer les objets immobiles (voitures garées…)
   severity: [alert]              # mode reviews : alert et/ou detection
   snapshot: true
+  crop: false                    # true = image recadrée sur l'objet (bien plus lisible sur téléphone)
   clip: true
   gif: false
   genai_description: true        # ajoute la description GenAI de Frigate quand elle arrive
@@ -65,6 +66,22 @@ notify:                          # réglages globaux, surchargeables par caméra
   quiet_hours:                   # notifications sans son
     - {from: "22:00", to: "07:00"}
   off_hours: []                  # aucune notification
+  when_home: skip                # quand quelqu'un est à la maison (voir presence) : notify, silent ou skip
+  group: 0s                      # regroupe les rafales sur ce délai (ex. 2m) : un message mis à jour ; réglage global
+
+# Présence (facultatif) : quelqu'un est à la maison dès qu'un de ces topics MQTT
+# porte une des valeurs de home_values. Jokers + et # acceptés. Avec Home Assistant,
+# publier l'état des personnes (mqtt_statestream, ou une automatisation).
+# presence:
+#   topics: ["homeassistant/person/+/state"]
+#   home_values: [home, on, true, "1", present]   # valeurs par défaut
+
+# Restrictions par destinataire (facultatif), en plus des réglages des caméras.
+# recipients:
+#   famille:
+#     labels: [person]                          # seulement les personnes
+#     off_hours: [{from: "07:00", to: "22:00"}] # seulement la nuit
+#     quiet_hours: []
 
 cameras:
   jardin:

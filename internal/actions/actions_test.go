@@ -33,3 +33,21 @@ func TestParseRejectsGarbage(t *testing.T) {
 		}
 	}
 }
+
+func TestMenuActions(t *testing.T) {
+	for data, want := range map[string]Action{
+		InMenu(Mute("garage", time.Hour)): {Kind: KindMute, Camera: "garage", Duration: time.Hour, Menu: true},
+		InMenu(Unmute("garage")):          {Kind: KindUnmute, Camera: "garage", Menu: true},
+		InMenu(Resume()):                  {Kind: KindResume, Menu: true},
+		InMenu(Refresh()):                 {Kind: KindRefresh, Menu: true},
+		Mute("a:b", time.Minute):          {Kind: KindMute, Camera: "a:b", Duration: time.Minute},
+	} {
+		got, err := Parse(data)
+		if err != nil || got != want {
+			t.Errorf("Parse(%q) = %+v, %v ; attendu %+v", data, got, err, want)
+		}
+	}
+	if _, err := Parse("!"); err == nil {
+		t.Error("« ! » seul doit être refusé")
+	}
+}

@@ -578,3 +578,59 @@ func TestErrorsFollowInterfaceLanguage(t *testing.T) {
 		})
 	}
 }
+
+func TestRecipientsAreSavedAndValidated(t *testing.T) {
+	cfg, path, ts := setup(t, "", fakeCameras{})
+	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{},"recipients":{"inconnu":{"labels":["person"]}}}`); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("destinataire inconnu : statut = %d", resp.StatusCode)
+	}
+	body := `{"notify":{},"recipients":{"famille":{"labels":["person"],"off_hours":[{"from":"07:00","to":"22:00"}]}}}`
+	if resp := do(t, ts, "PUT", "/api/settings", body); resp.StatusCode != http.StatusOK {
+		t.Fatalf("statut = %d", resp.StatusCode)
+	}
+	if r := cfg.Recipient("famille"); !reflect.DeepEqual(r.Labels, []string{"person"}) || len(r.OffHours) != 1 {
+		t.Errorf("famille = %+v", r)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "recipients:") {
+		t.Errorf("fichier sans destinataires :\n%s", raw)
+	}
+}
+
+func TestWrongPasswordsBlockTheAddress(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	for i := range maxFailures {
+		if resp := do(t, ts, "GET", "/api/settings", "", "faux"); resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("essai %d : statut = %d", i+1, resp.StatusCode)
+		}
+	}
+	// Bloquée, même avec le bon mot de passe, et sur une autre route.
+	resp := do(t, ts, "GET", "/", "", "s3cret")
+	if resp.StatusCode != http.StatusTooManyRequests || resp.Header.Get("Retry-After") == "" {
+		t.Fatalf("après %d échecs : statut = %d, Retry-After = %q", maxFailures, resp.StatusCode, resp.Header.Get("Retry-After"))
+	}
+}
+
+func TestAuthUnblocksAfterDelay(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 0, 0, 0, time.UTC)
+	a := NewAuth("pw", nil)
+	a.now = func() time.Time { return now }
+	for range maxFailures {
+		a.fail("10.0.0.1")
+	}
+	if a.blocked("10.0.0.1") <= 0 || a.blocked("10.0.0.2") > 0 {
+		t.Fatal("seule 10.0.0.1 doit être bloquée")
+	}
+	now = now.Add(blockFor + time.Second)
+	if a.blocked("10.0.0.1") > 0 {
+		t.Error("le blocage doit expirer")
+	}
+	// Des échecs espacés de plus d'une minute ne s'additionnent pas.
+	for range maxFailures {
+		a.fail("10.0.0.3")
+		now = now.Add(failureWindow + time.Second)
+	}
+	if a.blocked("10.0.0.3") > 0 {
+		t.Error("des échecs espacés ne doivent pas bloquer")
+	}
+}

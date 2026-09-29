@@ -48,6 +48,7 @@ type captionData struct {
 	Start                   time.Time
 	Description             string
 	Link                    string
+	Group                   string // bloc HTML des détections regroupées, déjà échappé
 }
 
 // buildCaption produit la légende HTML (≤ 1024 caractères ; la description est tronquée si besoin).
@@ -70,9 +71,9 @@ func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	}
 	b.WriteString("\n🕑 " + d.Start.In(loc).Format(lang.DateTime()))
 
-	footer := ""
+	footer := d.Group
 	if d.Link != "" {
-		footer = openInFrigate(d.Link, lang)
+		footer += openInFrigate(d.Link, lang)
 	}
 	if d.Description != "" {
 		// Telegram compte le texte hors balises : compter la chaîne HTML entière est prudent.

@@ -18,11 +18,13 @@ import (
 )
 
 type fakeTG struct {
-	mu        sync.Mutex
-	messages  []string
-	photos    []string
-	answers   []string
-	keyboards int
+	mu         sync.Mutex
+	messages   []string
+	photos     []string
+	answers    []string
+	keyboards  int
+	edits      []string
+	lastMarkup *telegram.InlineKeyboardMarkup
 }
 
 func (f *fakeTG) GetUpdates(context.Context, int, time.Duration) ([]telegram.Update, error) {
@@ -35,6 +37,7 @@ func (f *fakeTG) SendMessage(_ context.Context, _ int64, text string, o telegram
 	f.messages = append(f.messages, text)
 	if o.Markup != nil {
 		f.keyboards++
+		f.lastMarkup = o.Markup
 	}
 	return telegram.Message{MessageID: len(f.messages)}, nil
 }
@@ -48,6 +51,13 @@ func (f *fakeTG) AnswerCallbackQuery(_ context.Context, _, text string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.answers = append(f.answers, text)
+	return nil
+}
+func (f *fakeTG) EditMessageText(_ context.Context, _ int64, id int, text string, m *telegram.InlineKeyboardMarkup) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.edits = append(f.edits, text)
+	f.lastMarkup = m
 	return nil
 }
 func (f *fakeTG) last() string {
@@ -354,5 +364,76 @@ func TestFrenchReplies(t *testing.T) {
 	}
 	if c := commands(i18n.FR); c[0].Description != "Mettre en pause : /pause [durée] [caméra]" {
 		t.Errorf("menu = %+v", c[0])
+	}
+}
+
+func TestStatusShowsPresence(t *testing.T) {
+	e := newEnv(t)
+	e.b.Config.Presence = config.Presence{Topics: []string{"homeassistant/person/+/state"}}
+	e.cmd("/status", 1)
+	if !strings.Contains(e.tg.last(), "Nobody at home") {
+		t.Errorf("status = %q", e.tg.last())
+	}
+	e.st.SetPresence("homeassistant/person/alice/state", true)
+	e.cmd("/status", 1)
+	if !strings.Contains(e.tg.last(), "At home: alice") {
+		t.Errorf("status = %q", e.tg.last())
+	}
+}
+
+// buttonsOf aplatit un clavier en « texte → données ».
+func buttonsOf(m *telegram.InlineKeyboardMarkup) map[string]string {
+	out := map[string]string{}
+	for _, row := range m.InlineKeyboard {
+		for _, k := range row {
+			out[k.Text] = k.CallbackData
+		}
+	}
+	return out
+}
+
+func TestMenu(t *testing.T) {
+	e := newEnv(t)
+	e.cmd("/menu", 1)
+	if !strings.Contains(e.tg.last(), "Control") || !strings.Contains(e.tg.last(), "Notifications active") {
+		t.Fatalf("menu = %q", e.tg.last())
+	}
+	btns := buttonsOf(e.tg.lastMarkup)
+	for _, want := range []string{"⏸ 30 min", "✅ garage", "✅ jardin", "🔄 Refresh"} {
+		if btns[want] == "" {
+			t.Fatalf("bouton %q absent : %v", want, btns)
+		}
+	}
+	press := func(data string) {
+		e.b.HandleUpdate(context.Background(), telegram.Update{CallbackQuery: &telegram.CallbackQuery{
+			ID: "q", From: telegram.User{ID: 1}, Data: data,
+			Message: &telegram.Message{MessageID: 7, Chat: telegram.Chat{ID: 1}}}})
+		e.b.Wait()
+	}
+
+	press(btns["✅ garage"])
+	if !e.st.IsMuted("garage", now.Add(59*time.Minute)) {
+		t.Error("garage doit être coupée 1 h")
+	}
+	if len(e.tg.edits) != 1 || !strings.Contains(e.tg.edits[0], "🔇 garage") {
+		t.Fatalf("le menu doit être redessiné avec garage coupée : %q", e.tg.edits)
+	}
+	btns = buttonsOf(e.tg.lastMarkup)
+	press(btns["🔇 garage"])
+	if e.st.IsMuted("garage", now) {
+		t.Error("garage doit être réactivée")
+	}
+
+	press(btns["⏸ 1 h"])
+	if !e.st.IsPaused(now.Add(30 * time.Minute)) {
+		t.Error("pause 1 h attendue")
+	}
+	btns = buttonsOf(e.tg.lastMarkup)
+	if btns["▶️ Resume"] == "" || btns["⏸ 30 min"] != "" {
+		t.Fatalf("en pause, le menu propose de reprendre : %v", btns)
+	}
+	press(btns["▶️ Resume"])
+	if e.st.IsPaused(now) {
+		t.Error("reprise attendue")
 	}
 }

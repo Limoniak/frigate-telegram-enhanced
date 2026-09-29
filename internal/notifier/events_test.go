@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
+	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
@@ -238,5 +239,45 @@ func TestTopicsDependOnMode(t *testing.T) {
 	}
 	if got := newHarness(t, "reviews").n.Topics(); got[0] != "frigate/reviews" {
 		t.Errorf("topics = %v", got)
+	}
+}
+
+// Un destinataire en heures calmes reçoit la notification sans son, les autres non.
+func TestRecipientQuietHoursAreSilentForThatChatOnly(t *testing.T) {
+	h := newHarness(t, "events")
+	o := h.n.Config.CurrentOverlay()
+	o.Recipients["famille"] = config.Recipient{QuietHours: []config.TimeRange{{From: 0, To: 24*60 - 1}}}
+	if err := h.n.Config.ApplyOverlay(&o); err != nil {
+		t.Fatal(err)
+	}
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) != 2 {
+		t.Fatalf("photos = %+v", photos)
+	}
+	for _, p := range photos {
+		if want := p.ChatID == -100; p.Opts.Silent != want {
+			t.Errorf("chat %d : silent = %v, attendu %v", p.ChatID, p.Opts.Silent, want)
+		}
+	}
+}
+
+func TestCroppedSnapshot(t *testing.T) {
+	h := newHarness(t, "events")
+	o := h.n.Config.CurrentOverlay()
+	yes := true
+	o.Notify.Crop = &yes
+	if err := h.n.Config.ApplyOverlay(&o); err != nil {
+		t.Fatal(err)
+	}
+	h.fr.files[frigate.Cropped(frigate.EventSnapshotPath(evID))] = []byte("zoom")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) == 0 || countData(photos, "zoom") == 0 {
+		t.Fatalf("la photo envoyée doit être la version recadrée : %+v", photos)
+	}
+	if got := frigate.Cropped(frigate.LatestPath("garage")); got != frigate.LatestPath("garage") {
+		t.Errorf("l'image en direct ne se recadre pas : %q", got)
 	}
 }

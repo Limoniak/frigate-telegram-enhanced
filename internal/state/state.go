@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 )
@@ -25,6 +26,10 @@ type Store struct {
 	mutes     map[string]time.Time
 	cooldowns map[string]time.Time
 	dirty     bool
+	// presence : pour chaque topic de présence, la personne est-elle à la maison ?
+	// Non persisté : les topics de présence sont en général retenus (retain) par le
+	// broker, qui les renvoie à la reconnexion.
+	presence map[string]bool
 }
 
 type fileData struct {
@@ -36,17 +41,17 @@ type fileData struct {
 // Load lit l'état depuis path. Le store renvoyé est toujours utilisable ; une erreur
 // non nil signale seulement un fichier illisible, ignoré (à journaliser en avertissement).
 func Load(path string, now time.Time) (*Store, error) {
-	s := &Store{path: path, mutes: map[string]time.Time{}, cooldowns: map[string]time.Time{}}
+	s := &Store{path: path, mutes: map[string]time.Time{}, cooldowns: map[string]time.Time{}, presence: map[string]bool{}}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return s, nil
 	}
 	if err != nil {
-		return s, fmt.Errorf("lecture de l'état: %w", err)
+		return s, fmt.Errorf("reading the state: %w", err)
 	}
 	var f fileData
 	if err := json.Unmarshal(raw, &f); err != nil {
-		return s, fmt.Errorf("état corrompu, ignoré: %w", err)
+		return s, fmt.Errorf("corrupted state, ignored: %w", err)
 	}
 	if f.GlobalPauseUntil.After(now) {
 		s.pause = f.GlobalPauseUntil
@@ -123,9 +128,29 @@ func (s *Store) Unmute(camera string) error {
 	return s.saveLocked()
 }
 
+// SetPresence enregistre si la personne suivie par topic est à la maison.
+func (s *Store) SetPresence(topic string, home bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.presence[topic] = home
+}
+
+// SomeoneHome indique si au moins une personne suivie est à la maison.
+func (s *Store) SomeoneHome() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, home := range s.presence {
+		if home {
+			return true
+		}
+	}
+	return false
+}
+
 type Status struct {
 	PausedUntil time.Time            // zéro si pas de pause active
 	Mutes       map[string]time.Time // coupures actives uniquement
+	Home        []string             // topics de présence qui indiquent « à la maison », triés
 }
 
 func (s *Store) Status(now time.Time) Status {
@@ -140,6 +165,12 @@ func (s *Store) Status(now time.Time) Status {
 			st.Mutes[cam] = until
 		}
 	}
+	for topic, home := range s.presence {
+		if home {
+			st.Home = append(st.Home, topic)
+		}
+	}
+	slices.Sort(st.Home)
 	return st
 }
 
@@ -170,14 +201,14 @@ func (s *Store) saveLocked() error {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return fmt.Errorf("écriture de l'état: %w", err)
+		return fmt.Errorf("writing the state: %w", err)
 	}
 	tmp := s.path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return fmt.Errorf("écriture de l'état: %w", err)
+		return fmt.Errorf("writing the state: %w", err)
 	}
 	if err := os.Rename(tmp, s.path); err != nil {
-		return fmt.Errorf("écriture de l'état: %w", err)
+		return fmt.Errorf("writing the state: %w", err)
 	}
 	s.dirty = false
 	return nil

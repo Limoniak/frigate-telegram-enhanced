@@ -18,6 +18,8 @@ const (
 	ReasonZone           = "zone"
 	ReasonPaused         = "paused"
 	ReasonMuted          = "muted"
+	ReasonHome           = "home"
+	ReasonRecipients     = "recipients"
 	ReasonOffHours       = "off_hours"
 	ReasonCooldown       = "cooldown"
 )
@@ -27,6 +29,7 @@ type State interface {
 	IsPaused(now time.Time) bool
 	IsMuted(camera string, now time.Time) bool
 	LastNotified(key string) time.Time
+	SomeoneHome() bool
 }
 
 // Input décrit une détection. Labels contient un label (events) ou plusieurs objets (reviews).
@@ -42,12 +45,16 @@ type Input struct {
 }
 
 type Decision struct {
-	Notify bool
-	Silent bool     // notification sans son (quiet_hours)
-	Label  string   // label retenu, pour la légende et le cooldown
-	Chats  []string // noms des chats destinataires
-	Reason string   // raison du refus quand Notify est faux
+	Notify     bool
+	Silent     bool     // notification sans son pour tous (quiet_hours de la caméra, présence)
+	Label      string   // label retenu, pour la légende et le cooldown
+	Chats      []string // noms des chats destinataires
+	QuietChats []string // destinataires qui la reçoivent sans son (leurs propres quiet_hours)
+	Reason     string   // raison du refus quand Notify est faux
 }
+
+// SilentFor indique si chat reçoit la notification sans son.
+func (d Decision) SilentFor(chat string) bool { return d.Silent || slices.Contains(d.QuietChats, chat) }
 
 type Engine struct {
 	cfg   *config.Config
@@ -89,9 +96,37 @@ func (e *Engine) Evaluate(in Input, now time.Time) Decision {
 	if e.state.IsMuted(in.Camera, now) {
 		return reject(ReasonMuted)
 	}
+	// Quelqu'un à la maison : selon la caméra, rien, sans son, ou comme d'habitude.
+	homeSilent := false
+	if e.cfg.Presence.Enabled() && e.state.SomeoneHome() {
+		switch n.WhenHome {
+		case config.HomeNotify:
+		case config.HomeSilent:
+			homeSilent = true
+		default:
+			return reject(ReasonHome)
+		}
+	}
 	local := now.In(e.cfg.Location)
 	if config.InRanges(n.OffHours, local) {
 		return reject(ReasonOffHours)
+	}
+	// Restrictions propres à chaque destinataire : objets et heures.
+	var chats, quiet []string
+	for _, chat := range n.Chats {
+		r := e.cfg.Recipient(chat)
+		if !slices.ContainsFunc(in.Labels, func(l string) bool {
+			return (len(n.Labels) == 0 || slices.Contains(n.Labels, l)) && (len(r.Labels) == 0 || slices.Contains(r.Labels, l))
+		}) || config.InRanges(r.OffHours, local) {
+			continue
+		}
+		chats = append(chats, chat)
+		if config.InRanges(r.QuietHours, local) {
+			quiet = append(quiet, chat)
+		}
+	}
+	if len(chats) == 0 {
+		return reject(ReasonRecipients)
 	}
 	if n.Cooldown > 0 {
 		last := e.state.LastNotified(CooldownKey(in.Camera, label))
@@ -100,10 +135,11 @@ func (e *Engine) Evaluate(in Input, now time.Time) Decision {
 		}
 	}
 	return Decision{
-		Notify: true,
-		Silent: config.InRanges(n.QuietHours, local),
-		Label:  label,
-		Chats:  n.Chats,
+		Notify:     true,
+		Silent:     homeSilent || config.InRanges(n.QuietHours, local),
+		Label:      label,
+		Chats:      chats,
+		QuietChats: quiet,
 	}
 }
 

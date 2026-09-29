@@ -4,10 +4,20 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"strings"
 )
 
 func EventSnapshotPath(id string) string {
 	return "/api/events/" + url.PathEscape(id) + "/snapshot.jpg?bbox=1"
+}
+
+// Cropped renvoie la variante recadrée sur l'objet d'un chemin de snapshot
+// d'événement ; tout autre chemin (image en direct…) est rendu tel quel.
+func Cropped(snapshotPath string) string {
+	if strings.HasSuffix(snapshotPath, "/snapshot.jpg?bbox=1") {
+		return snapshotPath + "&crop=1&quality=90"
+	}
+	return snapshotPath
 }
 
 func EventClipPath(id string) string { return "/api/events/" + url.PathEscape(id) + "/clip.mp4" }

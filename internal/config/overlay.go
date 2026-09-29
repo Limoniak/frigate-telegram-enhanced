@@ -18,8 +18,16 @@ import (
 // ${VAR} et des commentaires, et que le conteneur monte en lecture seule — et
 // remplace entièrement les sections notify et cameras de celui-ci quand il existe.
 type Overlay struct {
-	Notify  NotifyPatch            `yaml:"notify" json:"notify"`
-	Cameras map[string]NotifyPatch `yaml:"cameras,omitempty" json:"cameras"`
+	Notify     NotifyPatch            `yaml:"notify" json:"notify"`
+	Cameras    map[string]NotifyPatch `yaml:"cameras,omitempty" json:"cameras"`
+	Recipients map[string]Recipient   `yaml:"recipients,omitempty" json:"recipients"`
+}
+
+// settings est l'ensemble des réglages modifiables à chaud.
+type settings struct {
+	notify     Notify
+	cameras    map[string]Notify
+	recipients map[string]Recipient
 }
 
 const overlayHeader = `# Réglages de notification enregistrés par l'interface web de frigate-telegram-enhanced.
@@ -35,11 +43,11 @@ func LoadOverlay(path string) (*Overlay, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("lecture de %s: %w", path, err)
+		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	var o Overlay
 	if err := yaml.Unmarshal(raw, &o); err != nil {
-		return nil, fmt.Errorf("%s invalide: %w", path, err)
+		return nil, fmt.Errorf("invalid %s: %w", path, err)
 	}
 	return &o, nil
 }
@@ -55,7 +63,7 @@ func SaveOverlay(path string, o Overlay) error {
 	dir := filepath.Dir(path)
 	f, err := os.CreateTemp(dir, ".notify-*.yml")
 	if err != nil {
-		return fmt.Errorf("écriture de %s: %w", path, err)
+		return fmt.Errorf("writing %s: %w", path, err)
 	}
 	tmp := f.Name()
 	defer os.Remove(tmp) // sans effet après un rename réussi
@@ -67,39 +75,44 @@ func SaveOverlay(path string, o Overlay) error {
 		err = cerr
 	}
 	if err != nil {
-		return fmt.Errorf("écriture de %s: %w", path, err)
+		return fmt.Errorf("writing %s: %w", path, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("écriture de %s: %w", path, err)
+		return fmt.Errorf("writing %s: %w", path, err)
 	}
 	return nil
 }
 
 // resolve calcule les réglages effectifs d'un overlay sans rien installer.
 // Un overlay nil redonne les sections notify et cameras de config.yml.
-func (c *Config) resolve(o *Overlay, lang i18n.Lang) (Notify, map[string]Notify, error) {
-	notify := c.fileNotify
-	cameras := maps.Clone(c.fileCameras)
+func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
+	s := settings{notify: c.fileNotify, cameras: maps.Clone(c.fileCameras), recipients: maps.Clone(c.fileRecipients)}
 	if o != nil {
-		notify = o.Notify.ApplyTo(defaultNotify(c.Telegram.Chats))
-		cameras = make(map[string]Notify, len(o.Cameras))
+		s.notify = o.Notify.ApplyTo(defaultNotify(c.Telegram.Chats))
+		s.cameras = make(map[string]Notify, len(o.Cameras))
 		for name, p := range o.Cameras {
-			cameras[name] = p.ApplyTo(notify)
+			s.cameras[name] = p.ApplyTo(s.notify)
+		}
+		s.recipients = make(map[string]Recipient, len(o.Recipients))
+		for name, r := range o.Recipients {
+			if !r.IsZero() {
+				s.recipients[name] = r
+			}
 		}
 	}
-	var errs []error
-	errs = append(errs, c.validateNotify("notify", notify, lang)...)
-	for _, name := range slices.Sorted(maps.Keys(cameras)) {
-		errs = append(errs, c.validateNotify("cameras."+name, cameras[name], lang)...)
+	errs := c.validateRecipients(s.recipients, lang)
+	errs = append(errs, c.validateNotify("notify", s.notify, lang)...)
+	for _, name := range slices.Sorted(maps.Keys(s.cameras)) {
+		errs = append(errs, c.validateNotify("cameras."+name, s.cameras[name], lang)...)
 	}
-	return notify, cameras, errors.Join(errs...)
+	return s, errors.Join(errs...)
 }
 
 // ValidateOverlay indique si un overlay est applicable, sans l'installer. L'interface
 // web s'en sert pour refuser un enregistrement avant d'écrire quoi que ce soit sur disque.
 // Les erreurs sont rédigées dans la langue lang (celle de l'interface).
 func (c *Config) ValidateOverlay(o *Overlay, lang i18n.Lang) error {
-	_, _, err := c.resolve(o, lang)
+	_, err := c.resolve(o, lang)
 	return err
 }
 
@@ -107,13 +120,13 @@ func (c *Config) ValidateOverlay(o *Overlay, lang i18n.Lang) error {
 // surcharge refusée laisse le service sur les réglages précédents. Un overlay nil
 // rétablit les sections notify et cameras de config.yml.
 func (c *Config) ApplyOverlay(o *Overlay) error {
-	notify, cameras, err := c.resolve(o, c.Language)
+	s, err := c.resolve(o, c.Language)
 	if err != nil {
 		return err
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.notify, c.cameras = notify, cameras
+	c.notify, c.cameras, c.recipients = s.notify, s.cameras, s.recipients
 	return nil
 }
 
@@ -123,7 +136,11 @@ func (c *Config) ApplyOverlay(o *Overlay) error {
 func (c *Config) CurrentOverlay() Overlay {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	o := Overlay{Notify: FullPatch(c.notify), Cameras: make(map[string]NotifyPatch, len(c.cameras))}
+	o := Overlay{Notify: FullPatch(c.notify), Cameras: make(map[string]NotifyPatch, len(c.cameras)),
+		Recipients: maps.Clone(c.recipients)}
+	if o.Recipients == nil {
+		o.Recipients = map[string]Recipient{}
+	}
 	for name, n := range c.cameras {
 		o.Cameras[name] = DiffPatch(c.notify, n)
 	}

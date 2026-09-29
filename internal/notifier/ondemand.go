@@ -89,7 +89,11 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 
 	var msg telegram.Message
 	if ev.HasSnapshot {
-		if photo := n.fetchSnapshot(ctx, frigate.EventSnapshotPath(ev.ID)); photo != nil {
+		path := frigate.EventSnapshotPath(ev.ID)
+		if n.Config.ForCamera(ev.Camera).Crop {
+			path = frigate.Cropped(path)
+		}
+		if photo := n.fetchSnapshot(ctx, path); photo != nil {
 			msg, err = n.Telegram.SendPhoto(ctx, chatID, telegram.InputFile{Name: "snapshot.jpg", Data: photo},
 				telegram.SendOptions{Caption: caption, Markup: markup})
 			if err != nil {

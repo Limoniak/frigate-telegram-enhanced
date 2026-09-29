@@ -4,7 +4,6 @@ package web
 
 import (
 	"context"
-	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -65,6 +64,24 @@ type Media interface {
 // maxThumb borne la taille d'une miniature relayée depuis Frigate.
 const maxThumb = 1 << 20
 
+// État d'une connexion, tel que l'interface l'affiche.
+const (
+	StateOK      = "ok"
+	StatePending = "pending"
+	StateError   = "error"
+)
+
+// Component décrit l'état d'une connexion du service (Frigate, MQTT, Telegram).
+type Component struct {
+	Name   string `json:"name"`
+	State  string `json:"state"`
+	Detail string `json:"detail"`
+	Hint   string `json:"hint,omitempty"` // que corriger, en cas d'erreur
+}
+
+// HealthFunc diagnostique les connexions, avec des messages dans la langue l.
+type HealthFunc func(ctx context.Context, l i18n.Lang) []Component
+
 // testInterval espace les notifications de test : un double clic ne doit pas
 // en envoyer deux.
 const testInterval = 3 * time.Second
@@ -77,7 +94,9 @@ type Handler struct {
 	tester  Tester // nil : pas d'envoi de test
 	state   State  // nil : pas de pause depuis l'interface
 	history History
-	media   Media // nil : historique sans miniatures
+	media   Media      // nil : historique sans miniatures
+	health  HealthFunc // nil : pas d'état des connexions
+	auth    *Auth      // mot de passe, commun à toutes les routes
 	now     func() time.Time
 
 	// save sérialise les enregistrements : deux onglets ouverts en même temps ne
@@ -101,16 +120,24 @@ func WithHistory(h History, media Media) Option {
 	return func(x *Handler) { x.history, x.media = h, media }
 }
 
+// WithHealth active l'affichage de l'état des connexions.
+func WithHealth(f HealthFunc) Option { return func(h *Handler) { h.health = f } }
+
 // WithClock remplace l'horloge (tests).
 func WithClock(now func() time.Time) Option { return func(h *Handler) { h.now = now } }
 
 func New(cfg *config.Config, overlayPath string, cameras CameraLister, log *slog.Logger, opts ...Option) *Handler {
-	h := &Handler{cfg: cfg, path: overlayPath, cameras: cameras, log: log, now: time.Now}
+	h := &Handler{cfg: cfg, path: overlayPath, cameras: cameras, log: log, now: time.Now,
+		auth: NewAuth(cfg.Web.Password, log)}
 	for _, o := range opts {
 		o(h)
 	}
 	return h
 }
+
+// Protect soumet next au mot de passe de l'interface, avec le même décompte
+// d'échecs (sert à /metrics avec web.protect_metrics).
+func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.Wrap(next) }
 
 // Mount enregistre l'interface et son API sur mux, protégées par mot de passe si la
 // configuration en définit un. /healthz et /metrics restent en dehors : la sonde du
@@ -125,6 +152,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("POST /api/pause", h.guard(sameOrigin(http.HandlerFunc(h.pause))))
 	mux.Handle("POST /api/resume", h.guard(sameOrigin(http.HandlerFunc(h.resume))))
 	mux.Handle("GET /api/history", h.guard(http.HandlerFunc(h.getHistory)))
+	mux.Handle("GET /api/health", h.guard(http.HandlerFunc(h.getHealth)))
 	mux.Handle("GET /api/history/{id}/thumb", h.guard(http.HandlerFunc(h.thumb)))
 }
 
@@ -132,7 +160,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 // le mot de passe s'il y en a un, sinon la vérification de l'en-tête Host.
 func (h *Handler) guard(next http.Handler) http.Handler {
 	if h.cfg.Web.Password != "" {
-		return BasicAuth(h.cfg.Web.Password, next)
+		return h.auth.Wrap(next)
 	}
 	return checkHost(h.cfg.Web.AllowedHosts, h.cfg.Language, next)
 }
@@ -185,19 +213,6 @@ func sameOrigin(next http.Handler) http.Handler {
 	})
 }
 
-// BasicAuth exige le mot de passe pass (nom d'utilisateur libre) avant next.
-func BasicAuth(pass string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, got, ok := r.BasicAuth()
-		if !ok || subtle.ConstantTimeCompare([]byte(got), []byte(pass)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="frigate-telegram-enhanced", charset="UTF-8"`)
-			http.Error(w, requestLang(r, i18n.Default).T("authentication required", "authentification requise"), http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 	body, err := assets.ReadFile("ui.html")
 	if err != nil {
@@ -221,6 +236,8 @@ type settings struct {
 	CanTest  bool                 `json:"can_test"`
 	CanPause bool                 `json:"can_pause"`
 	CanHist  bool                 `json:"can_history"`
+	CanHlth  bool                 `json:"can_health"`
+	Presence bool                 `json:"presence"` // topics de présence configurés
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -232,6 +249,8 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		CanTest:  h.tester != nil,
 		CanPause: h.state != nil,
 		CanHist:  h.history != nil,
+		CanHlth:  h.health != nil,
+		Presence: h.cfg.Presence.Enabled(),
 	}
 	if _, err := os.Stat(h.path); err == nil {
 		s.Custom = true
@@ -271,7 +290,7 @@ func (h *Handler) put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := config.SaveOverlay(h.path, o); err != nil {
-		h.log.Error("enregistrement des réglages échoué", "err", err)
+		h.log.Error("saving settings failed", "err", err)
 		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -279,7 +298,7 @@ func (h *Handler) put(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	h.log.Info("réglages de notification mis à jour depuis l'interface web")
+	h.log.Info("notification settings updated from the web interface")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -294,7 +313,7 @@ func (h *Handler) reset(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	h.log.Info("réglages de notification revenus à config.yml")
+	h.log.Info("notification settings reverted to config.yml")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -328,11 +347,11 @@ func (h *Handler) test(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	if err := h.tester.SendTest(ctx, req.Camera); err != nil {
-		h.log.Warn("notification de test échouée", "camera", req.Camera, "err", err)
+		h.log.Warn("test notification failed", "camera", req.Camera, "err", err)
 		h.writeError(w, r, http.StatusBadGateway, err)
 		return
 	}
-	h.log.Info("notification de test envoyée depuis l'interface web", "camera", req.Camera)
+	h.log.Info("test notification sent from the web interface", "camera", req.Camera)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -355,6 +374,7 @@ type stateView struct {
 	Paused      bool       `json:"paused"`
 	PausedUntil *time.Time `json:"paused_until"`
 	Mutes       []muteView `json:"mutes"`
+	Home        []string   `json:"home"` // topics de présence « à la maison »
 }
 
 type muteView struct {
@@ -371,7 +391,7 @@ func until(t time.Time) *time.Time {
 
 func (h *Handler) writeState(w http.ResponseWriter) {
 	st := h.state.Status(h.now())
-	v := stateView{Paused: !st.PausedUntil.IsZero(), Mutes: []muteView{}}
+	v := stateView{Paused: !st.PausedUntil.IsZero(), Mutes: []muteView{}, Home: append([]string{}, st.Home...)}
 	if v.Paused {
 		v.PausedUntil = until(st.PausedUntil)
 	}
@@ -409,7 +429,7 @@ func (h *Handler) pause(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	h.log.Info("notifications en pause depuis l'interface web", "minutes", req.Minutes)
+	h.log.Info("notifications paused from the web interface", "minutes", req.Minutes)
 	h.writeState(w)
 }
 
@@ -435,8 +455,18 @@ func (h *Handler) resume(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	h.log.Info("notifications reprises depuis l'interface web", "camera", req.Camera)
+	h.log.Info("notifications resumed from the web interface", "camera", req.Camera)
 	h.writeState(w)
+}
+
+func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
+	if h.health == nil {
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("health unavailable", "état indisponible"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	writeJSON(w, http.StatusOK, map[string][]Component{"components": h.health(ctx, h.lang(r))})
 }
 
 type historyView struct {

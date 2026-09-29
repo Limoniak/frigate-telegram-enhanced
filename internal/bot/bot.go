@@ -21,6 +21,7 @@ type Telegram interface {
 	SendMessage(ctx context.Context, chatID int64, text string, o telegram.SendOptions) (telegram.Message, error)
 	SendPhoto(ctx context.Context, chatID int64, f telegram.InputFile, o telegram.SendOptions) (telegram.Message, error)
 	AnswerCallbackQuery(ctx context.Context, id, text string) error
+	EditMessageText(ctx context.Context, chatID int64, messageID int, text string, markup *telegram.InlineKeyboardMarkup) error
 }
 
 type Frigate interface {
@@ -52,6 +53,7 @@ const camerasTTL = 30 * time.Second
 type Bot struct {
 	Deps
 	lastPoll atomic.Int64
+	pollErr  atomic.Pointer[error] // dernière erreur de getUpdates, nil après un succès
 	wg       sync.WaitGroup
 
 	serialMu sync.Mutex
@@ -79,6 +81,14 @@ func New(d Deps) *Bot {
 
 // LastPoll renvoie l'heure du dernier getUpdates réussi (utilisé par /healthz).
 func (b *Bot) LastPoll() time.Time { return time.Unix(0, b.lastPoll.Load()) }
+
+// PollError renvoie l'erreur du dernier getUpdates, nil s'il a réussi.
+func (b *Bot) PollError() error {
+	if p := b.pollErr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
 
 // Wait attend la fin des actions lancées en arrière-plan.
 func (b *Bot) Wait() { b.wg.Wait() }
@@ -133,6 +143,7 @@ func commands(l i18n.Lang) []telegram.BotCommand {
 		{Command: "cameras", Description: l.T("List cameras", "Liste des caméras")},
 		{Command: "snapshot", Description: l.T("Live image: /snapshot [camera]", "Image en direct : /snapshot [caméra]")},
 		{Command: "last", Description: l.T("Latest event: /last [camera]", "Dernier événement : /last [caméra]")},
+		{Command: "menu", Description: l.T("Control panel: pause, mute cameras", "Tableau de contrôle : pause, couper des caméras")},
 		{Command: "help", Description: l.T("Help", "Aide")},
 	}
 }
@@ -140,7 +151,7 @@ func commands(l i18n.Lang) []telegram.BotCommand {
 // Run fait du long polling jusqu'à l'annulation de ctx.
 func (b *Bot) Run(ctx context.Context) {
 	if err := b.Telegram.SetMyCommands(ctx, commands(b.Config.Language)); err != nil {
-		b.Log.Warn("setMyCommands échoué", "err", err)
+		b.Log.Warn("setMyCommands failed", "err", err)
 	}
 	offset := 0
 	for ctx.Err() == nil {
@@ -149,10 +160,12 @@ func (b *Bot) Run(ctx context.Context) {
 			if ctx.Err() != nil {
 				break
 			}
-			b.Log.Warn("getUpdates échoué", "err", err)
+			b.Log.Warn("getUpdates failed", "err", err)
+			b.pollErr.Store(&err)
 			sleep(ctx, 5*time.Second)
 			continue
 		}
+		b.pollErr.Store(nil)
 		b.lastPoll.Store(b.Now().UnixNano())
 		for _, u := range updates {
 			offset = u.UpdateID + 1

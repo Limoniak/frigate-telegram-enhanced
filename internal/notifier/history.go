@@ -12,15 +12,16 @@ const historySize = 50
 
 // HistoryEntry décrit l'issue d'une détection : notifiée, ou ignorée et pourquoi.
 type HistoryEntry struct {
-	ID     string    `json:"id"`
-	At     time.Time `json:"at"`
-	Camera string    `json:"camera"`
-	Label  string    `json:"label"`
-	Zones  []string  `json:"zones"`
-	Score  float64   `json:"score,omitempty"`
-	Sent   bool      `json:"sent"`
-	Reason string    `json:"reason,omitempty"` // raison du filtrage (voir filter.Reason*)
-	Thumb  string    `json:"-"`                // chemin Frigate de la miniature, vide si aucune
+	ID      string    `json:"id"`
+	At      time.Time `json:"at"`
+	Camera  string    `json:"camera"`
+	Label   string    `json:"label"`
+	Zones   []string  `json:"zones"`
+	Score   float64   `json:"score,omitempty"`
+	Sent    bool      `json:"sent"`
+	Grouped bool      `json:"grouped,omitempty"` // ajoutée au message d'une notification précédente
+	Reason  string    `json:"reason,omitempty"`  // raison du filtrage (voir filter.Reason*)
+	Thumb   string    `json:"-"`                 // chemin Frigate de la miniature, vide si aucune
 }
 
 // record ajoute l'issue d'un suivi à l'historique. Appelé sous n.mu.
@@ -32,6 +33,7 @@ func (n *Notifier) record(t *tracked, sent bool) {
 	if !sent {
 		e.Reason = t.lastReason
 	}
+	e.Grouped = sent && t.grouped
 	if t.hasScore {
 		e.Score = t.score
 	}

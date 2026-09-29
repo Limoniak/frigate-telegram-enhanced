@@ -33,6 +33,7 @@ services:
       # MQTT_TOPIC_PREFIX: "frigate"
       # MODE: "events"                         # events (one message per object) or reviews (Frigate ≥ 0.14 alerts)
       # WEB_ALLOWED_HOSTS: "nas.lan"           # host names accepted without a password
+      # PRESENCE_TOPICS: "homeassistant/person/+/state"  # pause when someone is home (see README)
       # LOG_LEVEL: "info"
     volumes:
       - frigate-telegram-enhanced-data:/data            # web interface settings and state (pauses, cooldowns)

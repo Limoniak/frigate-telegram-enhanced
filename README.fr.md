@@ -19,8 +19,13 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - **Interface web** pour régler tout cela sans éditer de YAML, appliquée sans redémarrage
 - Plusieurs destinataires avec routage par caméra
 - Boutons 🔇 *couper la caméra 1 h*, ⏸ *pause 30 min*, 🎬 *clip*
+- `/menu` : un tableau de contrôle avec des boutons pour mettre en pause, reprendre et couper chaque caméra
 - Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
+- **Regroupement des rafales** : les détections rapprochées s'ajoutent au premier message au lieu d'en envoyer de nouveaux
+- **Image recadrée** : le snapshot zoomé sur l'objet détecté, bien plus lisible sur un téléphone
 - En **anglais** ou en **français** : messages Telegram (`LANGUAGE`) et interface web (sélecteur EN / FR)
+- **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
+- **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
 - État persistant, `/healthz`, métriques Prometheus, image distroless multi-arch (amd64 et arm64)
 
 ## L'interface web en images
@@ -117,7 +122,7 @@ Pour mettre à jour : `docker compose pull && docker compose up -d`.
 | `FRIGATE_URL` | ✅ | API de Frigate, ex. `http://192.168.1.10:5000` (5000 sans auth, 8971 avec auth) |
 | `MQTT_BROKER` | ✅ | Broker MQTT utilisé par Frigate : `hôte`, `hôte:port`, ou `tcp://…` / `ssl://…` |
 | `TZ` | | Fuseau horaire, ex. `Europe/Paris` (défaut : `UTC`) |
-| `LANGUAGE` | | Langue des messages Telegram et des erreurs : `en` (défaut) ou `fr` — **mettre `fr` pour du français** |
+| `LANGUAGE` | | Langue des messages Telegram et des erreurs : `en` (défaut) ou `fr` — **mettre `fr` pour du français** (les journaux restent en anglais) |
 | `WEB_PASSWORD` | | Mot de passe de l'interface web (vide = aucun) |
 | `TELEGRAM_ADMINS` | | Utilisateurs autorisés à piloter le bot (défaut : les chats privés de `TELEGRAM_CHAT_ID` ; obligatoire s'il ne liste que des groupes) |
 | `FRIGATE_EXTERNAL_URL` | | URL publique de Frigate, pour les liens « Ouvrir dans Frigate » |
@@ -131,6 +136,8 @@ Pour mettre à jour : `docker compose pull && docker compose up -d`.
 | `WEB_ENABLED` | | `false` pour désactiver l'interface web |
 | `WEB_ALLOWED_HOSTS` | | Noms d'hôte acceptés sans mot de passe, ex. `nas.lan` (voir [Accès et sécurité](#accès-et-sécurité)) |
 | `WEB_PROTECT_METRICS` | | `true` pour que `/metrics` exige aussi le mot de passe |
+| `PRESENCE_TOPICS` | | Topics MQTT indiquant qui est à la maison, séparés par des virgules, jokers `+` et `#` acceptés (voir [Présence](#présence)) |
+| `PRESENCE_HOME_VALUES` | | Valeurs signifiant « à la maison » (défaut : `home,on,true,1,present`) |
 | `LOG_LEVEL` | | `debug`, `info` (défaut), `warn`, `error` |
 
 ### Avancé : fichier de configuration
@@ -159,10 +166,22 @@ sont lues dans l'environnement du conteneur. Points clés :
 régler en quelques clics. Elle suit la langue du navigateur (français ou anglais) ; le
 sélecteur **EN / FR** de l'en-tête la change, et le choix est retenu.
 
+- **État des connexions** : Frigate, MQTT et Telegram d'un coup d'œil ; en cas de
+  problème, la cause en clair et la variable à corriger (mauvais mot de passe, adresse
+  injoignable, token invalide, `localhost` utilisé dans Docker…).
 - **Modèles de notification** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou
   *Texte seul*, chacun avec un aperçu du message tel qu'il arrivera dans Telegram.
 - **Questions simples** : quoi signaler (personnes, personnes et voitures, tout), à
-  quelle fréquence au plus, et quoi faire la nuit (comme le jour, sans son, rien).
+  quelle fréquence au plus, quoi faire la nuit (comme le jour, sans son, rien) et, avec
+  la présence configurée, quand quelqu'un est à la maison.
+- **Rafales** : un message par détection, ou les détections des 2 ou 5 minutes suivantes
+  ajoutées au premier message (modifié, donc sans nouvelle sonnerie). **Cadrage** : plan
+  large ou zoom sur l'objet.
+- **Sensibilité** : un curseur de score minimal qui montre, sur l'activité récente,
+  combien de détections auraient été ignorées.
+- **Destinataires** (avec plusieurs chats) : ce que reçoit chaque personne — tout, les
+  personnes, les personnes et les voitures — et quand — tout le temps, seulement la
+  nuit, seulement le jour, sans son la nuit.
 - **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle
   ou d'autres objets, sinon elle suit les choix du haut.
 - **Où ?** : pour une caméra qui a des zones dans Frigate, « Partout » ou seulement
@@ -190,6 +209,28 @@ fichier de configuration, ils **remplacent ses sections `notify` et `cameras`** 
 qu'ils existent ; le bouton *Revenir aux réglages de config.yml* les supprime.
 `config.yml` lui-même n'est jamais réécrit.
 
+### Présence
+
+Renseignez `PRESENCE_TOPICS` avec un ou plusieurs topics MQTT qui indiquent si quelqu'un
+est à la maison. Quelqu'un est à la maison dès que l'un d'eux porte `home` (ou `on`,
+`true`, `1`, `present`). Pendant ce temps, chaque caméra suit son réglage *Quand
+quelqu'un est à la maison* : rien (par défaut), sans son, ou normalement — pratique pour
+garder les caméras extérieures.
+
+Avec Home Assistant, publiez les entités `person` sur MQTT, par exemple avec
+[`mqtt_statestream`](https://www.home-assistant.io/integrations/mqtt_statestream/) :
+
+```yaml
+# configuration.yaml de Home Assistant
+mqtt_statestream:
+  base_topic: homeassistant
+  include:
+    domains: [person]
+```
+
+puis `PRESENCE_TOPICS: "homeassistant/person/+/state"`. La commande `/status` de
+Telegram et l'interface web indiquent qui est à la maison.
+
 ### Accès et sécurité
 
 Sans mot de passe, l'interface est ouverte à quiconque atteint le port, et le
@@ -205,6 +246,8 @@ malveillant ouvert dans votre navigateur fait pointer son propre domaine vers
 `127.0.0.1` pour piloter l'interface à votre insu. Pour passer par un nom d'hôte,
 l'ajouter à `WEB_ALLOWED_HOSTS`, ou définir un mot de passe (qui lève ce contrôle).
 
+Après 5 mots de passe erronés en une minute, une adresse est bloquée 5 minutes.
+
 L'authentification ne couvre que l'interface : `/healthz` reste toujours libre pour la
 sonde du conteneur, et `/metrics` aussi, sauf avec `protect_metrics: true`. Si le port
 est exposé au réseau, pensez-y : les compteurs par caméra et par objet révèlent quand
@@ -215,6 +258,7 @@ s'authentifie alors avec `basic_auth` (nom d'utilisateur libre, mot de passe `WE
 
 | Commande | Effet |
 |---|---|
+| `/menu` | Tableau de contrôle : pause / reprise, et un bouton par caméra pour la couper 1 h ou la réactiver |
 | `/pause [durée] [caméra]` | Pause globale ou d'une caméra (1 h par défaut, `0` = jusqu'à `/resume`). Durées : `30m`, `2h`, `1d` |
 | `/resume [caméra]` | Reprend une caméra, ou tout sans argument |
 | `/status` | Connexion MQTT, pauses actives, notifications sur 24 h |

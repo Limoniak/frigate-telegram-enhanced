@@ -337,3 +337,10 @@ func (c *Client) SetMyCommands(ctx context.Context, cmds []BotCommand) error {
 	}
 	return c.call(ctx, request{method: "setMyCommands", params: map[string]string{"commands": string(b)}}, nil)
 }
+
+// GetMe renvoie le compte du bot ; sert à vérifier le token.
+func (c *Client) GetMe(ctx context.Context) (User, error) {
+	var u User
+	err := c.call(ctx, request{method: "getMe", timeout: 10 * time.Second, noRetry: true}, &u)
+	return u, err
+}

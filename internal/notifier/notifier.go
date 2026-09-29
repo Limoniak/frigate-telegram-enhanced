@@ -4,7 +4,6 @@ package notifier
 import (
 	"context"
 	"log/slog"
-	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -69,6 +68,7 @@ type Notifier struct {
 	tracked map[string]*tracked
 	sent    []time.Time
 	history []HistoryEntry
+	groups  map[string]*group // regroupement en cours, par destinataire
 }
 
 type inMsg struct {
@@ -112,6 +112,8 @@ type tracked struct {
 	ready    chan struct{} // fermé quand le snapshot a été envoyé à tous les chats
 	msgMu    sync.Mutex
 	messages map[string]sentMsg // nom du chat → message envoyé
+	groups   map[string]*group  // regroupements dont t est la tête, par chat (sous n.mu)
+	grouped  bool               // ajouté au message d'une autre notification
 }
 
 func (t *tracked) setMessage(chat string, m sentMsg) {
@@ -124,12 +126,6 @@ func (t *tracked) message(chat string) sentMsg {
 	t.msgMu.Lock()
 	defer t.msgMu.Unlock()
 	return t.messages[chat]
-}
-
-func (t *tracked) messagesCopy() map[string]sentMsg {
-	t.msgMu.Lock()
-	defer t.msgMu.Unlock()
-	return maps.Clone(t.messages)
 }
 
 func New(d Deps) *Notifier {
@@ -157,6 +153,7 @@ func New(d Deps) *Notifier {
 		sendCtx:     ctx,
 		cancelSends: cancel,
 		tracked:     map[string]*tracked{},
+		groups:      map[string]*group{},
 		media:       make(chan struct{}, d.MediaWorkers),
 	}
 }
@@ -176,7 +173,7 @@ func (n *Notifier) Handle(topic string, payload []byte) {
 	case n.inbox <- inMsg{topic: topic, payload: payload}:
 	default:
 		n.Metrics.EventsDropped.Inc()
-		n.Log.Warn("file d'événements pleine, message ignoré", "topic", topic)
+		n.Log.Warn("event queue full, message dropped", "topic", topic)
 	}
 }
 
@@ -220,7 +217,7 @@ func (n *Notifier) Process(ctx context.Context, topic string, payload []byte) {
 		}
 	}
 	if err != nil {
-		n.Log.Warn("message MQTT ignoré", "topic", topic, "err", err)
+		n.Log.Warn("MQTT message ignored", "topic", topic, "err", err)
 	}
 }
 
@@ -283,6 +280,11 @@ func (n *Notifier) sweep() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	now := n.Now()
+	for chat, g := range n.groups {
+		if now.Sub(g.started) > staleAfter {
+			delete(n.groups, chat)
+		}
+	}
 	for id, t := range n.tracked {
 		if (t.ended && now.Sub(t.endedAt) > endedRetention) || now.Sub(t.lastSeen) > staleAfter {
 			// Un événement filtré dont la fin n'est jamais arrivée doit tout de même
@@ -303,30 +305,51 @@ func (n *Notifier) uiLink(path string) string {
 	return n.Config.Frigate.ExternalURL + path
 }
 
-func (n *Notifier) caption(t *tracked) string {
-	return buildCaption(captionData{
+func (n *Notifier) captionData(t *tracked) captionData {
+	return captionData{
 		Label: t.label, SubLabel: t.subLabel, Camera: t.camera, Zones: t.zones,
 		Score: t.score, HasScore: t.hasScore, Start: t.start,
 		Description: t.description, Link: t.link,
-	}, n.Config.Location, n.Config.Language)
+	}
+}
+
+func (n *Notifier) caption(t *tracked) string {
+	return buildCaption(n.captionData(t), n.Config.Location, n.Config.Language)
 }
 
 // notify marque l'événement notifié et lance l'envoi du snapshot. Appelé sous n.mu.
 func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 	now := n.Now()
-	t.notified, t.silent, t.chats, t.label = true, d.Silent, d.Chats, d.Label
+	fresh, grouped := n.split(t, d.Chats, now)
+	// Seuls les destinataires d'un nouveau message recevront clip et GIF en réponse.
+	t.notified, t.silent, t.chats, t.label = true, d.Silent, fresh, d.Label
 	t.ready = make(chan struct{})
 	t.messages = map[string]sentMsg{}
+	t.groups = map[string]*group{}
+	t.grouped = len(fresh) == 0
 	n.State.MarkNotified(filter.CooldownKey(t.camera, d.Label), now)
 	n.recordSent(now)
 	n.record(t, true)
+	if len(grouped) > 0 {
+		n.Log.Info("notification grouped", "camera", t.camera, "label", d.Label, "event_id", t.id, "chats", grouped)
+		n.Metrics.NotificationsSent.WithLabelValues("grouped").Inc()
+		n.addToGroups(ctx, t, grouped)
+	}
+	if len(fresh) == 0 {
+		close(t.ready)
+		return
+	}
+	n.startGroups(t, fresh, now)
 
 	path := ""
-	if n.Config.ForCamera(t.camera).Snapshot {
+	if cfg := n.Config.ForCamera(t.camera); cfg.Snapshot {
 		path = t.snapshotPath
+		if cfg.Crop {
+			path = frigate.Cropped(path)
+		}
 	}
-	caption, silent, chats := n.caption(t), d.Silent, d.Chats
-	n.Log.Info("notification", "camera", t.camera, "label", d.Label, "event_id", t.id, "silent", silent, "chats", chats)
+	caption, silent, chats := n.caption(t), d.SilentFor, fresh
+	n.Log.Info("notification", "camera", t.camera, "label", d.Label, "event_id", t.id, "silent", d.Silent, "quiet_chats", d.QuietChats, "chats", chats)
 	n.goAsync(func() { n.sendSnapshot(ctx, t, path, caption, silent, chats) })
 }
 
@@ -351,6 +374,9 @@ func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool) {
 	t.ended, t.endedAt = true, now
 	cfg := n.Config.ForCamera(t.camera)
 	chats := t.chats
+	if len(chats) == 0 {
+		return // regroupée dans le message d'une autre notification : ni clip ni GIF
+	}
 	if cfg.Clip && hasClip {
 		path := t.clipPath
 		n.goAsync(func() { n.sendFollowUp(ctx, t, "video", path, chats, cfg.ClipDelay) })

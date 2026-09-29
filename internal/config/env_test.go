@@ -150,3 +150,26 @@ func TestFileLanguageKey(t *testing.T) {
 		t.Errorf("erreur en français attendue : %v", err)
 	}
 }
+
+func TestPresenceFromEnv(t *testing.T) {
+	c, err := FromEnv(env(map[string]string{
+		"TELEGRAM_TOKEN": "123:abc", "TELEGRAM_CHAT_ID": "111",
+		"FRIGATE_URL": "http://f:5000", "MQTT_BROKER": "mqtt",
+		"PRESENCE_TOPICS": "homeassistant/person/+/state, maison/presence",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Presence.Enabled() || len(c.Presence.Topics) != 2 || c.Presence.Topics[0] != "homeassistant/person/+/state" {
+		t.Errorf("presence = %+v", c.Presence)
+	}
+	if !reflect.DeepEqual(c.Presence.HomeValues, DefaultHomeValues) {
+		t.Errorf("valeurs par défaut = %v", c.Presence.HomeValues)
+	}
+	if c.Global().WhenHome != HomeSkip {
+		t.Errorf("when_home par défaut = %q", c.Global().WhenHome)
+	}
+	if _, err := Parse([]byte(minimal+"notify:\n  when_home: parfois\n"), testEnv); err == nil || !strings.Contains(err.Error(), "when_home") {
+		t.Errorf("when_home invalide : %v", err)
+	}
+}
