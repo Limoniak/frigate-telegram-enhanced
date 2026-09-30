@@ -1,4 +1,4 @@
-// Package state conserve les pauses, coupures de caméras et cooldowns, avec persistance JSON.
+// Package state keeps the pauses, camera mutes and cooldowns, persisted as JSON.
 package state
 
 import (
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// Forever représente une pause sans échéance (jusqu'à /resume).
+// Forever stands for a pause without a deadline (until /resume).
 var Forever = time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)
 
 const cooldownRetention = 24 * time.Hour
@@ -26,9 +26,9 @@ type Store struct {
 	mutes     map[string]time.Time
 	cooldowns map[string]time.Time
 	dirty     bool
-	// presence : pour chaque topic de présence, la personne est-elle à la maison ?
-	// Non persisté : les topics de présence sont en général retenus (retain) par le
-	// broker, qui les renvoie à la reconnexion.
+	// presence: for each presence topic, is the person home? Not persisted:
+	// presence topics are usually retained by the broker, which sends them again on
+	// reconnection.
 	presence map[string]bool
 }
 
@@ -38,8 +38,8 @@ type fileData struct {
 	Cooldowns        map[string]time.Time `json:"cooldowns"`
 }
 
-// Load lit l'état depuis path. Le store renvoyé est toujours utilisable ; une erreur
-// non nil signale seulement un fichier illisible, ignoré (à journaliser en avertissement).
+// Load reads the state from path. The store returned is always usable; a non-nil
+// error only reports an unreadable file, ignored (to be logged as a warning).
 func Load(path string, now time.Time) (*Store, error) {
 	s := &Store{path: path, mutes: map[string]time.Time{}, cooldowns: map[string]time.Time{}, presence: map[string]bool{}}
 	raw, err := os.ReadFile(path)
@@ -88,8 +88,8 @@ func (s *Store) LastNotified(key string) time.Time {
 	return s.cooldowns[key]
 }
 
-// MarkNotified enregistre une notification pour le cooldown ; écrit sur disque au prochain FlushIfDirty.
-// Les entrées de plus de cooldownRetention sont oubliées au passage.
+// MarkNotified records a notification for the cooldown; written to disk on the next FlushIfDirty.
+// Entries older than cooldownRetention are forgotten along the way.
 func (s *Store) MarkNotified(key string, at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -105,7 +105,7 @@ func (s *Store) Pause(until time.Time) error {
 	return s.saveLocked()
 }
 
-// Resume lève la pause globale et toutes les coupures de caméras.
+// Resume lifts the global pause and every camera mute.
 func (s *Store) Resume() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -128,14 +128,14 @@ func (s *Store) Unmute(camera string) error {
 	return s.saveLocked()
 }
 
-// SetPresence enregistre si la personne suivie par topic est à la maison.
+// SetPresence records whether the person tracked by topic is home.
 func (s *Store) SetPresence(topic string, home bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.presence[topic] = home
 }
 
-// SomeoneHome indique si au moins une personne suivie est à la maison.
+// SomeoneHome reports whether at least one tracked person is home.
 func (s *Store) SomeoneHome() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -148,9 +148,9 @@ func (s *Store) SomeoneHome() bool {
 }
 
 type Status struct {
-	PausedUntil time.Time            // zéro si pas de pause active
+	PausedUntil time.Time            // zero if no pause is active
 	Mutes       map[string]time.Time // coupures actives uniquement
-	Home        []string             // topics de présence qui indiquent « à la maison », triés
+	Home        []string             // presence topics saying "home", sorted
 }
 
 func (s *Store) Status(now time.Time) Status {
@@ -180,7 +180,7 @@ func (s *Store) Save() error {
 	return s.saveLocked()
 }
 
-// FlushIfDirty écrit l'état seulement si des cooldowns ont changé depuis la dernière écriture.
+// FlushIfDirty writes the state only if cooldowns changed since the last write.
 func (s *Store) FlushIfDirty() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -190,7 +190,7 @@ func (s *Store) FlushIfDirty() error {
 	return s.saveLocked()
 }
 
-// saveLocked écrit atomiquement (fichier temporaire puis rename).
+// saveLocked writes atomically (temporary file then rename).
 func (s *Store) saveLocked() error {
 	b, err := json.MarshalIndent(fileData{
 		GlobalPauseUntil: s.pause,

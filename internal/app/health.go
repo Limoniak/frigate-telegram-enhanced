@@ -19,19 +19,19 @@ import (
 	"frigate-telegram-enhanced/internal/web"
 )
 
-// probeTTL espace les connexions d'essai au broker MQTT : l'interface interroge
-// l'état toutes les 30 s, inutile de marteler un broker qui refuse.
+// probeTTL spaces out the trial connections to the MQTT broker: the interface polls
+// the status every 30 s, no need to hammer a broker that refuses.
 const probeTTL = 20 * time.Second
 
-// checker diagnostique les trois connexions du service pour l'interface web : pour
-// chacune, un état et, en cas de problème, la cause en clair et la variable à corriger.
+// checker diagnoses the three connections of the service for the web interface: for
+// each one, a state and, when something is wrong, the cause in plain words and the variable to fix.
 type checker struct {
 	cfg *config.Config
 	fr  *frigate.Client
 	sub *mqttsub.Subscriber
 	bot *bot.Bot
 	tg  *telegram.Client
-	// drops : messages MQTT écartés, file pleine (le notifier) ; nil pour ne pas les signaler.
+	// drops: MQTT messages dropped because the queue was full (the notifier); nil not to report them.
 	drops interface{ Dropped() (int, time.Time) }
 
 	mu       sync.Mutex
@@ -54,11 +54,11 @@ func (c *checker) check(ctx context.Context, l i18n.Lang) []web.Component {
 	return out
 }
 
-// dropWindow : au-delà, une perte ancienne n'est plus signalée.
+// dropWindow: beyond it, an old loss is no longer reported.
 const dropWindow = 24 * time.Hour
 
-// dropped signale les messages MQTT écartés récemment, faute de place dans la file
-// d'attente : des détections ont pu être perdues sans autre trace que les métriques.
+// dropped reports the MQTT messages recently dropped for lack of room in the
+// queue: detections may have been lost with no other trace than the metrics.
 func (c *checker) dropped(l i18n.Lang) (web.Component, bool) {
 	if c.drops == nil {
 		return web.Component{}, false
@@ -124,7 +124,7 @@ func (c *checker) mqtt(l i18n.Lang) web.Component {
 	c.mu.Unlock()
 
 	if err == nil {
-		// Le broker accepte une connexion : le client principal s'y reconnecte.
+		// The broker accepts a connection: the main client is reconnecting to it.
 		comp.State = web.StatePending
 		comp.Detail = l.T("The broker accepts the connection; reconnecting…")
 		return comp
@@ -149,8 +149,8 @@ func (c *checker) telegram(ctx context.Context, l i18n.Lang) web.Component {
 	comp := web.Component{Name: "Telegram"}
 	err := c.bot.PollError()
 	if err == nil {
-		// Aucune erreur de lecture : on vérifie le token tout de suite, sans attendre
-		// la fin du premier long polling (jusqu'à 50 s).
+		// No read error: check the token right away, without waiting for the end of
+		// the first long poll (up to 50 s).
 		var name string
 		if name, err = c.name(ctx); err == nil {
 			comp.State, comp.Detail = web.StateOK, name
@@ -173,7 +173,7 @@ func (c *checker) telegram(ctx context.Context, l i18n.Lang) web.Component {
 	return comp
 }
 
-// name renvoie le @nom du bot, lu auprès de Telegram puis gardé en mémoire.
+// name returns the bot's @name, read from Telegram then kept in memory.
 func (c *checker) name(ctx context.Context) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -190,9 +190,9 @@ func (c *checker) name(ctx context.Context) (string, error) {
 	return c.botName, nil
 }
 
-// netCause résume une erreur réseau en quelques mots. Les erreurs système sont
-// reconnues par leur code, le texte variant d'un système à l'autre (Windows écrit
-// « actively refused »), puis par leur texte quand une bibliothèque les a aplaties.
+// netCause sums up a network error in a few words. System errors are recognized
+// by their code, since the text varies from one system to another (Windows writes
+// "actively refused"), then by their text when a library has flattened them.
 func netCause(err error, l i18n.Lang) string {
 	var dnsErr *net.DNSError
 	msg := strings.ToLower(err.Error())

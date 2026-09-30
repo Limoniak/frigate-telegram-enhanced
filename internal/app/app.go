@@ -1,4 +1,4 @@
-// Package app assemble les composants du service et orchestre son démarrage et son arrêt.
+// Package app assembles the components of the service and orchestrates its startup and shutdown.
 package app
 
 import (
@@ -29,10 +29,10 @@ import (
 	"frigate-telegram-enhanced/internal/web"
 )
 
-// Run démarre le service et le fait tourner jusqu'à l'annulation de ctx, puis
-// l'arrête proprement : envois en cours terminés (ou interrompus après un délai),
-// état sauvegardé, serveur HTTP fermé. tgOpts permet aux tests de rediriger l'API
-// Telegram vers un faux serveur.
+// Run starts the service and runs it until ctx is canceled, then stops it
+// cleanly: sends in progress finished (or interrupted after a delay), state
+// saved, HTTP server closed. tgOpts lets tests redirect the Telegram API to a
+// fake server.
 func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -41,10 +41,10 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	log := newLogger(cfg.LogLevel)
 	slog.SetDefault(log)
 
-	// Les réglages enregistrés par l'interface web priment sur les sections notify
-	// et cameras de config.yml. Un fichier illisible ou devenu invalide (un chat
-	// renommé entre-temps, par exemple) ne doit pas empêcher le service de démarrer :
-	// on le signale et on repart sur config.yml.
+	// The settings saved by the web interface take precedence over the notify and
+	// cameras sections of config.yml. An unreadable file, or one that became invalid
+	// (a chat renamed in the meantime, for example), must not prevent the service from
+	// starting: it is reported and the service falls back to config.yml.
 	overlayPath := filepath.Join(filepath.Dir(cfg.StateFile), "notify.yml")
 	if o, err := config.LoadOverlay(overlayPath); err != nil {
 		log.Warn("web interface settings ignored", "file", overlayPath, "err", err)
@@ -80,8 +80,8 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 		handle = presenceRouter(cfg.Presence, st, log, notif.Handle)
 		log.Info("presence tracked", "topics", cfg.Presence.Topics)
 	}
-	// lostAt : début de la coupure MQTT en cours (UnixNano), 0 si connecté. À la
-	// reconnexion, le notifier rattrape auprès de Frigate ce qui a été manqué.
+	// lostAt: start of the current MQTT outage (UnixNano), 0 when connected. On
+	// reconnection, the notifier catches up from Frigate on what was missed.
 	var lostAt atomic.Int64
 	sub := mqttsub.New(cfg.MQTT, topics, handle, log, func(up bool) {
 		if up {
@@ -100,7 +100,7 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	})
 
 	var mount []func(*http.ServeMux)
-	var protect func(http.Handler) http.Handler // mot de passe de l'interface, décompte d'échecs commun
+	var protect func(http.Handler) http.Handler // interface password, shared failure count
 	if cfg.Web.Enabled {
 		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg, drops: notif}
 		ui := web.New(cfg, overlayPath, fr, log, web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr),
@@ -130,10 +130,10 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 		}
 	}()
 
-	// notif.Run est suivi via runDone : Shutdown appelle wg.Wait, et Process (appelé
-	// depuis Run) appelle wg.Add — les deux ne doivent jamais s'exécuter en même temps
-	// (sync.WaitGroup l'interdit lorsque le compteur repart de zéro). On attend donc la
-	// fin effective de Run avant d'appeler notif.Shutdown.
+	// notif.Run is tracked through runDone: Shutdown calls wg.Wait, and Process (called
+	// from Run) calls wg.Add — the two must never run at the same time (sync.WaitGroup
+	// forbids it when the counter restarts from zero). So we wait for Run to actually
+	// finish before calling notif.Shutdown.
 	runDone := make(chan struct{})
 	go func() {
 		notif.Run(ctx)
@@ -190,17 +190,17 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 
 func newLogger(level string) *slog.Logger {
 	var l slog.Level
-	_ = l.UnmarshalText([]byte(level)) // niveau déjà validé par la config
+	_ = l.UnmarshalText([]byte(level)) // level already validated by the configuration
 	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: l}))
 }
 
-// presenceRouter aiguille les messages MQTT : ceux des topics de présence mettent à
-// jour qui est à la maison, les autres vont au notifier (next).
+// presenceRouter dispatches MQTT messages: those of presence topics update who is
+// home, the others go to the notifier (next).
 func presenceRouter(p config.Presence, st *state.Store, log *slog.Logger, next mqttsub.Handler) mqttsub.Handler {
 	return func(topic string, payload []byte) {
 		for _, f := range p.Topics {
 			if mqttsub.Match(f, topic) {
-				// Home Assistant publie l'état brut ("home"), parfois entre guillemets.
+				// Home Assistant publishes the raw state ("home"), sometimes in quotes.
 				v := strings.ToLower(strings.Trim(strings.TrimSpace(string(payload)), `"`))
 				home := slices.Contains(p.HomeValues, v)
 				st.SetPresence(topic, home)

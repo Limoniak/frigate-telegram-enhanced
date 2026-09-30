@@ -1,4 +1,4 @@
-// Package actions encode et décode les callback_data des boutons Telegram (64 octets max).
+// Package actions encodes and decodes the callback_data of Telegram buttons (64 bytes max).
 package actions
 
 import (
@@ -9,16 +9,16 @@ import (
 )
 
 const (
-	KindMute     = "m" // m:<caméra>:<secondes>
+	KindMute     = "m" // m:<camera>:<seconds>
 	KindPause    = "p" // p:<secondes>
-	KindClip     = "c" // c:<id événement ou review>
-	KindSnapshot = "s" // s:<caméra>
-	KindUnmute   = "u" // u:<caméra>
+	KindClip     = "c" // c:<event or review id>
+	KindSnapshot = "s" // s:<camera>
+	KindUnmute   = "u" // u:<camera>
 	KindResume   = "r" // r:all
 	KindRefresh  = "f" // f:menu
 
-	// menuPrefix marque un bouton du menu de contrôle : après l'action, le message du
-	// menu est redessiné pour refléter le nouvel état.
+	// menuPrefix marks a button of the control menu: after the action, the menu
+	// message is redrawn to show the new state.
 	menuPrefix = "!"
 )
 
@@ -27,7 +27,7 @@ type Action struct {
 	Camera   string
 	ID       string
 	Duration time.Duration
-	Menu     bool // bouton du menu de contrôle
+	Menu     bool // button of the control menu
 }
 
 func Unmute(camera string) string { return KindUnmute + ":" + camera }
@@ -36,7 +36,7 @@ func Resume() string { return KindResume + ":all" }
 
 func Refresh() string { return KindRefresh + ":menu" }
 
-// InMenu marque data comme un bouton du menu de contrôle.
+// InMenu marks data as a button of the control menu.
 func InMenu(data string) string { return menuPrefix + data }
 
 func Mute(camera string, d time.Duration) string {

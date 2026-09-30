@@ -14,7 +14,7 @@ import (
 
 const maxCaption = 1024
 
-// labelNames : emoji et nom (anglais, traduit par le catalogue) des objets courants.
+// labelNames: emoji and name (English, translated by the catalog) of common objects.
 var labelNames = map[string]struct{ emoji, name string }{
 	"person":     {"🚶", "Person"},
 	"car":        {"🚗", "Car"},
@@ -36,7 +36,7 @@ func labelText(label string, lang i18n.Lang) string {
 	return "🔔 " + label
 }
 
-// openInFrigate est le lien « ouvrir dans Frigate » d'une légende.
+// openInFrigate is the "open in Frigate" link of a caption.
 func openInFrigate(link string, lang i18n.Lang) string {
 	return "\n🔗 <a href=\"" + html.EscapeString(link) + "\">" + lang.T("Open in Frigate") + "</a>"
 }
@@ -49,16 +49,16 @@ type captionData struct {
 	Start                   time.Time
 	Description             string
 	Link                    string
-	Group                   string // bloc HTML des détections regroupées, déjà échappé
+	Group                   string // HTML block of the grouped detections, already escaped
 }
 
-// buildCaption produit la légende HTML (≤ 1024 caractères ; la description est tronquée si besoin).
+// buildCaption builds the HTML caption (≤ 1024 characters; the description is truncated if needed).
 func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	esc := html.EscapeString
 	var b strings.Builder
 	b.WriteString("<b>" + esc(labelText(d.Label, lang)) + "</b> — " + esc(d.Camera))
 	if d.SubLabel != "" {
-		// Étiquette de Frigate : classification (« clio 3 océane »), visage, plaque.
+		// Frigate's label: classification ("clio 3 océane"), face, plate.
 		b.WriteString("\n🏷 " + esc(d.SubLabel))
 	}
 	var details []string
@@ -78,7 +78,7 @@ func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 		footer += openInFrigate(d.Link, lang)
 	}
 	if d.Description != "" {
-		// Telegram compte le texte hors balises : compter la chaîne HTML entière est prudent.
+		// Telegram counts the text outside tags: counting the whole HTML string is on the safe side.
 		room := maxCaption - utf8.RuneCountInString(b.String()) - utf8.RuneCountInString(footer) - len("\n\n<i></i>")
 		if room > 20 {
 			b.WriteString("\n\n<i>" + esc(truncate(d.Description, room)) + "</i>")
@@ -96,9 +96,9 @@ func truncate(s string, max int) string {
 	return string(r[:max-1]) + "…"
 }
 
-// buttons renvoie les boutons d'une notification, sur deux lignes : voir (image en
-// direct, clip) puis faire taire (caméra 1 h, tout 30 min). Un bouton dont le
-// callback_data dépasse 64 octets est omis.
+// buttons returns the buttons of a notification, on two rows: look (live image,
+// clip) then silence (camera 1 h, everything 30 min). A button whose callback_data
+// exceeds 64 bytes is left out.
 func buttons(camera, id string, lang i18n.Lang) *telegram.InlineKeyboardMarkup {
 	var rows [][]telegram.InlineKeyboardButton
 	row := func(keys ...[2]string) {

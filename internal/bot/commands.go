@@ -31,7 +31,7 @@ Durations: 30m, 2h, 1h30m, 1d`)
 
 var esc = html.EscapeString
 
-// parseCommand découpe "/cmd@bot arg1 arg2" en ("cmd", [arg1 arg2]).
+// parseCommand splits "/cmd@bot arg1 arg2" into ("cmd", [arg1 arg2]).
 func parseCommand(text string) (string, []string) {
 	f := strings.Fields(text)
 	if len(f) == 0 {
@@ -44,7 +44,7 @@ func parseCommand(text string) (string, []string) {
 	return strings.ToLower(name), f[1:]
 }
 
-// ParseDuration accepte "30m", "2h", "1h30m", "1d" et "0" (illimité).
+// ParseDuration accepts "30m", "2h", "1h30m", "1d" and "0" (unlimited).
 func ParseDuration(s string) (time.Duration, error) {
 	if s == "0" {
 		return 0, nil
@@ -224,8 +224,8 @@ func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 	}
 }
 
-// sendLiveSnapshot envoie l'image en direct d'une caméra, en réponse au message
-// replyTo s'il n'est pas nul (la notification dont on a touché « 📷 Maintenant »).
+// sendLiveSnapshot sends the live image of a camera, as a reply to the message
+// replyTo if it is not zero (the notification whose "📷 Now" was tapped).
 func (b *Bot) sendLiveSnapshot(ctx context.Context, chat int64, replyTo int, camera string) {
 	img, err := b.Frigate.GetBytes(ctx, frigate.LatestPath(camera), 10<<20)
 	if err != nil {
@@ -260,7 +260,7 @@ func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 	}
 	now := b.Now()
 	if a.Menu {
-		// Après l'action (plus bas), le menu est redessiné pour montrer le nouvel état.
+		// After the action (below), the menu is redrawn to show the new state.
 		defer b.refreshMenu(ctx, q)
 	}
 	switch a.Kind {
@@ -311,8 +311,8 @@ func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 	}
 }
 
-// checkCamera vérifie que la caméra existe dans Frigate (accepte si Frigate est
-// injoignable) ; renvoie le message à afficher sinon, vide si tout va bien.
+// checkCamera checks that the camera exists in Frigate (accepts it if Frigate is
+// unreachable); returns the message to show otherwise, empty if all is well.
 func (b *Bot) checkCamera(ctx context.Context, camera string) string {
 	cams, err := b.cameras(ctx)
 	if err != nil || slices.Contains(cams, camera) {
@@ -342,8 +342,8 @@ func (b *Bot) answer(ctx context.Context, id, text string) {
 	}
 }
 
-// PresenceName tire un nom lisible d'un topic de présence :
-// "homeassistant/person/alice/state" donne "alice".
+// PresenceName derives a readable name from a presence topic:
+// "homeassistant/person/alice/state" gives "alice".
 func PresenceName(topic string) string {
 	parts := strings.Split(topic, "/")
 	if n := len(parts); n >= 2 && parts[n-1] == "state" {

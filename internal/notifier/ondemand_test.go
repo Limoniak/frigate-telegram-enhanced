@@ -22,7 +22,7 @@ func TestSendClipToTrackedEvent(t *testing.T) {
 	}
 	v := h.tg.byMethod("sendVideo")
 	if len(v) != 1 || v[0].ChatID != 1 || v[0].Opts.ReplyTo != 42 || v[0].Data != "mp4" {
-		t.Errorf("vidéo = %+v", v)
+		t.Errorf("video = %+v", v)
 	}
 }
 
@@ -33,7 +33,7 @@ func TestSendClipToUnknownEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(h.tg.byMethod("sendVideo")) != 1 {
-		t.Error("vidéo attendue")
+		t.Error("want a video")
 	}
 }
 
@@ -46,25 +46,25 @@ func TestSendClipToUnknownReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(h.tg.byMethod("sendVideo")) != 1 {
-		t.Error("vidéo attendue")
+		t.Error("want a video")
 	}
 }
 
 func TestSendClipToMissingClipReturnsError(t *testing.T) {
 	h := newHarness(t, "events")
 	if err := h.n.SendClipTo(context.Background(), 1, 0, "absent"); err == nil {
-		t.Error("erreur attendue")
+		t.Error("want an error")
 	}
 }
 
-// mp4Box construit une boîte MP4 (taille, type, contenu) pour les tests de clips.
+// mp4Box builds an MP4 box (size, type, content) for the clip tests.
 func mp4Box(typ string, body []byte) []byte {
 	b := binary.BigEndian.AppendUint32(nil, uint32(8+len(body)))
 	return append(append(b, typ...), body...)
 }
 
-// Frigate cale avant la fin du clip : les fragments complets sont envoyés, sans
-// nouvel essai (Frigate calerait au même endroit).
+// Frigate stalls before the end of the clip: the complete fragments are sent,
+// without retrying (Frigate would stall at the same place).
 func TestSendClipToStalledSendsCompletePart(t *testing.T) {
 	h := newHarness(t, "events")
 	clip := frigate.EventClipPath("ancien")
@@ -78,10 +78,10 @@ func TestSendClipToStalledSendsCompletePart(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v := h.tg.byMethod("sendVideo"); len(v) != 1 || v[0].Data != string(whole) {
-		t.Errorf("vidéo = %+v, attendu les fragments complets", v)
+		t.Errorf("video = %+v, want the complete fragments", v)
 	}
 	if n := h.fr.countCalls(clip); n != 1 {
-		t.Errorf("téléchargements = %d, attendu 1", n)
+		t.Errorf("downloads = %d, want 1", n)
 	}
 }
 
@@ -91,10 +91,10 @@ func TestSendClipToStalledWithoutUsablePartReturnsError(t *testing.T) {
 	h.fr.files[clip] = mp4Box("ftyp", []byte("isom"))
 	h.fr.stalls[clip] = true
 	if err := h.n.SendClipTo(context.Background(), 1, 0, "ancien"); !errors.Is(err, frigate.ErrIncomplete) {
-		t.Errorf("err = %v, attendu ErrIncomplete", err)
+		t.Errorf("err = %v, want ErrIncomplete", err)
 	}
 	if len(h.tg.byMethod("sendVideo")) != 0 || h.fr.countCalls(clip) != 1 {
-		t.Error("ni vidéo ni nouvel essai attendus")
+		t.Error("want neither a video nor a retry")
 	}
 }
 
@@ -109,7 +109,7 @@ func TestSendLast(t *testing.T) {
 	}
 	photos, videos := h.tg.byMethod("sendPhoto"), h.tg.byMethod("sendVideo")
 	if len(photos) != 1 || len(videos) != 1 || videos[0].Opts.ReplyTo != photos[0].Result {
-		t.Errorf("photos=%+v vidéos=%+v", photos, videos)
+		t.Errorf("photos=%+v videos=%+v", photos, videos)
 	}
 }
 
@@ -131,10 +131,10 @@ func TestSendTestUsesLiveSnapshotAndRecipients(t *testing.T) {
 	}
 	photos := h.tg.byMethod("sendPhoto")
 	if len(photos) != 2 {
-		t.Fatalf("photos = %+v, attendu une par chat", photos)
+		t.Fatalf("photos = %+v, want one per chat", photos)
 	}
 	if !strings.Contains(photos[0].Text, "Test notification") || !strings.Contains(photos[0].Text, "video clip will follow") {
-		t.Errorf("légende = %q", photos[0].Text)
+		t.Errorf("caption = %q", photos[0].Text)
 	}
 }
 
@@ -144,6 +144,6 @@ func TestSendTestFallsBackToTextWithoutSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := len(h.tg.byMethod("sendMessage")); n != 2 {
-		t.Errorf("messages texte = %d, attendu 2", n)
+		t.Errorf("text messages = %d, want 2", n)
 	}
 }

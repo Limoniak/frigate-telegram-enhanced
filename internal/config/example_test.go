@@ -12,12 +12,12 @@ func TestExampleConfigIsValid(t *testing.T) {
 	}
 	c, err := Parse(raw, env(map[string]string{"TELEGRAM_TOKEN": "123:abc"}))
 	if err != nil {
-		t.Fatalf("config.example.yml invalide : %v", err)
+		t.Fatalf("config.example.yml is invalid: %v", err)
 	}
 	if c.ForCamera("salon").Enabled {
-		t.Error("l'exemple désactive la caméra salon")
+		t.Error("the example disables the salon camera")
 	}
-	// WEB_PASSWORD n'est pas défini : l'interface doit rester servie, sans mot de passe.
+	// WEB_PASSWORD is not set: the interface must still be served, without a password.
 	if !c.Web.Enabled || c.Web.Password != "" {
 		t.Errorf("web = %+v", c.Web)
 	}

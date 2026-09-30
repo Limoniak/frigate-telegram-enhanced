@@ -22,7 +22,7 @@ import (
 
 const defaultBaseURL = "https://api.telegram.org"
 
-// APIError est une réponse d'erreur de l'API Bot.
+// APIError is an error response of the Bot API.
 type APIError struct {
 	Method      string
 	Code        int
@@ -68,18 +68,18 @@ func New(token string, opts ...Option) *Client {
 
 type request struct {
 	method  string
-	chatID  int64 // 0 : pas de limitation de débit
+	chatID  int64 // 0: no rate limiting
 	params  map[string]string
 	file    *fileParam
 	timeout time.Duration
 	noRetry bool
-	// unique : rejouer la requête créerait un second message (send*). Elle n'est alors
-	// retentée que si elle n'a pas été entièrement transmise à Telegram.
+	// unique: replaying the request would create a second message (send*). It is then
+	// only retried if it was not fully transmitted to Telegram.
 	unique bool
 }
 
-// sentError est une erreur réseau survenue après la transmission complète de la
-// requête : Telegram a pu la traiter, seule la réponse s'est perdue.
+// sentError is a network error that happened after the request was fully
+// transmitted: Telegram may have handled it, only the response was lost.
 type sentError struct{ err error }
 
 func (e *sentError) Error() string { return e.err.Error() }
@@ -129,7 +129,7 @@ func (c *Client) retryDelay(ctx context.Context, r request, err error, attempt i
 	}
 	var se *sentError
 	if r.unique && errors.As(err, &se) {
-		return 0, false // un doublon de notification plutôt qu'une perte : non
+		return 0, false // a duplicate notification rather than a lost one: no
 	}
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
@@ -146,7 +146,7 @@ func (c *Client) retryDelay(ctx context.Context, r request, err error, attempt i
 			return 0, false
 		}
 	}
-	return c.backoff << attempt, true // erreur réseau
+	return c.backoff << attempt, true // network error
 }
 
 type apiResponse struct {
@@ -173,13 +173,13 @@ func (c *Client) once(ctx context.Context, r request, out any) error {
 	}
 	req.ContentLength = size
 	req.Header.Set("Content-Type", contentType)
-	var wrote atomic.Bool // écrit depuis la goroutine d'écriture du transport
+	var wrote atomic.Bool // written from the transport's writing goroutine
 	req = req.WithContext(httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
 		WroteRequest: func(i httptrace.WroteRequestInfo) { wrote.Store(i.Err == nil) },
 	}))
 	resp, err := c.http.Do(req)
 	if err != nil {
-		// L'erreur contient l'URL, donc le token : on le masque.
+		// The error holds the URL, hence the token: hide it.
 		err = fmt.Errorf("telegram %s: %s", r.method, c.redact(err.Error()))
 		if wrote.Load() {
 			return &sentError{err}
@@ -211,7 +211,7 @@ func (c *Client) once(ctx context.Context, r request, out any) error {
 
 func (c *Client) redact(s string) string { return strings.ReplaceAll(s, c.token, "<token>") }
 
-// body construit le corps : formulaire simple, ou multipart de taille connue (pas de chunked).
+// body builds the body: a plain form, or a multipart of known size (not chunked).
 func (r request) body() (io.ReadCloser, int64, string, error) {
 	if r.file == nil || r.file.file.FileID != "" {
 		v := url.Values{}
@@ -315,7 +315,7 @@ func (c *Client) sendMedia(ctx context.Context, method, field string, chatID int
 	o.apply(p)
 	timeout := 30 * time.Second
 	if f.FileID == "" {
-		timeout = 5 * time.Minute // upload jusqu'à 50 Mo
+		timeout = 5 * time.Minute // upload up to 50 MB
 	}
 	var m Message
 	err := c.call(ctx, request{method: method, chatID: chatID, params: p, file: &fileParam{field: field, file: f}, timeout: timeout, unique: true}, &m)
@@ -342,7 +342,7 @@ func (c *Client) AnswerCallbackQuery(ctx context.Context, id, text string) error
 	return c.call(ctx, request{method: "answerCallbackQuery", params: p}, nil)
 }
 
-// GetUpdates fait un long polling ; pas de retry interne (la boucle appelante s'en charge).
+// GetUpdates long-polls; no internal retry (the calling loop takes care of it).
 func (c *Client) GetUpdates(ctx context.Context, offset int, timeout time.Duration) ([]Update, error) {
 	p := map[string]string{
 		"offset":          strconv.Itoa(offset),
@@ -362,17 +362,17 @@ func (c *Client) SetMyCommands(ctx context.Context, cmds []BotCommand) error {
 	return c.call(ctx, request{method: "setMyCommands", params: map[string]string{"commands": string(b)}}, nil)
 }
 
-// GetMe renvoie le compte du bot ; sert à vérifier le token.
+// GetMe returns the bot's account; used to check the token.
 func (c *Client) GetMe(ctx context.Context) (User, error) {
 	var u User
 	err := c.call(ctx, request{method: "getMe", timeout: 10 * time.Second, noRetry: true}, &u)
 	return u, err
 }
 
-// EditMessageMedia remplace le média d'un message (photo → vidéo ou animation),
-// avec sa légende et ses boutons : le message ne change pas de place et ne refait
-// pas sonner le téléphone. kind vaut "video" ou "animation". Renvoie le message
-// modifié, dont le file_id sert à réutiliser le média pour d'autres chats.
+// EditMessageMedia replaces the media of a message (photo → video or animation),
+// with its caption and buttons: the message does not move and does not make the
+// phone ring again. kind is "video" or "animation". Returns the edited message,
+// whose file_id serves to reuse the media for other chats.
 func (c *Client) EditMessageMedia(ctx context.Context, chatID int64, messageID int, kind string, f InputFile, caption string, markup *InlineKeyboardMarkup) (Message, error) {
 	media := map[string]any{"type": kind, "caption": caption, "parse_mode": "HTML"}
 	if kind == "video" {
@@ -385,7 +385,7 @@ func (c *Client) EditMessageMedia(ctx context.Context, chatID int64, messageID i
 	} else {
 		media["media"] = "attach://file"
 		file = &fileParam{field: "file", file: f}
-		timeout = 5 * time.Minute // upload jusqu'à 50 Mo
+		timeout = 5 * time.Minute // upload up to 50 MB
 	}
 	mb, err := json.Marshal(media)
 	if err != nil {

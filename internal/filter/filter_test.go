@@ -54,29 +54,29 @@ func TestEvaluate(t *testing.T) {
 		in     Input
 		now    time.Time
 		st     fakeState
-		reason string // "" = notification attendue
+		reason string // "" = want a notification
 		silent bool
 		label  string
 	}{
 		{name: "ok", in: person("garage", 0.9), now: at(15, 0), label: "person"},
-		{name: "caméra désactivée", in: person("salon", 0.9), now: at(15, 0), reason: ReasonCameraDisabled},
+		{name: "camera disabled", in: person("salon", 0.9), now: at(15, 0), reason: ReasonCameraDisabled},
 		{name: "faux positif", in: Input{Camera: "garage", Labels: []string{"person"}, Score: 0.9, HasScore: true, FalsePositive: true}, now: at(15, 0), reason: ReasonFalsePositive},
 		{name: "immobile", in: Input{Camera: "garage", Labels: []string{"person"}, Score: 0.9, HasScore: true, Stationary: true}, now: at(15, 0), reason: ReasonStationary},
 		{name: "label", in: Input{Camera: "garage", Labels: []string{"dog"}, Score: 0.9, HasScore: true}, now: at(15, 0), reason: ReasonLabel},
 		{name: "score global", in: person("garage", 0.6), now: at(15, 0), reason: ReasonScore},
-		{name: "score par label", in: Input{Camera: "garage", Labels: []string{"car"}, Score: 0.75, HasScore: true}, now: at(15, 0), reason: ReasonScore},
-		{name: "sans score (reviews)", in: Input{Camera: "garage", Labels: []string{"person"}}, now: at(15, 0), label: "person"},
-		{name: "zone manquante", in: person("jardin", 0.9), now: at(15, 0), reason: ReasonZone},
+		{name: "score per label", in: Input{Camera: "garage", Labels: []string{"car"}, Score: 0.75, HasScore: true}, now: at(15, 0), reason: ReasonScore},
+		{name: "no score (reviews)", in: Input{Camera: "garage", Labels: []string{"person"}}, now: at(15, 0), label: "person"},
+		{name: "zone missing", in: person("jardin", 0.9), now: at(15, 0), reason: ReasonZone},
 		{name: "zone ok", in: Input{Camera: "jardin", Labels: []string{"person"}, Score: 0.9, HasScore: true, Zones: []string{"rue", "allee"}}, now: at(15, 0), label: "person"},
 		{name: "pause", in: person("garage", 0.9), now: at(15, 0), st: fakeState{paused: true}, reason: ReasonPaused},
-		{name: "caméra coupée", in: person("garage", 0.9), now: at(15, 0), st: fakeState{muted: map[string]bool{"garage": true}}, reason: ReasonMuted},
-		{name: "autre caméra coupée", in: person("garage", 0.9), now: at(15, 0), st: fakeState{muted: map[string]bool{"jardin": true}}, label: "person"},
+		{name: "camera muted", in: person("garage", 0.9), now: at(15, 0), st: fakeState{muted: map[string]bool{"garage": true}}, reason: ReasonMuted},
+		{name: "another camera muted", in: person("garage", 0.9), now: at(15, 0), st: fakeState{muted: map[string]bool{"jardin": true}}, label: "person"},
 		{name: "off_hours", in: person("garage", 0.9), now: at(12, 30), reason: ReasonOffHours},
 		{name: "quiet_hours", in: person("garage", 0.9), now: at(23, 0), silent: true, label: "person"},
 		{name: "cooldown actif", in: person("garage", 0.9), now: at(15, 0), st: fakeState{last: map[string]time.Time{"garage/person": at(15, 0).Add(-30 * time.Second)}}, reason: ReasonCooldown},
-		{name: "cooldown écoulé", in: person("garage", 0.9), now: at(15, 0), st: fakeState{last: map[string]time.Time{"garage/person": at(15, 0).Add(-2 * time.Minute)}}, label: "person"},
-		{name: "severity refusée", in: Input{Camera: "garage", Labels: []string{"person"}, Severity: "detection"}, now: at(15, 0), reason: ReasonSeverity},
-		{name: "severity acceptée", in: Input{Camera: "garage", Labels: []string{"person"}, Severity: "alert"}, now: at(15, 0), label: "person"},
+		{name: "cooldown over", in: person("garage", 0.9), now: at(15, 0), st: fakeState{last: map[string]time.Time{"garage/person": at(15, 0).Add(-2 * time.Minute)}}, label: "person"},
+		{name: "severity refused", in: Input{Camera: "garage", Labels: []string{"person"}, Severity: "detection"}, now: at(15, 0), reason: ReasonSeverity},
+		{name: "severity accepted", in: Input{Camera: "garage", Labels: []string{"person"}, Severity: "alert"}, now: at(15, 0), label: "person"},
 		{name: "plusieurs labels", in: Input{Camera: "garage", Labels: []string{"dog", "person"}}, now: at(15, 0), label: "person"},
 	}
 	for _, tc := range cases {
@@ -85,15 +85,15 @@ func TestEvaluate(t *testing.T) {
 			d := New(cfg, &st).Evaluate(tc.in, tc.now.UTC())
 			if tc.reason != "" {
 				if d.Notify || d.Reason != tc.reason {
-					t.Fatalf("décision = %+v, attendu refus %q", d, tc.reason)
+					t.Fatalf("decision = %+v, want a refusal %q", d, tc.reason)
 				}
 				return
 			}
 			if !d.Notify {
-				t.Fatalf("refus inattendu : %q", d.Reason)
+				t.Fatalf("unexpected refusal: %q", d.Reason)
 			}
 			if d.Silent != tc.silent || d.Label != tc.label || !reflect.DeepEqual(d.Chats, []string{"moi"}) {
-				t.Errorf("décision = %+v", d)
+				t.Errorf("decision = %+v", d)
 			}
 		})
 	}
@@ -101,7 +101,7 @@ func TestEvaluate(t *testing.T) {
 
 func TestCooldownKey(t *testing.T) {
 	if CooldownKey("jardin", "person") != "jardin/person" {
-		t.Error("clé inattendue")
+		t.Error("unexpected key")
 	}
 }
 
@@ -126,7 +126,7 @@ cameras:
 	home := &fakeState{home: true}
 	e := New(cfg, home)
 	if d := e.Evaluate(in("entree"), noon); d.Notify || d.Reason != ReasonHome {
-		t.Errorf("entree (défaut skip) = %+v, attendu refus home", d)
+		t.Errorf("entree (default skip) = %+v, want a home refusal", d)
 	}
 	if d := e.Evaluate(in("jardin"), noon); !d.Notify || d.Silent {
 		t.Errorf("jardin (notify) = %+v", d)
@@ -135,12 +135,12 @@ cameras:
 		t.Errorf("garage (silent) = %+v", d)
 	}
 	if d := New(cfg, &fakeState{}).Evaluate(in("entree"), noon); !d.Notify {
-		t.Errorf("personne à la maison : entree = %+v", d)
+		t.Errorf("nobody home: entree = %+v", d)
 	}
-	// Sans topics de présence configurés, when_home n'a aucun effet.
+	// Without presence topics configured, when_home has no effect.
 	cfg2, _ := config.Parse([]byte(cfgYAML), func(string) (string, bool) { return "", false })
 	if d := New(cfg2, home).Evaluate(in("entree"), noon); !d.Notify {
-		t.Errorf("présence non configurée : %+v", d)
+		t.Errorf("presence not configured: %+v", d)
 	}
 }
 
@@ -166,26 +166,26 @@ recipients:
 	}
 
 	if d := e.Evaluate(in("person"), at(15)); !reflect.DeepEqual(d.Chats, []string{"moi"}) {
-		t.Errorf("15 h, personne : chats = %v (la famille ne reçoit que la nuit)", d.Chats)
+		t.Errorf("3 pm, person: chats = %v (the family only gets the night)", d.Chats)
 	}
 	if d := e.Evaluate(in("person"), at(22)); !reflect.DeepEqual(d.Chats, []string{"famille", "moi"}) || d.SilentFor("famille") {
-		t.Errorf("22 h, personne : %+v", d)
+		t.Errorf("10 pm, person: %+v", d)
 	}
 	if d := e.Evaluate(in("car"), at(22)); !reflect.DeepEqual(d.Chats, []string{"moi"}) {
-		t.Errorf("22 h, voiture : chats = %v (la famille ne reçoit que les personnes)", d.Chats)
+		t.Errorf("10 pm, car: chats = %v (the family only gets people)", d.Chats)
 	}
 	if d := e.Evaluate(in("person"), at(23)); !d.SilentFor("famille") || d.SilentFor("moi") {
-		t.Errorf("23 h : sans son pour la famille seulement, obtenu %+v", d)
+		t.Errorf("11 pm: silent for the family only, got %+v", d)
 	}
-	// Personne ne reçoit : refus explicite.
-	cfg.Recipient("moi") // accès concurrent-sûr
+	// Nobody receives it: an explicit refusal.
+	cfg.Recipient("moi") // concurrency-safe access
 	o := cfg.CurrentOverlay()
 	o.Recipients["moi"] = config.Recipient{Labels: []string{"dog"}}
 	if err := cfg.ApplyOverlay(&o); err != nil {
 		t.Fatal(err)
 	}
 	if d := e.Evaluate(in("car"), at(15)); d.Notify || d.Reason != ReasonRecipients {
-		t.Errorf("aucun destinataire : %+v", d)
+		t.Errorf("no recipient: %+v", d)
 	}
 }
 
@@ -212,20 +212,20 @@ cameras:
 		in     Input
 		reason string
 	}{
-		{"voiture ignorée (casse différente)", in("jardin", "car", "clio 3 océane"), ReasonSubLabel},
-		{"chat ignoré", in("jardin", "cat", "ohana"), ReasonSubLabel},
-		{"autre voiture connue", in("jardin", "car", "audi a3 baptiste"), ""},
-		{"voiture sans étiquette", in("jardin", "car"), ""},
-		{"salon : seulement les inconnus", in("salon", "cat", "ulysse"), ReasonSubLabel},
-		{"salon : inconnu", in("salon", "cat"), ""},
-		{"revue : un ignoré et un inconnu", in("jardin", "car", "ohana", ""), ""},
-		{"revue : deux ignorés", in("jardin", "car", "ohana", "clio 3 océane"), ReasonSubLabel},
+		{"car ignored (different case)", in("jardin", "car", "clio 3 océane"), ReasonSubLabel},
+		{"cat ignored", in("jardin", "cat", "ohana"), ReasonSubLabel},
+		{"another known car", in("jardin", "car", "audi a3 baptiste"), ""},
+		{"car without a label", in("jardin", "car"), ""},
+		{"salon: only unknown objects", in("salon", "cat", "ulysse"), ReasonSubLabel},
+		{"salon: unknown", in("salon", "cat"), ""},
+		{"review: one ignored and one unknown", in("jardin", "car", "ohana", ""), ""},
+		{"review: two ignored", in("jardin", "car", "ohana", "clio 3 océane"), ReasonSubLabel},
 	} {
 		if d := e.Evaluate(tc.in, noon); d.Reason != tc.reason || d.Notify != (tc.reason == "") {
-			t.Errorf("%s : %+v, attendu raison %q", tc.name, d, tc.reason)
+			t.Errorf("%s: %+v, want reason %q", tc.name, d, tc.reason)
 		}
 	}
 	if !cfg.ForCamera("jardin").FiltersSubLabels() || cfg.Global().SubLabelWait != 5*time.Second {
-		t.Errorf("attente par défaut = %v", cfg.Global().SubLabelWait)
+		t.Errorf("default wait = %v", cfg.Global().SubLabelWait)
 	}
 }

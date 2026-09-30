@@ -1,13 +1,13 @@
-// Package mp4fix répare, sur place, les durées d'échantillons aberrantes des MP4
-// fragmentés que produit Frigate.
+// Package mp4fix repairs, in place, the aberrant sample durations of the fragmented
+// MP4 files Frigate produces.
 //
-// Certaines caméras envoient un horodatage audio décalé de plusieurs heures au début
-// d'un enregistrement. Frigate le recopie tel quel : dans le clip, le premier
-// échantillon audio « dure » alors 9 h, et Telegram affiche une vidéo de 9 h dont la
-// lecture est cassée. Un clip d'événement ne contient jamais d'échantillon de plus de
-// quelques dixièmes de seconde : toute durée au-delà de maxSample est ramenée à la
-// durée habituelle de la piste (la médiane du fragment). Seuls ces champs de 4 octets
-// changent : ni réencodage, ni changement de taille, son et image conservés.
+// Some cameras send an audio timestamp shifted by several hours at the start of a
+// recording. Frigate copies it as is: in the clip, the first audio sample then
+// "lasts" 9 h, and Telegram shows a 9 h video whose playback is broken. An event clip
+// never holds a sample longer than a few tenths of a second: any duration beyond
+// maxSample is brought back to the usual duration of the track (the median of the
+// fragment). Only these 4-byte fields change: no re-encoding, no size change, sound
+// and picture kept.
 package mp4fix
 
 import (
@@ -18,14 +18,14 @@ import (
 	"slices"
 )
 
-// maxSample est la durée au-delà de laquelle un échantillon est tenu pour faux.
+// maxSample is the duration beyond which a sample is considered wrong.
 const maxSample = 10 // secondes
 
-// maxBox borne la taille d'une boîte moov ou moof lue en mémoire.
+// maxBox bounds the size of a moov or moof box read into memory.
 const maxBox = 16 << 20
 
-// Fix répare le fichier path et renvoie le nombre d'échantillons corrigés. Un fichier
-// qui n'est pas un MP4 fragmenté est laissé tel quel (0, nil).
+// Fix repairs the file path and returns the number of samples fixed. A file that is
+// not a fragmented MP4 is left as is (0, nil).
 func Fix(path string) (int, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
@@ -69,10 +69,10 @@ func Fix(path string) (int, error) {
 	return fixed, nil
 }
 
-// Trim coupe le fichier path après son dernier fragment complet (un moof suivi de
-// son mdat) et renvoie le nombre de fragments gardés. Il sert quand Frigate cesse
-// d'envoyer un clip avant la fin : Telegram ne lit pas un fragment tronqué. Sans
-// aucun fragment complet (0), le fichier est laissé tel quel.
+// Trim cuts the file path after its last complete fragment (a moof followed by its
+// mdat) and returns the number of fragments kept. It serves when Frigate stops
+// sending a clip before the end: Telegram cannot play a truncated fragment. Without
+// any complete fragment (0), the file is left as is.
 func Trim(path string) (int, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
@@ -84,12 +84,12 @@ func Trim(path string) (int, error) {
 		return 0, err
 	}
 
-	var end int64 // fin du dernier fragment complet
+	var end int64 // end of the last complete fragment
 	frags, moof := 0, false
 	for off := int64(0); off+8 <= st.Size(); {
 		typ, _, size, err := header(f, off, st.Size())
 		if err != nil {
-			break // boîte tronquée : le fichier s'arrête là
+			break // truncated box: the file ends here
 		}
 		switch typ {
 		case "moof":
@@ -107,7 +107,7 @@ func Trim(path string) (int, error) {
 	return frags, f.Truncate(end)
 }
 
-// header lit l'en-tête de la boîte à off : type, taille de l'en-tête, taille totale.
+// header reads the header of the box at off: type, header size, total size.
 func header(f *os.File, off, fileSize int64) (string, int64, int64, error) {
 	var b [16]byte
 	if _, err := f.ReadAt(b[:8], off); err != nil {
@@ -115,7 +115,7 @@ func header(f *os.File, off, fileSize int64) (string, int64, int64, error) {
 	}
 	size, hdr := int64(binary.BigEndian.Uint32(b[:4])), int64(8)
 	switch size {
-	case 0: // jusqu'à la fin du fichier
+	case 0: // up to the end of the file
 		size = fileSize - off
 	case 1:
 		if _, err := f.ReadAt(b[8:16], off+8); err != nil {
@@ -129,7 +129,7 @@ func header(f *os.File, off, fileSize int64) (string, int64, int64, error) {
 	return string(b[4:8]), hdr, size, nil
 }
 
-// children parcourt les boîtes contenues dans buf.
+// children walks the boxes contained in buf.
 func children(buf []byte, fn func(typ string, body []byte)) {
 	for len(buf) >= 8 {
 		size, hdr := uint64(binary.BigEndian.Uint32(buf)), uint64(8)
@@ -146,7 +146,7 @@ func children(buf []byte, fn func(typ string, body []byte)) {
 	}
 }
 
-// readTimescales relève l'échelle de temps de chaque piste (moov/trak/{tkhd,mdia/mdhd}).
+// readTimescales records the timescale of each track (moov/trak/{tkhd,mdia/mdhd}).
 func readTimescales(moov []byte, out map[uint32]uint32) {
 	children(moov, func(typ string, trak []byte) {
 		if typ != "trak" {
@@ -173,8 +173,8 @@ func readTimescales(moov []byte, out map[uint32]uint32) {
 	})
 }
 
-// fieldAfterDates renvoie la position du champ qui suit les dates de création et de
-// modification d'une boîte tkhd ou mdhd : 4 octets en version 0, 8 en version 1.
+// fieldAfterDates returns the position of the field that follows the creation and
+// modification dates of a tkhd or mdhd box: 4 bytes in version 0, 8 in version 1.
 func fieldAfterDates(b []byte) (int, bool) {
 	if len(b) < 1 {
 		return 0, false
@@ -183,7 +183,7 @@ func fieldAfterDates(b []byte) (int, bool) {
 	return o, o > 0 && len(b) >= o+4
 }
 
-// fixMoof corrige les durées aberrantes des trun d'un moof ; modifie moof en place.
+// fixMoof fixes the aberrant durations of a moof's truns; modifies moof in place.
 func fixMoof(moof []byte, timescales map[uint32]uint32) int {
 	fixed := 0
 	children(moof, func(typ string, traf []byte) {
@@ -207,13 +207,13 @@ func fixMoof(moof []byte, timescales map[uint32]uint32) int {
 	return fixed
 }
 
-// fixTrun ramène à la médiane les durées d'échantillon supérieures à limit (en tics).
+// fixTrun brings the sample durations above limit (in ticks) back to the median.
 func fixTrun(b []byte, limit uint64) int {
 	if len(b) < 8 {
 		return 0
 	}
 	flags := uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
-	if flags&0x100 == 0 { // pas de durée par échantillon
+	if flags&0x100 == 0 { // no per-sample duration
 		return 0
 	}
 	n := int(binary.BigEndian.Uint32(b[4:]))
@@ -243,7 +243,7 @@ func fixTrun(b []byte, limit uint64) int {
 	if len(normal) == n {
 		return 0
 	}
-	repl := uint32(limit / maxSample / 10) // un dixième de seconde, faute de mieux
+	repl := uint32(limit / maxSample / 10) // a tenth of a second, for lack of better
 	if len(normal) > 0 {
 		slices.Sort(normal)
 		repl = normal[len(normal)/2]

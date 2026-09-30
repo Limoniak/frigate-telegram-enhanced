@@ -8,15 +8,15 @@ import (
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
-// handleEvent traite frigate/events. Appelé sous n.mu.
+// handleEvent handles frigate/events. Called under n.mu.
 func (n *Notifier) handleEvent(ctx context.Context, msg frigate.EventMessage) {
 	ev := msg.After
 	t := n.tracked[ev.ID]
 	if msg.Type == "end" {
 		if t != nil {
 			if t.pending != nil && !t.notified {
-				// Fin pendant l'attente de l'étiquette : on décide maintenant, avec
-				// l'étiquette connue à la fin, pour ne pas perdre la notification.
+				// End while waiting for the label: decide now, with the label known at the
+				// end, so as not to lose the notification.
 				t.subLabel = string(ev.SubLabel)
 				in := *t.pending
 				in.SubLabels = []string{t.subLabel}
@@ -48,7 +48,7 @@ func (n *Notifier) handleEvent(ctx context.Context, msg frigate.EventMessage) {
 	}
 	t.lastSeen = now
 	if t.notified {
-		// L'étiquette (classification, plaque) arrive souvent après la notification.
+		// The label (classification, plate) often arrives after the notification.
 		n.setSubLabel(ctx, t, string(ev.SubLabel))
 		return
 	}

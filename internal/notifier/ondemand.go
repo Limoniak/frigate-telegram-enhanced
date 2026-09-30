@@ -14,7 +14,7 @@ import (
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
-// SendClipTo envoie le clip d'un événement ou d'une review à un chat, en réponse à replyTo.
+// SendClipTo sends the clip of an event or review to a chat, as a reply to replyTo.
 func (n *Notifier) SendClipTo(ctx context.Context, chatID int64, replyTo int, id string) error {
 	path, err := n.clipPathFor(ctx, id)
 	if err != nil {
@@ -69,7 +69,7 @@ func (n *Notifier) sendClipFile(ctx context.Context, chatID int64, replyTo int, 
 	return err
 }
 
-// SendLast renvoie le dernier événement (d'une caméra si camera n'est pas vide) : snapshot puis clip.
+// SendLast sends the latest event (of a camera if camera is not empty): snapshot then clip.
 func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) error {
 	evs, err := n.Frigate.Events(ctx, camera, 1)
 	if err != nil {
@@ -112,14 +112,13 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 	return nil
 }
 
-// ErrNoRecipient signale une caméra dont les réglages n'ont aucun destinataire.
+// ErrNoRecipient reports a camera whose settings have no recipient.
 var ErrNoRecipient = i18n.NewError("no recipient for this camera")
 
-// SendTest envoie une notification d'exemple pour camera, telle qu'un vrai
-// événement la produirait avec les réglages en vigueur : destinataires, image en
-// direct ou texte seul. Les médias de suivi (clip, GIF) n'existent pas pour un test :
-// la légende signale seulement qu'ils suivraient. Renvoie une erreur si aucun
-// destinataire n'a reçu le message.
+// SendTest sends a sample notification for camera, as a real event would produce
+// it with the current settings: recipients, live image or text only. Follow-up
+// media (clip, GIF) do not exist for a test: the caption only says they would
+// follow. Returns an error if no recipient got the message.
 func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 	cfg := n.Config.ForCamera(camera)
 	if len(cfg.Chats) == 0 {

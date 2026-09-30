@@ -1,4 +1,4 @@
-// Package config charge, complète et valide la configuration YAML du service.
+// Package config loads, completes and validates the YAML configuration of the service.
 package config
 
 import (
@@ -24,19 +24,19 @@ const (
 	ModeReviews = "reviews"
 )
 
-// Comportement d'une caméra quand quelqu'un est à la maison (voir Presence).
+// Behavior of a camera when someone is home (see Presence).
 const (
 	HomeNotify = "notify" // notifier normalement
-	HomeSilent = "silent" // notifier sans son
-	HomeSkip   = "skip"   // ne rien envoyer
+	HomeSilent = "silent" // notify without sound
+	HomeSkip   = "skip"   // send nothing
 )
 
-// DefaultHomeValues sont les valeurs d'un topic de présence qui signifient « à la
-// maison » : celles de Home Assistant (person, device_tracker) et des capteurs binaires.
+// DefaultHomeValues are the values of a presence topic that mean "home": those of
+// Home Assistant (person, device_tracker) and of binary sensors.
 var DefaultHomeValues = []string{"home", "on", "true", "1", "present"}
 
-// DefaultHTTPListen est l'adresse d'écoute par défaut de l'interface web, de
-// /healthz et de /metrics. 8431 : un port qu'aucun service courant n'utilise.
+// DefaultHTTPListen is the default listening address of the web interface, /healthz
+// and /metrics. 8431: a port no common service uses.
 const DefaultHTTPListen = ":8431"
 
 type Frigate struct {
@@ -62,44 +62,44 @@ type Telegram struct {
 	Chats  map[string]int64 `yaml:"chats"`
 }
 
-// Recipient restreint ce que reçoit un destinataire, en plus des réglages des
-// caméras : seulement certains objets, pas à certaines heures, sans son à d'autres.
-// Vide, il reçoit tout ce que les caméras lui envoient.
+// Recipient restricts what a recipient receives, on top of the cameras' settings:
+// only some objects, not at some hours, silently at others. Empty, it receives
+// everything the cameras send it.
 type Recipient struct {
-	Labels     []string    `yaml:"labels,omitempty" json:"labels"`           // vide = tous les objets
-	QuietHours []TimeRange `yaml:"quiet_hours,omitempty" json:"quiet_hours"` // sans son pour lui
-	OffHours   []TimeRange `yaml:"off_hours,omitempty" json:"off_hours"`     // rien pour lui
+	Labels     []string    `yaml:"labels,omitempty" json:"labels"`           // empty = every object
+	QuietHours []TimeRange `yaml:"quiet_hours,omitempty" json:"quiet_hours"` // silent for this recipient
+	OffHours   []TimeRange `yaml:"off_hours,omitempty" json:"off_hours"`     // nothing for this recipient
 }
 
-// IsZero indique un destinataire sans restriction.
+// IsZero reports a recipient without restrictions.
 func (r Recipient) IsZero() bool {
 	return len(r.Labels) == 0 && len(r.QuietHours) == 0 && len(r.OffHours) == 0
 }
 
-// Presence décrit qui est à la maison, lu sur des topics MQTT (Home Assistant,
-// capteur…). Quelqu'un est à la maison dès qu'un des topics porte une des valeurs de
-// HomeValues. Les topics acceptent les jokers MQTT + et #.
+// Presence describes who is home, read from MQTT topics (Home Assistant, a
+// sensor…). Someone is home as soon as one of the topics carries one of the
+// HomeValues. Topics accept the MQTT wildcards + and #.
 type Presence struct {
 	Topics     []string `yaml:"topics"`
 	HomeValues []string `yaml:"home_values"`
 }
 
-// Enabled indique si la présence est suivie.
+// Enabled reports whether presence is tracked.
 func (p Presence) Enabled() bool { return len(p.Topics) > 0 }
 
-// Web configure l'interface de réglage des notifications, servie par le même
-// serveur HTTP que /healthz et /metrics.
+// Web configures the notification settings interface, served by the same HTTP
+// server as /healthz and /metrics.
 type Web struct {
 	Enabled  bool
-	Password string // vide = pas d'authentification
-	// AllowedHosts liste les noms d'hôte acceptés, en plus des adresses IP et de
-	// localhost, quand aucun mot de passe n'est défini (protection anti-rebinding DNS).
+	Password string // empty = no authentication
+	// AllowedHosts lists the host names accepted besides IP addresses and localhost
+	// when no password is set (protection against DNS rebinding).
 	AllowedHosts []string
-	// ProtectMetrics soumet aussi /metrics au mot de passe de l'interface.
+	// ProtectMetrics puts /metrics behind the interface password too.
 	ProtectMetrics bool
 }
 
-// Notify est la configuration de notification effective d'une caméra.
+// Notify is the effective notification configuration of a camera.
 type Notify struct {
 	Enabled          bool
 	Chats            []string
@@ -110,35 +110,35 @@ type Notify struct {
 	IgnoreStationary bool
 	Severity         []string
 	Snapshot         bool
-	Crop             bool // image recadrée sur l'objet plutôt que le plan large
+	Crop             bool // image cropped on the object rather than the wide shot
 	Clip             bool
-	// MediaInPlace : à la fin de l'événement, la vidéo (ou le GIF) remplace l'image
-	// dans le message de la notification, au lieu d'arriver en réponse.
+	// MediaInPlace: at the end of the event, the video (or GIF) replaces the image in
+	// the notification message, instead of arriving as a reply.
 	MediaInPlace     bool
 	GIF              bool
 	GenAIDescription bool
 	ClipDelay        time.Duration
 	QuietHours       []TimeRange
 	OffHours         []TimeRange
-	WhenHome         string // HomeNotify, HomeSilent ou HomeSkip
-	// Group regroupe les rafales : pendant ce délai après une notification, les
-	// détections suivantes s'ajoutent à son message au lieu d'en envoyer un nouveau.
-	// Réglage global (celui de notify) ; 0 = désactivé.
+	WhenHome         string // HomeNotify, HomeSilent or HomeSkip
+	// Group groups bursts: for this long after a notification, the following
+	// detections are added to its message instead of sending a new one.
+	// Global setting (the one of notify); 0 = disabled.
 	Group time.Duration
-	// Filtre sur les étiquettes de Frigate (classification, visage, plaque) :
-	// IgnoreSubLabels ne notifie pas ces étiquettes, IgnoreKnown aucun objet étiqueté.
-	// L'étiquette arrivant après la détection, la notification attend jusqu'à
-	// SubLabelWait qu'elle soit connue ; sans étiquette à temps, l'objet est inconnu.
+	// Filter on Frigate's labels (classification, face, plate): IgnoreSubLabels does
+	// not notify these labels, IgnoreKnown no labeled object at all. Since the label
+	// arrives after the detection, the notification waits up to SubLabelWait for it;
+	// without a label in time, the object is unknown.
 	IgnoreSubLabels []string
 	IgnoreKnown     bool
 	SubLabelWait    time.Duration
 }
 
-// FiltersSubLabels indique si la notification dépend de l'étiquette de l'objet.
+// FiltersSubLabels reports whether the notification depends on the object's label.
 func (n Notify) FiltersSubLabels() bool { return len(n.IgnoreSubLabels) > 0 || n.IgnoreKnown }
 
-// IgnoresSubLabel indique si une étiquette (non vide) est à ignorer, sans tenir
-// compte de la casse.
+// IgnoresSubLabel reports whether a (non-empty) label is to be ignored, regardless
+// of case.
 func (n Notify) IgnoresSubLabel(sub string) bool {
 	if sub == "" {
 		return false
@@ -146,9 +146,9 @@ func (n Notify) IgnoresSubLabel(sub string) bool {
 	return n.IgnoreKnown || slices.ContainsFunc(n.IgnoreSubLabels, func(s string) bool { return strings.EqualFold(strings.TrimSpace(s), sub) })
 }
 
-// Config rassemble les réglages du service. Les sections notify et cameras sont
-// modifiables à chaud par l'interface web : elles ne sont accessibles qu'à travers
-// les méthodes ci-dessous, qui les protègent par un verrou.
+// Config gathers the settings of the service. The notify and cameras sections can
+// be changed live by the web interface: they are only reachable through the
+// methods below, which guard them with a lock.
 type Config struct {
 	Timezone   string
 	Location   *time.Location
@@ -161,24 +161,24 @@ type Config struct {
 	StateFile  string
 	HTTPListen string
 	LogLevel   string
-	Source     string    // fichier lu, ou "environment"
-	Language   i18n.Lang // langue des messages Telegram et des erreurs (en par défaut)
+	Source     string    // file read, or "environment"
+	Language   i18n.Lang // language of Telegram messages and errors (en by default)
 
 	mu          sync.RWMutex
 	notify      Notify
 	cameras     map[string]Notify
 	recipients  map[string]Recipient
-	externalURL string // adresse des liens « Ouvrir dans Frigate » ; vide = celle de frigate.url
+	externalURL string // address of the "Open in Frigate" links; empty = the one of frigate.url
 
-	// état issu du seul config.yml, conservé pour pouvoir revenir en arrière
-	// quand l'interface web supprime ses surcharges.
+	// state from config.yml alone, kept to be able to go back when the web
+	// interface removes its overrides.
 	fileNotify      Notify
 	fileCameras     map[string]Notify
 	fileRecipients  map[string]Recipient
 	fileExternalURL string
 }
 
-// ForCamera renvoie la configuration effective d'une caméra (globale si non listée).
+// ForCamera returns the effective configuration of a camera (the global one if not listed).
 func (c *Config) ForCamera(name string) Notify {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -188,9 +188,9 @@ func (c *Config) ForCamera(name string) Notify {
 	return c.notify
 }
 
-// ExternalURL renvoie l'adresse de Frigate utilisée pour les liens des
-// notifications : celle réglée (FRIGATE_EXTERNAL_URL ou interface web), sinon
-// frigate.url, l'adresse par laquelle le service joint Frigate.
+// ExternalURL returns the Frigate address used for the notification links: the
+// one set (FRIGATE_EXTERNAL_URL or web interface), otherwise frigate.url, the
+// address the service reaches Frigate at.
 func (c *Config) ExternalURL() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -200,34 +200,34 @@ func (c *Config) ExternalURL() string {
 	return c.externalURL
 }
 
-// Recipient renvoie les restrictions d'un destinataire (vides s'il n'en a pas).
+// Recipient returns the restrictions of a recipient (empty if it has none).
 func (c *Config) Recipient(chat string) Recipient {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.recipients[chat]
 }
 
-// Global renvoie les réglages de notification par défaut.
+// Global returns the default notification settings.
 func (c *Config) Global() Notify {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.notify
 }
 
-// CameraNames renvoie, triés, les noms des caméras ayant des réglages propres.
+// CameraNames returns, sorted, the names of the cameras with their own settings.
 func (c *Config) CameraNames() []string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return slices.Sorted(maps.Keys(c.cameras))
 }
 
-// ChatID renvoie l'identifiant Telegram d'un chat nommé.
+// ChatID returns the Telegram ID of a named chat.
 func (c *Config) ChatID(name string) int64 { return c.Telegram.Chats[name] }
 
-// ChatNames renvoie, triés, les noms de chats déclarés.
+// ChatNames returns, sorted, the declared chat names.
 func (c *Config) ChatNames() []string { return slices.Sorted(maps.Keys(c.Telegram.Chats)) }
 
-// IsAdmin indique si l'utilisateur Telegram peut piloter le bot.
+// IsAdmin reports whether the Telegram user can control the bot.
 func (c *Config) IsAdmin(userID int64) bool { return slices.Contains(c.Telegram.Admins, userID) }
 
 type fileYAML struct {
@@ -254,8 +254,8 @@ type webYAML struct {
 	ProtectMetrics bool     `yaml:"protect_metrics"`
 }
 
-// NotifyPatch est une surcharge partielle de Notify : les champs absents laissent
-// la valeur de base inchangée. Les pointeurs distinguent « absent » de « valeur zéro ».
+// NotifyPatch is a partial override of Notify: missing fields leave the base value
+// unchanged. Pointers tell "missing" from "zero value".
 type NotifyPatch struct {
 	Enabled          *bool        `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 	Chats            *[]string    `yaml:"chats,omitempty" json:"chats,omitempty"`
@@ -293,7 +293,7 @@ func setDuration(dst *time.Duration, src *Duration) {
 	}
 }
 
-// ApplyTo superpose les champs présents sur base (remplacement champ par champ).
+// ApplyTo lays the present fields over base (field by field replacement).
 func (y NotifyPatch) ApplyTo(base Notify) Notify {
 	n := base
 	set(&n.Enabled, y.Enabled)
@@ -321,7 +321,7 @@ func (y NotifyPatch) ApplyTo(base Notify) Notify {
 	return n
 }
 
-// FullPatch décrit n entièrement : tous les champs sont renseignés.
+// FullPatch describes n entirely: every field is set.
 func FullPatch(n Notify) NotifyPatch {
 	cooldown, clipDelay, group, wait := Duration(n.Cooldown), Duration(n.ClipDelay), Duration(n.Group), Duration(n.SubLabelWait)
 	return NotifyPatch{
@@ -334,7 +334,7 @@ func FullPatch(n Notify) NotifyPatch {
 	}
 }
 
-// DiffPatch ne décrit que les champs par lesquels n s'écarte de base.
+// DiffPatch only describes the fields where n differs from base.
 func DiffPatch(base, n Notify) NotifyPatch {
 	var p NotifyPatch
 	diff(&p.Enabled, base.Enabled, n.Enabled)
@@ -407,9 +407,9 @@ func defaultNotify(chats map[string]int64) Notify {
 	}
 }
 
-// Load lit et valide le fichier de configuration, en résolvant les ${VAR}.
-// Sans fichier à path, la configuration est lue dans les variables d'environnement
-// (voir FromEnv) : c'est l'installation par docker-compose seul.
+// Load reads and validates the configuration file, resolving the ${VAR}.
+// Without a file at path, the configuration is read from the environment
+// variables (see FromEnv): that is the docker-compose-only installation.
 func Load(path string) (*Config, error) {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -426,8 +426,8 @@ func Load(path string) (*Config, error) {
 	return c, nil
 }
 
-// Parse construit la configuration depuis le YAML brut. La langue vient de la clé
-// language, sinon de la variable LANGUAGE.
+// Parse builds the configuration from raw YAML. The language comes from the
+// language key, otherwise from the LANGUAGE variable.
 func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 	lang := envLang(lookup)
 	expanded, err := expandEnv(raw, lookup, lang)
@@ -449,14 +449,14 @@ func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 	return build(f)
 }
 
-// envLang lit LANGUAGE, pour les erreurs qui précèdent le décodage de la config.
+// envLang reads LANGUAGE, for the errors that come before the configuration is decoded.
 func envLang(lookup func(string) (string, bool)) i18n.Lang {
 	v, _ := lookup("LANGUAGE")
 	l, _ := i18n.Parse(v)
 	return l
 }
 
-// build complète et valide une configuration décodée (fichier ou environnement).
+// build completes and validates a decoded configuration (file or environment).
 func build(f fileYAML) (*Config, error) {
 	lang, langErr := i18n.Parse(f.Language)
 	c := &Config{
@@ -507,10 +507,10 @@ func orDefault(v, def string) string {
 
 var envRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`)
 
-// expandEnv remplace ${VAR} et ${VAR:-défaut} dans les valeurs scalaires du YAML (jamais
-// dans les commentaires ni les clés). On passe par un yaml.Node pour que la substitution
-// agisse sur la valeur Go décodée, pas sur le texte brut : un guillemet ou un antislash
-// dans la variable n'a donc pas besoin d'être ré-échappé pour rester valide.
+// expandEnv replaces ${VAR} and ${VAR:-default} in the scalar values of the YAML
+// (never in comments or keys). It goes through a yaml.Node so that the substitution
+// applies to the decoded Go value, not to the raw text: a quote or a backslash in
+// the variable thus needs no re-escaping to stay valid.
 func expandEnv(raw []byte, lookup func(string) (string, bool), lang i18n.Lang) ([]byte, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return raw, nil
@@ -531,8 +531,8 @@ func expandEnv(raw []byte, lookup func(string) (string, bool), lang i18n.Lang) (
 	return out, nil
 }
 
-// expandScalarNodes applique la substitution ${VAR} à la valeur de chaque nœud scalaire
-// de l'arbre (récursif : clés, valeurs, éléments de liste).
+// expandScalarNodes applies the ${VAR} substitution to the value of each scalar node
+// of the tree (recursively: keys, values, list items).
 func expandScalarNodes(n *yaml.Node, lookup func(string) (string, bool), missing *[]string) {
 	if n.Kind == yaml.ScalarNode {
 		n.Value = envRe.ReplaceAllStringFunc(n.Value, func(m string) string {
@@ -601,7 +601,7 @@ func (c *Config) validate() error {
 	return errors.Join(errs...)
 }
 
-// validateExternalURL vérifie l'adresse des liens : vide, ou http(s)://hôte[…].
+// validateExternalURL checks the address of the links: empty, or http(s)://host[…].
 func validateExternalURL(u string, l i18n.Lang) error {
 	if u == "" {
 		return nil
@@ -639,7 +639,7 @@ func (c *Config) validateNotify(where string, n Notify, l i18n.Lang) []error {
 		errs = append(errs, l.Errorf("%s.min_score must be between 0 and 1", where))
 	}
 	switch n.WhenHome {
-	case HomeNotify, HomeSilent, HomeSkip, "": // vide : réglage antérieur à when_home, vaut HomeSkip
+	case HomeNotify, HomeSilent, HomeSkip, "": // empty: setting older than when_home, means HomeSkip
 	default:
 		errs = append(errs, l.Errorf("%s.when_home: invalid value %q (notify, silent or skip)", where, n.WhenHome))
 	}

@@ -30,7 +30,7 @@ func TestBuildCaption(t *testing.T) {
 		"🕑 28/09 16:32:05\n" +
 		"🔗 <a href=\"https://nvr.example/explore?event_id=abc\">Ouvrir dans Frigate</a>"
 	if got != want {
-		t.Errorf("légende :\n%s\nattendu :\n%s", got, want)
+		t.Errorf("caption:\n%s\nwant:\n%s", got, want)
 	}
 }
 
@@ -52,10 +52,10 @@ func TestBuildCaptionEnglish(t *testing.T) {
 func TestBuildCaptionEscapesAndUnknownLabel(t *testing.T) {
 	got := buildCaption(captionData{Label: "raccoon", Camera: "<cam>", Start: time.Unix(0, 0)}, time.UTC, i18n.FR)
 	if !strings.Contains(got, "🔔 raccoon") || !strings.Contains(got, "&lt;cam&gt;") {
-		t.Errorf("légende = %q", got)
+		t.Errorf("caption = %q", got)
 	}
 	if strings.Contains(got, "📍") || strings.Contains(got, "🔗") {
-		t.Errorf("lignes vides inattendues : %q", got)
+		t.Errorf("unexpected empty lines: %q", got)
 	}
 }
 
@@ -63,30 +63,30 @@ func TestBuildCaptionTruncatesDescription(t *testing.T) {
 	got := buildCaption(captionData{Label: "person", Camera: "jardin", Start: time.Unix(0, 0),
 		Description: strings.Repeat("é", 2000), Link: "https://nvr.example/x"}, time.UTC, i18n.FR)
 	if n := utf8.RuneCountInString(got); n > 1024 {
-		t.Errorf("légende de %d caractères (max 1024)", n)
+		t.Errorf("caption of %d characters (max 1024)", n)
 	}
 	if !strings.Contains(got, "…") || !strings.HasSuffix(got, "Ouvrir dans Frigate</a>") {
-		t.Errorf("troncature incorrecte : %q", got[len(got)-80:])
+		t.Errorf("wrong truncation: %q", got[len(got)-80:])
 	}
 }
 
 func TestButtons(t *testing.T) {
 	kb := buttons("jardin", "abc", i18n.EN).InlineKeyboard
 	if len(kb) != 2 {
-		t.Fatalf("deux lignes attendues : %+v", kb)
+		t.Fatalf("want two rows: %+v", kb)
 	}
 	see, quiet := kb[0], kb[1]
 	if len(see) != 2 || see[0].Text != "📷 Now" || see[0].CallbackData != "s:jardin" || see[1].CallbackData != "c:abc" {
-		t.Errorf("ligne voir = %+v", see)
+		t.Errorf("look row = %+v", see)
 	}
 	if len(quiet) != 2 || quiet[0].CallbackData != "m:jardin:3600" || quiet[1].CallbackData != "p:1800" {
-		t.Errorf("ligne faire taire = %+v", quiet)
+		t.Errorf("silence row = %+v", quiet)
 	}
 	if fr := buttons("jardin", "abc", i18n.FR).InlineKeyboard[0][0].Text; fr != "📷 Maintenant" {
-		t.Errorf("libellé français = %q", fr)
+		t.Errorf("French wording = %q", fr)
 	}
 	long := strings.Repeat("x", 70)
 	if row := buttons("jardin", long, i18n.EN).InlineKeyboard[0]; len(row) != 1 || row[0].Text != "📷 Now" {
-		t.Errorf("un callback_data > 64 octets doit être omis : %+v", row)
+		t.Errorf("a callback_data > 64 bytes must be left out: %+v", row)
 	}
 }

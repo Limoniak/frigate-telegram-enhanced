@@ -29,7 +29,7 @@ func TestFromEnvMinimal(t *testing.T) {
 		t.Errorf("telegram = %+v", c.Telegram)
 	}
 	if c.Location.String() != "Europe/Paris" || !c.Web.Enabled || c.StateFile != "/data/state.json" {
-		t.Errorf("défauts = %v %+v %q", c.Location, c.Web, c.StateFile)
+		t.Errorf("defaults = %v %+v %q", c.Location, c.Web, c.StateFile)
 	}
 	if n := c.Global(); !reflect.DeepEqual(n.Chats, []string{"123456789"}) || !n.Enabled {
 		t.Errorf("notify = %+v", n)
@@ -82,18 +82,18 @@ func TestFromEnvErrors(t *testing.T) {
 		vars map[string]string
 		want string
 	}{
-		{"rien", map[string]string{}, "TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, FRIGATE_URL, MQTT_BROKER"},
-		{"chat invalide", with("TELEGRAM_CHAT_ID", "moi"), "TELEGRAM_CHAT_ID"},
-		{"groupe sans admin", with("TELEGRAM_CHAT_ID", "-1001234567890"), "TELEGRAM_ADMINS is required"},
-		{"admin négatif", with("TELEGRAM_ADMINS", "-5"), "TELEGRAM_ADMINS"},
-		{"booléen", with("WEB_ENABLED", "peut-être"), "WEB_ENABLED"},
-		{"mode", with("MODE", "tout"), "mode"},
+		{"nothing", map[string]string{}, "TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, FRIGATE_URL, MQTT_BROKER"},
+		{"invalid chat", with("TELEGRAM_CHAT_ID", "moi"), "TELEGRAM_CHAT_ID"},
+		{"group without admin", with("TELEGRAM_CHAT_ID", "-1001234567890"), "TELEGRAM_ADMINS is required"},
+		{"negative admin", with("TELEGRAM_ADMINS", "-5"), "TELEGRAM_ADMINS"},
+		{"boolean", with("WEB_ENABLED", "maybe"), "WEB_ENABLED"},
+		{"mode", with("MODE", "everything"), "mode"},
 		{"fuseau", with("TZ", "Mars/Olympus"), "timezone"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := FromEnv(env(tc.vars))
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
-				t.Fatalf("erreur attendue contenant %q, obtenu %v", tc.want, err)
+				t.Fatalf("want an error containing %q, got %v", tc.want, err)
 			}
 		})
 	}
@@ -120,23 +120,23 @@ func TestLanguage(t *testing.T) {
 	}
 	c, err := FromEnv(env(base))
 	if err != nil || c.Language != i18n.EN {
-		t.Fatalf("langue par défaut = %q, %v ; attendu en", c.Language, err)
+		t.Fatalf("default language = %q, %v; want en", c.Language, err)
 	}
 	base["LANGUAGE"] = "fr"
 	if c, err = FromEnv(env(base)); err != nil || c.Language != i18n.FR {
-		t.Fatalf("LANGUAGE=fr : %q, %v", c.Language, err)
+		t.Fatalf("LANGUAGE=fr: %q, %v", c.Language, err)
 	}
 	base["TELEGRAM_CHAT_ID"] = "-1001234567890"
 	if _, err := FromEnv(env(base)); err == nil || !strings.Contains(err.Error(), "TELEGRAM_ADMINS est obligatoire") {
-		t.Errorf("erreur en français attendue, obtenu %v", err)
+		t.Errorf("want an error in French, got %v", err)
 	}
 	base["LANGUAGE"] = "de"
 	base["TELEGRAM_CHAT_ID"] = "111"
 	if _, err := FromEnv(env(base)); err == nil || !strings.Contains(err.Error(), "unsupported language") {
-		t.Errorf("langue inconnue : %v", err)
+		t.Errorf("unknown language: %v", err)
 	}
 	if _, err := FromEnv(env(map[string]string{"LANGUAGE": "fr"})); err == nil || !strings.Contains(err.Error(), "obligatoires manquantes") {
-		t.Errorf("variables manquantes en français : %v", err)
+		t.Errorf("missing variables in French: %v", err)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestFileLanguageKey(t *testing.T) {
 	}
 	_, err := Parse([]byte(minimal+"language: fr\nnotify:\n  chats: [nope]\n"), testEnv)
 	if err == nil || !strings.Contains(err.Error(), `chat "nope" inconnu`) {
-		t.Errorf("erreur en français attendue : %v", err)
+		t.Errorf("want an error in French: %v", err)
 	}
 }
 
@@ -164,12 +164,12 @@ func TestPresenceFromEnv(t *testing.T) {
 		t.Errorf("presence = %+v", c.Presence)
 	}
 	if !reflect.DeepEqual(c.Presence.HomeValues, DefaultHomeValues) {
-		t.Errorf("valeurs par défaut = %v", c.Presence.HomeValues)
+		t.Errorf("default values = %v", c.Presence.HomeValues)
 	}
 	if c.Global().WhenHome != HomeSkip {
-		t.Errorf("when_home par défaut = %q", c.Global().WhenHome)
+		t.Errorf("default when_home = %q", c.Global().WhenHome)
 	}
 	if _, err := Parse([]byte(minimal+"notify:\n  when_home: parfois\n"), testEnv); err == nil || !strings.Contains(err.Error(), "when_home") {
-		t.Errorf("when_home invalide : %v", err)
+		t.Errorf("invalid when_home: %v", err)
 	}
 }

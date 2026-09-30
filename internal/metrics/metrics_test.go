@@ -16,7 +16,7 @@ func TestRegistryExposesMetrics(t *testing.T) {
 	}
 	for _, name := range []string{"ft_events_dropped_total", "ft_events_filtered_total", "ft_mqtt_connected", "go_goroutines"} {
 		if !found[name] {
-			t.Errorf("métrique %s absente", name)
+			t.Errorf("metric %s missing", name)
 		}
 	}
 }

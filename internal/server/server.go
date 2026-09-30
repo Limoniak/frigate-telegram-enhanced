@@ -1,4 +1,4 @@
-// Package server expose /healthz, /metrics et, si elle est activée, l'interface web.
+// Package server serves /healthz, /metrics and, when enabled, the web interface.
 package server
 
 import (
@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// New construit le serveur HTTP. metrics sert /metrics (éventuellement déjà protégé
-// par mot de passe). Chaque fonction de mount reçoit le routeur pour y ajouter ses
-// propres routes — l'interface web s'y greffe sans que ce paquet ait à la connaître.
+// New builds the HTTP server. metrics serves /metrics (possibly already behind a
+// password). Each mount function gets the router to add its own routes — the web
+// interface plugs in without this package having to know it.
 func New(addr string, health func() error, metrics http.Handler, mount ...func(*http.ServeMux)) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -28,7 +28,7 @@ func New(addr string, health func() error, metrics http.Handler, mount ...func(*
 	return &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 }
 
-// Check interroge url et renvoie nil si la réponse est 200 (utilisé par -healthcheck).
+// Check queries url and returns nil if the response is 200 (used by -healthcheck).
 func Check(url string) error {
 	c := http.Client{Timeout: 3 * time.Second}
 	resp, err := c.Get(url)

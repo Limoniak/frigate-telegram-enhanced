@@ -24,7 +24,7 @@ func TestParseEventNew(t *testing.T) {
 	}
 	e := m.After
 	if m.Type != "new" || e.ID != "1727520000.123456-abc123" || e.Camera != "jardin" || e.Label != "person" {
-		t.Errorf("champs de base incorrects : %+v", m)
+		t.Errorf("wrong base fields: %+v", m)
 	}
 	if e.SubLabel != "Alice" {
 		t.Errorf("sub_label = %q", e.SubLabel)
@@ -33,10 +33,10 @@ func TestParseEventNew(t *testing.T) {
 		t.Errorf("BestScore = %v", e.BestScore())
 	}
 	if !reflect.DeepEqual(e.EnteredZones, []string{"allee"}) || !e.HasSnapshot || e.EndTime != nil {
-		t.Errorf("zones/snapshot/end incorrects : %+v", e)
+		t.Errorf("wrong zones/snapshot/end: %+v", e)
 	}
 	if m.Before == nil || !m.Before.FalsePositive {
-		t.Error("before non décodé")
+		t.Error("before not decoded")
 	}
 }
 
@@ -46,10 +46,10 @@ func TestParseEventEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	if m.Type != "end" || m.After.EndTime == nil || *m.After.EndTime != 1727520030.0 {
-		t.Errorf("end incorrect : %+v", m.After)
+		t.Errorf("wrong end: %+v", m.After)
 	}
 	if m.After.SubLabel != "Alice" {
-		t.Errorf("sub_label (format chaîne) = %q", m.After.SubLabel)
+		t.Errorf("sub_label (string format) = %q", m.After.SubLabel)
 	}
 }
 
@@ -58,10 +58,10 @@ func TestSubLabelFormats(t *testing.T) {
 	for raw, want := range cases {
 		var s SubLabel
 		if err := json.Unmarshal([]byte(raw), &s); err != nil {
-			t.Errorf("%s : %v", raw, err)
+			t.Errorf("%s: %v", raw, err)
 		}
 		if s != want {
-			t.Errorf("%s : %q, attendu %q", raw, s, want)
+			t.Errorf("%s: %q, want %q", raw, s, want)
 		}
 	}
 }
@@ -73,12 +73,12 @@ func TestParseReview(t *testing.T) {
 	}
 	r := m.After
 	if m.Type != "new" || r.Severity != "alert" || r.Camera != "jardin" || r.StartTime != 1727520000.2 {
-		t.Errorf("review incorrecte : %+v", r)
+		t.Errorf("wrong review: %+v", r)
 	}
 	if !reflect.DeepEqual(r.Data.Detections, []string{"1727520000.123456-abc123"}) ||
 		!reflect.DeepEqual(r.Data.Objects, []string{"person"}) ||
 		!reflect.DeepEqual(r.Data.Zones, []string{"allee"}) {
-		t.Errorf("data incorrecte : %+v", r.Data)
+		t.Errorf("wrong data: %+v", r.Data)
 	}
 }
 
@@ -88,19 +88,19 @@ func TestParseTrackedObjectUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if u.Type != "description" || u.ID != "1727520000.123456-abc123" || u.Description == "" {
-		t.Errorf("update incorrecte : %+v", u)
+		t.Errorf("wrong update: %+v", u)
 	}
 }
 
 func TestParseRejectsMissingID(t *testing.T) {
 	if _, err := ParseEventMessage([]byte(`{"type":"new","after":{}}`)); err == nil {
-		t.Error("event sans id accepté")
+		t.Error("event without an id accepted")
 	}
 	if _, err := ParseReviewMessage([]byte(`{"type":"new","after":{}}`)); err == nil {
-		t.Error("review sans id acceptée")
+		t.Error("review without an id accepted")
 	}
-	if _, err := ParseEventMessage([]byte(`pas du json`)); err == nil {
-		t.Error("json invalide accepté")
+	if _, err := ParseEventMessage([]byte(`not json`)); err == nil {
+		t.Error("invalid json accepted")
 	}
 }
 

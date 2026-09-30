@@ -10,22 +10,22 @@ import (
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
-// maxGroupLines borne le nombre de détections détaillées dans un message regroupé ;
-// au-delà, la légende indique seulement combien d'autres ont suivi.
+// maxGroupLines bounds the number of detections detailed in a grouped message;
+// beyond it, the caption only says how many others followed.
 const maxGroupLines = 8
 
-// group rassemble, pour un destinataire, les détections arrivées peu après une
-// notification (sa « tête ») : elles s'ajoutent à la légende de celle-ci au lieu
-// d'envoyer de nouveaux messages. Modifier un message ne fait pas sonner le téléphone.
+// group gathers, for a recipient, the detections that arrived shortly after a
+// notification (its "head"): they are added to its caption instead of sending new
+// messages. Editing a message does not make the phone ring.
 type group struct {
 	lead    *tracked
 	started time.Time
-	lines   []string // « 14:33 🚗 Voiture — garage », déjà échappées
-	count   int      // détections ajoutées, lignes non détaillées comprises
+	lines   []string // "14:33 🚗 Car — garage", already escaped
+	count   int      // detections added, lines not detailed included
 }
 
-// split répartit les destinataires d'une nouvelle notification : ceux qui ont un
-// regroupement en cours (grouped) et les autres (fresh). Appelé sous n.mu.
+// split sorts the recipients of a new notification: those with a grouping in
+// progress (grouped) and the others (fresh). Called under n.mu.
 func (n *Notifier) split(t *tracked, chats []string, now time.Time) (fresh, grouped []string) {
 	window := n.Config.Global().Group
 	for _, chat := range chats {
@@ -39,7 +39,7 @@ func (n *Notifier) split(t *tracked, chats []string, now time.Time) (fresh, grou
 	return fresh, grouped
 }
 
-// startGroups fait de t la tête des regroupements de chats. Appelé sous n.mu.
+// startGroups makes t the head of the groupings of chats. Called under n.mu.
 func (n *Notifier) startGroups(t *tracked, chats []string, now time.Time) {
 	if n.Config.Global().Group <= 0 {
 		return
@@ -51,8 +51,8 @@ func (n *Notifier) startGroups(t *tracked, chats []string, now time.Time) {
 	}
 }
 
-// addToGroups ajoute t aux regroupements en cours de chats et met à jour leurs
-// messages. Appelé sous n.mu.
+// addToGroups adds t to the groupings in progress of chats and updates their
+// messages. Called under n.mu.
 func (n *Notifier) addToGroups(ctx context.Context, t *tracked, chats []string) {
 	l := n.Config.Language
 	line := html.EscapeString(t.start.In(n.Config.Location).Format("15:04") + " " + labelText(t.label, l) + " — " + t.camera)
@@ -70,7 +70,7 @@ func (n *Notifier) addToGroups(ctx context.Context, t *tracked, chats []string) 
 	}
 }
 
-// groupBlock est le bloc ajouté à la légende de la tête d'un regroupement.
+// groupBlock is the block added to the caption of a grouping's head.
 func (n *Notifier) groupBlock(g *group) string {
 	if g == nil || g.count == 0 {
 		return ""
@@ -87,17 +87,17 @@ func (n *Notifier) groupBlock(g *group) string {
 	return b.String()
 }
 
-// captionFor est la légende de t telle que la voit chat, regroupement compris.
-// Appelé sous n.mu.
+// captionFor is the caption of t as chat sees it, grouping included.
+// Called under n.mu.
 func (n *Notifier) captionFor(t *tracked, chat string) string {
 	d := n.captionData(t)
 	d.Group = n.groupBlock(t.groups[chat])
 	return buildCaption(d, n.Config.Location, n.Config.Language)
 }
 
-// editCaption remplace la légende du message de t chez chat par sa version à jour
-// (description GenAI, détections regroupées). La légende est calculée au moment de
-// l'envoi : deux mises à jour rapprochées envoient toutes deux la plus récente.
+// editCaption replaces the caption of t's message in chat with its current version
+// (GenAI description, grouped detections). The caption is computed when sending:
+// two updates close together both send the latest one.
 func (n *Notifier) editCaption(ctx context.Context, t *tracked, chat string) {
 	select {
 	case <-t.ready:

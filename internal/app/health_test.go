@@ -19,8 +19,8 @@ import (
 	"frigate-telegram-enhanced/internal/web"
 )
 
-// newChecker construit un diagnostic contre un faux Frigate et un faux Telegram,
-// avec un broker MQTT injoignable.
+// newChecker builds a diagnosis against a fake Frigate and a fake Telegram, with
+// an unreachable MQTT broker.
 func newChecker(t *testing.T, frigateStatus int, tgBody string) *checker {
 	t.Helper()
 	fr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +72,7 @@ func TestHealthExplainsFailures(t *testing.T) {
 		t.Errorf("telegram = %+v", got[2])
 	}
 	if !strings.Contains(got[1].Detail, "injoignable") {
-		t.Errorf("mqtt en français = %+v", got[1])
+		t.Errorf("mqtt in French = %+v", got[1])
 	}
 }
 
@@ -86,21 +86,21 @@ func (f fakeDrops) Dropped() (int, time.Time) { return f.n, f.last }
 func TestHealthReportsDroppedEvents(t *testing.T) {
 	c := newChecker(t, http.StatusOK, `{"ok":true,"result":{"id":1,"username":"mon_bot"}}`)
 	if got := c.check(context.Background(), i18n.EN); len(got) != 3 {
-		t.Fatalf("sans perte : %d composants, attendu 3", len(got))
+		t.Fatalf("no loss: %d components, want 3", len(got))
 	}
 
 	c.drops = fakeDrops{n: 12, last: time.Now().Add(-time.Hour)}
 	got := c.check(context.Background(), i18n.FR)
 	if len(got) != 4 {
-		t.Fatalf("%d composants, attendu 4", len(got))
+		t.Fatalf("%d components, want 4", len(got))
 	}
 	if e := got[3]; e.State != web.StateWarn || !strings.Contains(e.Detail, "12") || e.Hint == "" {
-		t.Errorf("événements = %+v", e)
+		t.Errorf("events = %+v", e)
 	}
 
 	c.drops = fakeDrops{n: 12, last: time.Now().Add(-25 * time.Hour)}
 	if got := c.check(context.Background(), i18n.EN); len(got) != 3 {
-		t.Errorf("perte ancienne (> 24 h) : %d composants, attendu 3", len(got))
+		t.Errorf("old loss (> 24 h): %d components, want 3", len(got))
 	}
 }
 
@@ -114,13 +114,13 @@ func TestPresenceRouter(t *testing.T) {
 	h("homeassistant/person/bob/state", []byte("not_home"))
 	h("frigate/events", []byte("{}"))
 	if !st.SomeoneHome() {
-		t.Error("alice est à la maison")
+		t.Error("alice is home")
 	}
 	if len(forwarded) != 1 || forwarded[0] != "frigate/events" {
-		t.Errorf("transmis au notifier = %v", forwarded)
+		t.Errorf("forwarded to the notifier = %v", forwarded)
 	}
 	h("homeassistant/person/alice/state", []byte("Travail"))
 	if st.SomeoneHome() {
-		t.Error("plus personne à la maison")
+		t.Error("nobody home any more")
 	}
 }

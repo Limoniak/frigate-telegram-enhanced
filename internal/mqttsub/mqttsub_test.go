@@ -50,20 +50,20 @@ func TestSubscriberReceivesMessages(t *testing.T) {
 
 	deadline := time.After(10 * time.Second)
 	for {
-		// On publie en boucle : l'abonnement se fait de façon asynchrone après la connexion.
+		// Publish in a loop: the subscription happens asynchronously after the connection.
 		srv.Publish("frigate/events", []byte("hello"), false, 0)
 		select {
 		case v := <-got:
 			if v != "frigate/events|hello" {
-				t.Fatalf("reçu %q", v)
+				t.Fatalf("received %q", v)
 			}
 			if !s.Connected() {
-				t.Error("Connected() doit être vrai")
+				t.Error("Connected() must be true")
 			}
 			return
 		case <-time.After(100 * time.Millisecond):
 		case <-deadline:
-			t.Fatal("aucun message reçu en 10 s")
+			t.Fatal("no message received in 10 s")
 		}
 	}
 }
@@ -92,17 +92,17 @@ func TestProbeReportsTheCause(t *testing.T) {
 		return s.Probe(2 * time.Second)
 	}
 	if err := probe("tcp://"+addr, "frigate", "pw"); err != nil {
-		t.Errorf("bons identifiants : %v", err)
+		t.Errorf("right credentials: %v", err)
 	}
 	if err := probe("tcp://"+addr, "frigate", "faux"); err == nil {
-		t.Error("mauvais mot de passe : une erreur est attendue")
+		t.Error("wrong password: want an error")
 	} else {
-		t.Logf("mauvais mot de passe → %v", err)
+		t.Logf("wrong password → %v", err)
 	}
 	if err := probe("tcp://127.0.0.1:1", "", ""); err == nil {
-		t.Error("broker injoignable : une erreur est attendue")
+		t.Error("unreachable broker: want an error")
 	} else {
-		t.Logf("injoignable → %v", err)
+		t.Logf("unreachable → %v", err)
 	}
 }
 

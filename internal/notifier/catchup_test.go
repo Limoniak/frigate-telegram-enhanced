@@ -8,12 +8,12 @@ import (
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
-// deliver traite chaque message rattrapé comme un message MQTT, envois compris.
+// deliver handles each caught-up message like an MQTT message, sends included.
 func (h *harness) deliver(t *testing.T) func(topic string, payload []byte) {
 	return func(topic string, payload []byte) { h.send(t, topic, payload) }
 }
 
-// toChat garde les envois vers un chat (la configuration de test en a deux).
+// toChat keeps the sends to one chat (the test configuration has two).
 func toChat(calls []tgCall, chatID int64) []tgCall {
 	var out []tgCall
 	for _, c := range calls {
@@ -40,10 +40,10 @@ func TestCatchUpNotifiesEventMissedDuringOutage(t *testing.T) {
 	h.n.catchUp(context.Background(), h.clock.Now().Add(-5*time.Minute), h.deliver(t))
 
 	if n := len(toChat(h.tg.byMethod("sendPhoto"), 1)); n != 1 {
-		t.Errorf("%d photos, attendu 1", n)
+		t.Errorf("%d photos, want 1", n)
 	}
 	if n := len(toChat(h.tg.videos(), 1)); n != 1 {
-		t.Errorf("%d clips, attendu 1 (l'événement était terminé)", n)
+		t.Errorf("%d clips, want 1 (the event had ended)", n)
 	}
 }
 
@@ -64,10 +64,10 @@ func TestCatchUpSkipsWhatWasAlreadyHandled(t *testing.T) {
 	h.n.catchUp(context.Background(), h.clock.Now().Add(-time.Minute), h.deliver(t))
 
 	if n := len(toChat(h.tg.byMethod("sendPhoto"), 1)); n != photos {
-		t.Errorf("%d photos, attendu %d : p était déjà notifié", n, photos)
+		t.Errorf("%d photos, want %d: p was already notified", n, photos)
 	}
 	if n := len(h.n.History()); n != history {
-		t.Errorf("historique : %d entrées, attendu %d : d était déjà écarté", n, history)
+		t.Errorf("history: %d entries, want %d: d was already filtered out", n, history)
 	}
 }
 
@@ -77,7 +77,7 @@ func TestCatchUpFinishesEventEndedDuringOutage(t *testing.T) {
 	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	if n := len(toChat(h.tg.videos(), 1)); n != 0 {
-		t.Fatalf("%d clips avant la fin", n)
+		t.Fatalf("%d clips before the end", n)
 	}
 
 	end := 1790604030.0
@@ -85,10 +85,10 @@ func TestCatchUpFinishesEventEndedDuringOutage(t *testing.T) {
 	h.n.catchUp(context.Background(), h.clock.Now().Add(-time.Minute), h.deliver(t))
 
 	if n := len(toChat(h.tg.videos(), 1)); n != 1 {
-		t.Errorf("%d clips, attendu 1 : la fin manquée doit envoyer le clip", n)
+		t.Errorf("%d clips, want 1: the missed end must send the clip", n)
 	}
 	if n := len(toChat(h.tg.byMethod("sendPhoto"), 1)); n != 1 {
-		t.Errorf("%d photos, attendu 1 (pas de nouvelle notification)", n)
+		t.Errorf("%d photos, want 1 (no new notification)", n)
 	}
 }
 
@@ -96,7 +96,7 @@ func TestCatchUpLooksBackOneHourAtMost(t *testing.T) {
 	h := newHarness(t, "events")
 	h.n.catchUp(context.Background(), h.clock.Now().Add(-5*time.Hour), h.deliver(t))
 	if want := h.clock.Now().Add(-catchUpWindow); h.fr.after.Before(want) {
-		t.Errorf("rattrapage depuis %v, attendu au plus tôt %v", h.fr.after, want)
+		t.Errorf("catching up since %v, want %v at the earliest", h.fr.after, want)
 	}
 }
 
@@ -112,6 +112,6 @@ func TestCatchUpReviews(t *testing.T) {
 	h.n.catchUp(context.Background(), h.clock.Now().Add(-5*time.Minute), h.deliver(t))
 
 	if n := len(toChat(h.tg.byMethod("sendPhoto"), 1)); n != 1 {
-		t.Errorf("%d photos, attendu 1", n)
+		t.Errorf("%d photos, want 1", n)
 	}
 }

@@ -30,10 +30,10 @@ func okResult(w http.ResponseWriter, result string) {
 func TestSendPhotoMultipart(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/bot"+token+"/sendPhoto" {
-			t.Errorf("chemin = %s", r.URL.Path)
+			t.Errorf("path = %s", r.URL.Path)
 		}
 		if r.ContentLength <= 0 {
-			t.Error("Content-Length attendu (pas de chunked)")
+			t.Error("want a Content-Length (not chunked)")
 		}
 		if err := r.ParseMultipartForm(1 << 20); err != nil {
 			t.Fatal(err)
@@ -41,7 +41,7 @@ func TestSendPhotoMultipart(t *testing.T) {
 		checks := map[string]string{"chat_id": "42", "caption": "<b>hi</b>", "parse_mode": "HTML", "disable_notification": "true"}
 		for k, want := range checks {
 			if got := r.FormValue(k); got != want {
-				t.Errorf("%s = %q, attendu %q", k, got, want)
+				t.Errorf("%s = %q, want %q", k, got, want)
 			}
 		}
 		var markup InlineKeyboardMarkup
@@ -57,7 +57,7 @@ func TestSendPhotoMultipart(t *testing.T) {
 		}
 		b, _ := io.ReadAll(f)
 		if h.Filename != "snapshot.jpg" || string(b) != "jpegdata" {
-			t.Errorf("fichier = %s %q", h.Filename, b)
+			t.Errorf("file = %s %q", h.Filename, b)
 		}
 		okResult(w, `{"message_id":7,"chat":{"id":42},"photo":[{"file_id":"small"},{"file_id":"big"}]}`)
 	}))
@@ -80,7 +80,7 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
 		if r.FormValue("supports_streaming") != "true" {
-			t.Error("supports_streaming manquant")
+			t.Error("supports_streaming missing")
 		}
 		if n == 1 {
 			f, _, err := r.FormFile("video")
@@ -89,7 +89,7 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 			}
 			b, _ := io.ReadAll(f)
 			if string(b) != "mp4data" {
-				t.Errorf("contenu = %q", b)
+				t.Errorf("content = %q", b)
 			}
 		} else if r.FormValue("video") != "vid-1" {
 			t.Errorf("file_id = %q", r.FormValue("video"))
@@ -103,7 +103,7 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 	c := testClient(srv.URL)
 	m, err := c.SendVideo(context.Background(), 1, InputFile{Name: "clip.mp4", Path: path}, SendOptions{})
 	if err != nil || m.FileID() != "vid-1" {
-		t.Fatalf("upload : %+v, %v", m, err)
+		t.Fatalf("upload: %+v, %v", m, err)
 	}
 	if _, err := c.SendVideo(context.Background(), 2, InputFile{FileID: m.FileID()}, SendOptions{}); err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestRetryOn429(t *testing.T) {
 		t.Fatal(err)
 	}
 	if calls.Load() != 2 || time.Since(start) < time.Second {
-		t.Errorf("appels = %d, durée = %v : retry_after non respecté", calls.Load(), time.Since(start))
+		t.Errorf("calls = %d, duration = %v: retry_after not honored", calls.Load(), time.Since(start))
 	}
 }
 
@@ -145,7 +145,7 @@ func TestRetryOn5xx(t *testing.T) {
 		t.Fatal(err)
 	}
 	if calls.Load() != 3 {
-		t.Errorf("appels = %d, attendu 3", calls.Load())
+		t.Errorf("calls = %d, want 3", calls.Load())
 	}
 }
 
@@ -166,7 +166,7 @@ func TestNoRetryOn400AndHook(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	if calls.Load() != 1 || hookMethod != "sendMessage" || hookCode != 400 {
-		t.Errorf("appels=%d hook=%s/%d", calls.Load(), hookMethod, hookCode)
+		t.Errorf("calls=%d hook=%s/%d", calls.Load(), hookMethod, hookCode)
 	}
 }
 
@@ -174,7 +174,7 @@ func TestErrorsNeverLeakToken(t *testing.T) {
 	c := testClient("http://127.0.0.1:1")
 	_, err := c.SendMessage(context.Background(), 1, "hi", SendOptions{})
 	if err == nil || strings.Contains(err.Error(), "SECRET") {
-		t.Fatalf("err = %v (le token ne doit pas apparaître)", err)
+		t.Fatalf("err = %v (the token must not appear)", err)
 	}
 }
 
@@ -191,7 +191,7 @@ func TestGetUpdates(t *testing.T) {
 		t.Fatalf("ups = %+v, %v", ups, err)
 	}
 	if ups[0].Message.Text != "/status" || ups[1].CallbackQuery.Data != "p:1800" || ups[1].CallbackQuery.Message.Chat.ID != 5 {
-		t.Errorf("décodage incorrect : %+v", ups)
+		t.Errorf("wrong decoding: %+v", ups)
 	}
 }
 
@@ -199,7 +199,7 @@ func TestEditMessageMedia(t *testing.T) {
 	var got []map[string]string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/editMessageMedia") {
-			t.Errorf("méthode = %s", r.URL.Path)
+			t.Errorf("method = %s", r.URL.Path)
 		}
 		fields := map[string]string{}
 		if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
@@ -226,22 +226,22 @@ func TestEditMessageMedia(t *testing.T) {
 
 	m, err := c.EditMessageMedia(context.Background(), 42, 7, "video", InputFile{Name: "clip.mp4", Data: []byte("mp4")}, "<b>Person</b>", nil)
 	if err != nil || m.FileID() != "VID" {
-		t.Fatalf("upload : %+v, %v", m, err)
+		t.Fatalf("upload: %+v, %v", m, err)
 	}
 	if got[0]["file"] != "clip.mp4" || !strings.Contains(got[0]["media"], `"media":"attach://file"`) ||
 		!strings.Contains(got[0]["media"], `"type":"video"`) || got[0]["message_id"] != "7" {
-		t.Errorf("champs envoyés = %v", got[0])
+		t.Errorf("fields sent = %v", got[0])
 	}
 	if _, err := c.EditMessageMedia(context.Background(), 43, 8, "video", InputFile{FileID: "VID"}, "x", nil); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(got[1]["media"], `"media":"VID"`) || got[1]["file"] != "" {
-		t.Errorf("réutilisation du file_id : %v", got[1])
+		t.Errorf("file_id reuse: %v", got[1])
 	}
 }
 
-// dropAfterRead lit la requête puis coupe la connexion sans répondre : Telegram a
-// reçu l'envoi, mais la réponse s'est perdue.
+// dropAfterRead reads the request, then closes the connection without answering:
+// Telegram got the send, but the response was lost.
 func dropAfterRead(calls *atomic.Int32) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -259,13 +259,13 @@ func TestSendNotRetriedWhenResponseLost(t *testing.T) {
 	defer srv.Close()
 	c := testClient(srv.URL)
 	if _, err := c.SendPhoto(context.Background(), 1, InputFile{Name: "a.jpg", Data: []byte("x")}, SendOptions{}); err == nil {
-		t.Fatal("erreur attendue")
+		t.Fatal("want an error")
 	}
 	if _, err := c.SendMessage(context.Background(), 1, "hi", SendOptions{}); err == nil {
-		t.Fatal("erreur attendue")
+		t.Fatal("want an error")
 	}
 	if n := calls.Load(); n != 2 {
-		t.Errorf("%d requêtes, attendu 2 (un seul essai par envoi : il a pu arriver)", n)
+		t.Errorf("%d requests, want 2 (a single try per send: it may have arrived)", n)
 	}
 }
 
@@ -274,10 +274,10 @@ func TestEditRetriedWhenResponseLost(t *testing.T) {
 	srv := httptest.NewServer(dropAfterRead(&calls))
 	defer srv.Close()
 	if err := testClient(srv.URL).EditMessageCaption(context.Background(), 1, 2, "c", nil); err == nil {
-		t.Fatal("erreur attendue")
+		t.Fatal("want an error")
 	}
 	if n := calls.Load(); n != 4 {
-		t.Errorf("%d requêtes, attendu 4 (une modification peut être rejouée sans doublon)", n)
+		t.Errorf("%d requests, want 4 (an edit can be replayed without a duplicate)", n)
 	}
 }
 
@@ -290,7 +290,7 @@ func TestSendRetriedWhenNotDelivered(t *testing.T) {
 	c := testClient("http://telegram.invalid")
 	c.http = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if calls.Add(1) == 1 {
-			return nil, errors.New("dial tcp: connection refused") // rien n'est parti
+			return nil, errors.New("dial tcp: connection refused") // nothing went out
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"ok":true,"result":{"message_id":1,"chat":{"id":1}}}`))}, nil
 	})}
@@ -298,6 +298,6 @@ func TestSendRetriedWhenNotDelivered(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := calls.Load(); n != 2 {
-		t.Errorf("%d requêtes, attendu 2", n)
+		t.Errorf("%d requests, want 2", n)
 	}
 }

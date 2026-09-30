@@ -33,7 +33,7 @@ type Message struct {
 	Animation *Animation  `json:"animation"`
 }
 
-// FileID renvoie l'identifiant du média envoyé, réutilisable vers un autre chat sans nouvel upload.
+// FileID returns the ID of the media sent, reusable for another chat without a new upload.
 func (m Message) FileID() string {
 	switch {
 	case m.Video != nil:
@@ -74,7 +74,7 @@ type BotCommand struct {
 	Description string `json:"description"`
 }
 
-// InputFile désigne un média : FileID (déjà sur Telegram), Data (en mémoire) ou Path (sur disque).
+// InputFile designates a media: FileID (already on Telegram), Data (in memory) or Path (on disk).
 type InputFile struct {
 	FileID string
 	Name   string
@@ -82,7 +82,7 @@ type InputFile struct {
 	Path   string
 }
 
-// SendOptions regroupe les options communes d'envoi. Caption est ignoré par SendMessage.
+// SendOptions gathers the common send options. Caption is ignored by SendMessage.
 type SendOptions struct {
 	Caption string
 	Silent  bool

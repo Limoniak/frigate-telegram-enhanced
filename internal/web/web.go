@@ -1,5 +1,5 @@
-// Package web sert l'interface de réglage des notifications : une page unique et
-// une petite API JSON au-dessus du fichier de surcharge (voir config.Overlay).
+// Package web serves the notification settings interface: a single page and a
+// small JSON API over the override file (see config.Overlay).
 package web
 
 import (
@@ -26,31 +26,31 @@ import (
 	"frigate-telegram-enhanced/internal/state"
 )
 
-// L'interface : la page, sa feuille de style et son script, sans étape de build.
+// The interface: the page, its style sheet and its script, with no build step.
 //
 //go:embed ui.html ui.css ui.js
 var assets embed.FS
 
-// maxBody borne la taille d'un enregistrement : la surcharge d'une installation
-// réaliste pèse quelques kilo-octets.
+// maxBody bounds the size of a save: the override of a realistic installation
+// weighs a few kilobytes.
 const maxBody = 1 << 20
 
-// SubLabelLister donne les étiquettes connues de Frigate ; facultatif pour CameraLister.
+// SubLabelLister gives the labels Frigate knows; optional for a CameraLister.
 type SubLabelLister interface {
 	SubLabels(ctx context.Context) ([]string, error)
 }
 
-// CameraLister énumère les caméras de Frigate avec leurs zones et leurs objets suivis.
+// CameraLister lists Frigate's cameras with their zones and tracked objects.
 type CameraLister interface {
 	CameraDetails(ctx context.Context) ([]frigate.CameraInfo, error)
 }
 
-// Tester envoie une notification d'exemple pour une caméra.
+// Tester sends a sample notification for a camera.
 type Tester interface {
 	SendTest(ctx context.Context, camera string) error
 }
 
-// State est l'état partagé avec les commandes Telegram : pause globale et caméras coupées.
+// State is the state shared with the Telegram commands: global pause and muted cameras.
 type State interface {
 	Status(now time.Time) state.Status
 	Pause(until time.Time) error
@@ -58,64 +58,64 @@ type State interface {
 	Unmute(camera string) error
 }
 
-// History donne les dernières détections et leurs miniatures.
+// History gives the latest detections and their thumbnails.
 type History interface {
 	History() []notifier.HistoryEntry
 	HistoryThumb(id string) (string, bool)
 }
 
-// Media lit une image sur Frigate.
+// Media reads an image from Frigate.
 type Media interface {
 	GetBytes(ctx context.Context, path string, max int64) ([]byte, error)
 }
 
-// maxThumb borne la taille d'une miniature relayée depuis Frigate.
+// maxThumb bounds the size of a thumbnail relayed from Frigate.
 const maxThumb = 1 << 20
 
-// État d'une connexion, tel que l'interface l'affiche.
+// State of a connection, as the interface shows it.
 const (
 	StateOK      = "ok"
 	StatePending = "pending"
-	StateWarn    = "warn" // fonctionne, mais avec un problème à signaler
+	StateWarn    = "warn" // works, but with a problem to report
 	StateError   = "error"
 )
 
-// Component décrit l'état d'une connexion du service (Frigate, MQTT, Telegram).
+// Component describes the state of one of the service's connections (Frigate, MQTT, Telegram).
 type Component struct {
 	Name   string `json:"name"`
 	State  string `json:"state"`
 	Detail string `json:"detail"`
-	Hint   string `json:"hint,omitempty"` // que corriger, en cas d'erreur
+	Hint   string `json:"hint,omitempty"` // what to fix, on error
 }
 
-// Refusals donne les utilisateurs Telegram refusés récemment par le bot.
+// Refusals gives the Telegram users recently refused by the bot.
 type Refusals interface {
 	Refused() []bot.Refused
 }
 
-// HealthFunc diagnostique les connexions, avec des messages dans la langue l.
+// HealthFunc diagnoses the connections, with messages in the language l.
 type HealthFunc func(ctx context.Context, l i18n.Lang) []Component
 
-// testInterval espace les notifications de test : un double clic ne doit pas
-// en envoyer deux.
+// testInterval spaces out the test notifications: a double click must not send
+// two of them.
 const testInterval = 3 * time.Second
 
 type Handler struct {
 	cfg     *config.Config
-	path    string // fichier de surcharge
+	path    string // override file
 	cameras CameraLister
 	log     *slog.Logger
-	tester  Tester // nil : pas d'envoi de test
-	state   State  // nil : pas de pause depuis l'interface
+	tester  Tester // nil: no test sending
+	state   State  // nil: no pause from the interface
 	history History
-	media   Media      // nil : historique sans miniatures
-	health  HealthFunc // nil : pas d'état des connexions
-	refused Refusals   // nil : pas de liste des utilisateurs refusés
-	auth    *Auth      // mot de passe, commun à toutes les routes
+	media   Media      // nil: history without thumbnails
+	health  HealthFunc // nil: no connection status
+	refused Refusals   // nil: no list of refused users
+	auth    *Auth      // password, shared by every route
 	now     func() time.Time
 
-	// save sérialise les enregistrements : deux onglets ouverts en même temps ne
-	// doivent pas entrelacer validation, écriture et application.
+	// save serializes the saves: two tabs open at the same time must not interleave
+	// validation, writing and applying.
 	save sync.Mutex
 
 	testMu   sync.Mutex
@@ -124,22 +124,22 @@ type Handler struct {
 
 type Option func(*Handler)
 
-// WithTester active le bouton « m'envoyer un exemple ».
+// WithTester enables the "send me a sample" button.
 func WithTester(t Tester) Option { return func(h *Handler) { h.tester = t } }
 
-// WithState active l'affichage de la pause et les boutons pause/reprise.
+// WithState enables the pause display and the pause/resume buttons.
 func WithState(s State) Option { return func(h *Handler) { h.state = s } }
 
-// WithHistory active l'activité récente ; media (facultatif) sert les miniatures.
+// WithHistory enables the recent activity; media (optional) serves the thumbnails.
 func WithHistory(h History, media Media) Option {
 	return func(x *Handler) { x.history, x.media = h, media }
 }
 
-// WithHealth active l'affichage de l'état des connexions.
+// WithHealth enables the connection status display.
 func WithHealth(f HealthFunc) Option { return func(h *Handler) { h.health = f } }
 
-// WithRefused joint à l'état des connexions les utilisateurs Telegram refusés
-// récemment, avec leur identifiant à ajouter à la configuration.
+// WithRefused adds to the connection status the Telegram users recently refused,
+// with their ID to add to the configuration.
 func WithRefused(r Refusals) Option { return func(h *Handler) { h.refused = r } }
 
 // WithClock remplace l'horloge (tests).
@@ -154,13 +154,13 @@ func New(cfg *config.Config, overlayPath string, cameras CameraLister, log *slog
 	return h
 }
 
-// Protect soumet next au mot de passe de l'interface, avec le même décompte
-// d'échecs (sert à /metrics avec web.protect_metrics).
+// Protect puts next behind the interface password, with the same failure count
+// (serves /metrics with web.protect_metrics).
 func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.Wrap(next) }
 
-// Mount enregistre l'interface et son API sur mux, protégées par mot de passe si la
-// configuration en définit un. /healthz et /metrics restent en dehors : la sonde du
-// conteneur et le scrape Prometheus ne s'authentifient pas (voir web.protect_metrics).
+// Mount registers the interface and its API on mux, behind a password if the
+// configuration sets one. /healthz and /metrics stay outside: the container probe
+// and the Prometheus scrape do not authenticate (see web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
 	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
@@ -178,8 +178,8 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /api/history/{id}/thumb", h.guard(http.HandlerFunc(h.thumb)))
 }
 
-// guard applique le contrôle d'accès commun à toutes les routes de l'interface :
-// le mot de passe s'il y en a un, sinon la vérification de l'en-tête Host.
+// guard applies the access control shared by every route of the interface: the
+// password if there is one, otherwise the Host header check.
 func (h *Handler) guard(next http.Handler) http.Handler {
 	if h.cfg.Web.Password != "" {
 		return h.auth.Wrap(next)
@@ -187,11 +187,11 @@ func (h *Handler) guard(next http.Handler) http.Handler {
 	return checkHost(h.cfg.Web.AllowedHosts, h.cfg.Language, next)
 }
 
-// checkHost refuse les requêtes dont l'en-tête Host n'est ni une adresse IP, ni
-// localhost, ni un nom listé dans allowed. Sans mot de passe, c'est ce qui bloque le
-// rebinding DNS : un site tiers qui fait pointer son propre domaine vers 127.0.0.1
-// devient « même origine » pour le navigateur — X-Requested-With ne l'arrête plus —
-// mais ses requêtes portent toujours son nom de domaine dans Host.
+// checkHost refuses the requests whose Host header is neither an IP address, nor
+// localhost, nor a name listed in allowed. Without a password, that is what blocks
+// DNS rebinding: a third-party site that points its own domain at 127.0.0.1 becomes
+// "same origin" for the browser — X-Requested-With no longer stops it — but its
+// requests still carry its domain name in Host.
 func checkHost(allowed []string, def i18n.Lang, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !hostAllowed(r.Host, allowed) {
@@ -217,10 +217,10 @@ func hostAllowed(host string, allowed []string) bool {
 	return slices.ContainsFunc(allowed, func(a string) bool { return strings.EqualFold(a, host) })
 }
 
-// requestedWith est l'en-tête que la page joint à ses écritures. Il ne vaut rien comme
-// secret : il sert à rendre la requête « non simple » au sens CORS, pour qu'un site
-// tiers ouvert dans le même navigateur ne puisse pas la déclencher à notre insu — le
-// contrôle préalable qu'elle impose échouera, faute d'en-têtes CORS de notre part.
+// requestedWith is the header the page adds to its writes. It is worth nothing as a
+// secret: it makes the request "non-simple" in the CORS sense, so that a
+// third-party site open in the same browser cannot trigger it behind our back — the
+// preflight check it requires will fail, for lack of CORS headers on our side.
 const requestedWith = "frigate-telegram-enhanced"
 
 func sameOrigin(next http.Handler) http.Handler {
@@ -233,12 +233,12 @@ func sameOrigin(next http.Handler) http.Handler {
 	})
 }
 
-// asset sert un fichier de l'interface. no-store : après une mise à jour du
-// service, le navigateur ne doit pas garder l'ancien script avec la nouvelle page.
+// asset serves a file of the interface. no-store: after an update of the service,
+// the browser must not keep the old script with the new page.
 func asset(name, contentType string) http.Handler {
 	body, err := assets.ReadFile(name)
 	if err != nil {
-		panic(err) // embarqué : absent seulement si le code est incohérent
+		panic(err) // embedded: missing only if the code is inconsistent
 	}
 	return serve(body, contentType)
 }
@@ -276,23 +276,23 @@ var i18nScript = func() []byte {
 	return []byte("\"use strict\";\nconst LANGUAGES = " + string(lj) + ";\nconst CATALOGS = " + string(cj) + ";\n")
 }()
 
-// settings est la vue que l'interface charge au démarrage.
+// settings is the view the interface loads at startup.
 type settings struct {
 	Mode     string               `json:"mode"`
 	Timezone string               `json:"timezone"`
 	Chats    []string             `json:"chats"`
 	Cameras  []frigate.CameraInfo `json:"cameras"`
 	Overlay  config.Overlay       `json:"overlay"`
-	Custom   bool                 `json:"custom"`  // une surcharge est enregistrée
+	Custom   bool                 `json:"custom"`  // an override is saved
 	Warning  string               `json:"warning"` // Frigate injoignable, etc.
 	CanTest  bool                 `json:"can_test"`
 	CanPause bool                 `json:"can_pause"`
 	CanHist  bool                 `json:"can_history"`
 	CanHlth  bool                 `json:"can_health"`
-	Presence bool                 `json:"presence"` // topics de présence configurés
-	// FrigateURL est l'adresse des liens quand aucune adresse externe n'est réglée.
+	Presence bool                 `json:"presence"` // presence topics configured
+	// FrigateURL is the address of the links when no external address is set.
 	FrigateURL string `json:"frigate_url"`
-	// SubLabels : étiquettes connues de Frigate, proposées par le filtre des étiquettes.
+	// SubLabels: labels Frigate knows, offered by the label filter.
 	SubLabels []string `json:"sub_labels"`
 }
 
@@ -317,8 +317,8 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	cams, err := h.cameras.CameraDetails(ctx)
 	if err != nil {
-		// Frigate injoignable : on affiche au moins les caméras déjà réglées,
-		// pour que l'interface reste utilisable et n'efface rien.
+		// Frigate unreachable: show at least the cameras already set up, so that the
+		// interface stays usable and erases nothing.
 		s.Warning = h.lang(r).T("Frigate is unreachable: the list of cameras, zones and objects is incomplete.")
 		for _, name := range h.cfg.CameraNames() {
 			cams = append(cams, frigate.CameraInfo{Name: name})
@@ -345,8 +345,8 @@ func (h *Handler) put(w http.ResponseWriter, r *http.Request) {
 
 	h.save.Lock()
 	defer h.save.Unlock()
-	// Valider avant d'écrire : un fichier de surcharge invalide serait rejeté au
-	// prochain démarrage, et le service repartirait sur config.yml sans prévenir.
+	// Validate before writing: an invalid override file would be rejected at the next
+	// startup, and the service would fall back to config.yml without warning.
 	if err := h.cfg.ValidateOverlay(&o, h.lang(r)); err != nil {
 		h.writeError(w, r, http.StatusBadRequest, err)
 		return
@@ -379,7 +379,7 @@ func (h *Handler) reset(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// decodeBody lit un petit corps JSON ; un corps vide laisse v à sa valeur zéro.
+// decodeBody reads a small JSON body; an empty body leaves v at its zero value.
 func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	dec.DisallowUnknownFields()
@@ -417,8 +417,8 @@ func (h *Handler) test(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// allowTest réserve un créneau d'envoi de test ; false si le précédent date de
-// moins de testInterval.
+// allowTest books a slot for a test send; false if the previous one is less than
+// testInterval ago.
 func (h *Handler) allowTest() bool {
 	h.testMu.Lock()
 	defer h.testMu.Unlock()
@@ -430,13 +430,13 @@ func (h *Handler) allowTest() bool {
 	return true
 }
 
-// stateView est l'état de pause tel que l'interface l'affiche. Une échéance nulle
-// signifie « jusqu'à reprise ».
+// stateView is the pause state as the interface shows it. A null deadline means
+// "until resumed".
 type stateView struct {
 	Paused      bool       `json:"paused"`
 	PausedUntil *time.Time `json:"paused_until"`
 	Mutes       []muteView `json:"mutes"`
-	Home        []string   `json:"home"` // topics de présence « à la maison »
+	Home        []string   `json:"home"` // presence topics saying "home"
 }
 
 type muteView struct {
@@ -588,23 +588,23 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// writeError répond une erreur JSON, dans la langue de l'interface si l'erreur est bilingue.
+// writeError answers a JSON error, in the interface's language if the error can be translated.
 func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, code int, err error) {
 	writeJSON(w, code, map[string]string{"error": h.lang(r).Message(err)})
 }
 
-// langHeader porte la langue affichée par l'interface, jointe à chacune de ses requêtes.
+// langHeader carries the language shown by the interface, sent with each of its requests.
 const langHeader = "X-Lang"
 
-// lang est la langue des réponses à r : celle de l'interface, sinon celle du
-// navigateur, sinon celle du service.
+// lang is the language of the responses to r: the interface's, otherwise the
+// browser's, otherwise the service's.
 func (h *Handler) lang(r *http.Request) i18n.Lang { return requestLang(r, h.cfg.Language) }
 
 func requestLang(r *http.Request, def i18n.Lang) i18n.Lang {
 	if l, err := i18n.Parse(r.Header.Get(langHeader)); err == nil && r.Header.Get(langHeader) != "" {
 		return l
 	}
-	// Accept-Language : "fr-FR,fr;q=0.9,en;q=0.8" — seule la première langue compte.
+	// Accept-Language: "fr-FR,fr;q=0.9,en;q=0.8" — only the first language counts.
 	first, _, _ := strings.Cut(r.Header.Get("Accept-Language"), ",")
 	first, _, _ = strings.Cut(first, ";")
 	if l, err := i18n.Parse(first); err == nil && first != "" {

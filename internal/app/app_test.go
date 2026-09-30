@@ -17,15 +17,15 @@ import (
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
-// fakeTelegram répond à l'API Bot : le premier getUpdates livre une commande /pause,
-// les suivants font du long polling jusqu'à l'annulation de la requête.
+// fakeTelegram answers the Bot API: the first getUpdates delivers a /pause command,
+// the next ones long-poll until the request is canceled.
 func fakeTelegram(t *testing.T, polled chan<- struct{}) *httptest.Server {
 	t.Helper()
 	var polls atomic.Int32
 	stop := make(chan struct{})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Lire le corps : sans cela, le serveur ne détecte pas la fermeture de la
-		// connexion par le client et r.Context() n'est jamais annulé.
+		// Read the body: without it, the server does not notice the client closing the
+		// connection and r.Context() is never canceled.
 		io.Copy(io.Discard, r.Body)
 		method := r.URL.Path[strings.LastIndexByte(r.URL.Path, '/')+1:]
 		var result any = true
@@ -56,12 +56,12 @@ func fakeTelegram(t *testing.T, polled chan<- struct{}) *httptest.Server {
 		json.NewEncoder(w).Encode(map[string]any{"ok": true, "result": result})
 	}))
 	t.Cleanup(ts.Close)
-	t.Cleanup(func() { close(stop) }) // exécuté avant ts.Close
+	t.Cleanup(func() { close(stop) }) // runs before ts.Close
 	return ts
 }
 
-// Run doit s'arrêter proprement à l'annulation du contexte — MQTT injoignable,
-// requête Telegram en cours — et laisser sur disque l'état modifié par une commande.
+// Run must stop cleanly when the context is canceled — MQTT unreachable, Telegram
+// request in progress — and leave on disk the state changed by a command.
 func TestRunShutsDownCleanlyAndSavesState(t *testing.T) {
 	dir := t.TempDir()
 	polled := make(chan struct{}, 1)
@@ -91,25 +91,25 @@ log_level: error
 	}()
 
 	select {
-	case <-polled: // la commande a été lue, le bot est reparti en long polling
+	case <-polled: // the command was read, the bot is long-polling again
 	case err := <-done:
-		t.Fatalf("Run s'est arrêté prématurément : %v", err)
+		t.Fatalf("Run stopped early: %v", err)
 	case <-time.After(10 * time.Second):
-		t.Fatal("le bot n'a jamais interrogé Telegram")
+		t.Fatal("the bot never queried Telegram")
 	}
 	cancel()
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatalf("Run : %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 	case <-time.After(20 * time.Second):
-		t.Fatal("Run ne s'est pas arrêté")
+		t.Fatal("Run did not stop")
 	}
 
 	raw, err := os.ReadFile(statePath)
 	if err != nil {
-		t.Fatalf("état non sauvegardé : %v", err)
+		t.Fatalf("state not saved: %v", err)
 	}
 	var st struct {
 		GlobalPauseUntil time.Time `json:"global_pause_until"`
@@ -118,7 +118,7 @@ log_level: error
 		t.Fatal(err)
 	}
 	if time.Until(st.GlobalPauseUntil) < time.Hour {
-		t.Errorf("pause enregistrée jusqu'à %v, attendu ~2 h", st.GlobalPauseUntil)
+		t.Errorf("pause saved until %v, want ~2 h", st.GlobalPauseUntil)
 	}
 }
 
@@ -128,6 +128,6 @@ func TestRunRejectsInvalidConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := Run(context.Background(), path); err == nil {
-		t.Fatal("une config invalide doit être refusée")
+		t.Fatal("an invalid configuration must be refused")
 	}
 }

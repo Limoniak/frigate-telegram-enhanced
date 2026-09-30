@@ -18,18 +18,18 @@ func TestRoundTrip(t *testing.T) {
 	for _, tc := range cases {
 		got, err := Parse(tc.data)
 		if err != nil || got != tc.want {
-			t.Errorf("Parse(%q) = %+v, %v ; attendu %+v", tc.data, got, err, tc.want)
+			t.Errorf("Parse(%q) = %+v, %v; want %+v", tc.data, got, err, tc.want)
 		}
 	}
 	if Mute("jardin", time.Hour) != "m:jardin:3600" || Pause(30*time.Minute) != "p:1800" {
-		t.Error("encodage inattendu")
+		t.Error("unexpected encoding")
 	}
 }
 
 func TestParseRejectsGarbage(t *testing.T) {
 	for _, data := range []string{"", "x", "z:1", "m:jardin", "m:jardin:abc", "p:-5", "c:"} {
 		if _, err := Parse(data); err == nil {
-			t.Errorf("Parse(%q) aurait dû échouer", data)
+			t.Errorf("Parse(%q) should have failed", data)
 		}
 	}
 }
@@ -44,10 +44,10 @@ func TestMenuActions(t *testing.T) {
 	} {
 		got, err := Parse(data)
 		if err != nil || got != want {
-			t.Errorf("Parse(%q) = %+v, %v ; attendu %+v", data, got, err, want)
+			t.Errorf("Parse(%q) = %+v, %v; want %+v", data, got, err, want)
 		}
 	}
 	if _, err := Parse("!"); err == nil {
-		t.Error("« ! » seul doit être refusé")
+		t.Error("a lone \"!\" must be refused")
 	}
 }

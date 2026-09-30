@@ -35,24 +35,24 @@ func TestNewEventSendsSnapshotToEveryChat(t *testing.T) {
 
 	photos := h.tg.byMethod("sendPhoto")
 	if len(photos) != 2 {
-		t.Fatalf("photos = %d, attendu 2", len(photos))
+		t.Fatalf("photos = %d, want 2", len(photos))
 	}
 	for _, c := range photos {
 		if !strings.Contains(c.Text, "Person") || !strings.Contains(c.Text, "garage") {
-			t.Errorf("légende inattendue : %q", c.Text)
+			t.Errorf("unexpected caption: %q", c.Text)
 		}
 		if c.Opts.Markup == nil || len(c.Opts.Markup.InlineKeyboard) != 2 || c.Opts.Markup.InlineKeyboard[0][0].CallbackData != "s:garage" {
 			t.Error("boutons manquants (📷 Maintenant, 🎬 Clip, 🔇, ⏸)")
 		}
 	}
 	if countData(photos, "jpeg") != 1 || photos[0].FileID != "" {
-		t.Errorf("le premier envoi doit uploader : %+v", photos[0])
+		t.Errorf("the first send must upload: %+v", photos[0])
 	}
 	if _, ok := find(photos, 1); !ok {
-		t.Error("chat 1 non notifié")
+		t.Error("chat 1 not notified")
 	}
 	if _, ok := find(photos, -100); !ok {
-		t.Error("chat -100 non notifié")
+		t.Error("chat -100 not notified")
 	}
 	reused := 0
 	for _, c := range photos {
@@ -61,14 +61,14 @@ func TestNewEventSendsSnapshotToEveryChat(t *testing.T) {
 		}
 	}
 	if reused != 1 {
-		t.Errorf("le second envoi doit réutiliser le file_id (reused=%d)", reused)
+		t.Errorf("the second send must reuse the file_id (reused=%d)", reused)
 	}
 	if h.n.Count24h() != 1 {
 		t.Errorf("Count24h = %d", h.n.Count24h())
 	}
 }
 
-// Par défaut, le clip remplace l'image dans le message de la notification.
+// By default, the clip replaces the image in the notification message.
 func TestEndReplacesSnapshotWithClip(t *testing.T) {
 	h := newHarness(t, "events")
 	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
@@ -78,23 +78,23 @@ func TestEndReplacesSnapshotWithClip(t *testing.T) {
 
 	photos, edits := h.tg.byMethod("sendPhoto"), h.tg.byMethod("editMessageMedia:video")
 	if len(edits) != 2 || len(h.tg.byMethod("sendVideo")) != 0 {
-		t.Fatalf("remplacements = %d, réponses = %d ; attendu 2 remplacements", len(edits), len(h.tg.byMethod("sendVideo")))
+		t.Fatalf("replacements = %d, replies = %d; want 2 replacements", len(edits), len(h.tg.byMethod("sendVideo")))
 	}
 	for _, e := range edits {
 		p, _ := find(photos, e.ChatID)
 		if e.Target != p.Result {
-			t.Errorf("chat %d : message modifié %d, attendu %d (la notification)", e.ChatID, e.Target, p.Result)
+			t.Errorf("chat %d: edited message %d, want %d (the notification)", e.ChatID, e.Target, p.Result)
 		}
 		if !strings.Contains(e.Text, "Person") {
-			t.Errorf("la légende doit être conservée : %q", e.Text)
+			t.Errorf("the caption must be kept: %q", e.Text)
 		}
 	}
 	if countData(edits, "mp4") != 1 {
-		t.Error("le clip doit être uploadé une seule fois")
+		t.Error("the clip must be uploaded only once")
 	}
 }
 
-// Avec media_in_place désactivé, le clip arrive en réponse à la notification.
+// With media_in_place disabled, the clip arrives as a reply to the notification.
 func TestEndSendsClipAsReplyToSnapshot(t *testing.T) {
 	h := newHarness(t, "events")
 	o := h.n.Config.CurrentOverlay()
@@ -110,19 +110,19 @@ func TestEndSendsClipAsReplyToSnapshot(t *testing.T) {
 
 	photos, videos := h.tg.byMethod("sendPhoto"), h.tg.byMethod("sendVideo")
 	if len(videos) != 2 {
-		t.Fatalf("vidéos = %d, attendu 2", len(videos))
+		t.Fatalf("videos = %d, want 2", len(videos))
 	}
 	for _, v := range videos {
 		p, _ := find(photos, v.ChatID)
 		if v.Opts.ReplyTo != p.Result {
-			t.Errorf("chat %d : reply_to=%d, attendu %d", v.ChatID, v.Opts.ReplyTo, p.Result)
+			t.Errorf("chat %d: reply_to=%d, want %d", v.ChatID, v.Opts.ReplyTo, p.Result)
 		}
 		if !v.Opts.Silent {
-			t.Error("le clip doit être envoyé sans son")
+			t.Error("the clip must be sent silently")
 		}
 	}
 	if countData(videos, "mp4") != 1 {
-		t.Error("le clip doit être uploadé une seule fois")
+		t.Error("the clip must be uploaded only once")
 	}
 }
 
@@ -131,15 +131,15 @@ func TestZoneEnteredOnUpdate(t *testing.T) {
 	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
 	h.send(t, "frigate/events", eventMsg("new", evID, "jardin", "person", nil))
 	if h.tg.count() != 0 {
-		t.Fatal("aucune notification attendue hors zone")
+		t.Fatal("want no notification outside the zone")
 	}
 	h.send(t, "frigate/events", eventMsg("update", evID, "jardin", "person", []string{"allee"}))
 	if len(h.tg.byMethod("sendPhoto")) != 2 {
-		t.Fatal("notification attendue à l'entrée dans la zone")
+		t.Fatal("want a notification when entering the zone")
 	}
 	h.send(t, "frigate/events", eventMsg("update", evID, "jardin", "person", []string{"allee"}))
 	if len(h.tg.byMethod("sendPhoto")) != 2 {
-		t.Error("un événement ne doit être notifié qu'une fois")
+		t.Error("an event must be notified only once")
 	}
 }
 
@@ -152,17 +152,17 @@ func TestCooldownBlocksSecondEvent(t *testing.T) {
 	h.clock.Add(30 * time.Second)
 	h.send(t, "frigate/events", eventMsg("new", "b", "garage", "person", nil))
 	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
-		t.Fatalf("photos = %d : l'événement b doit être bloqué par le cooldown", n)
+		t.Fatalf("photos = %d: event b must be blocked by the cooldown", n)
 	}
 	h.clock.Add(2 * time.Minute)
 	h.send(t, "frigate/events", eventMsg("new", "c", "garage", "person", nil))
 	if n := len(h.tg.byMethod("sendPhoto")); n != 4 {
-		t.Errorf("photos = %d : l'événement c doit passer", n)
+		t.Errorf("photos = %d: event c must go through", n)
 	}
 }
 
-// Un événement refusé pour cooldown ne doit pas être notifié à l'expiration du
-// cooldown, au milieu de l'événement, avec un snapshot sans rapport avec son début.
+// An event refused because of the cooldown must not be notified when the cooldown
+// expires, in the middle of the event, with a snapshot unrelated to its start.
 func TestCooldownRejectionIsFinal(t *testing.T) {
 	h := newHarness(t, "events")
 	for _, id := range []string{"a", "b"} {
@@ -174,22 +174,22 @@ func TestCooldownRejectionIsFinal(t *testing.T) {
 	h.clock.Add(2 * time.Minute)
 	h.send(t, "frigate/events", eventMsg("update", "b", "garage", "person", nil))
 	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
-		t.Fatalf("photos = %d : b, refusé pour cooldown, ne doit pas être notifié plus tard", n)
+		t.Fatalf("photos = %d: b, refused because of the cooldown, must not be notified later", n)
 	}
 	h.send(t, "frigate/events", eventMsg("end", "b", "garage", "person", nil))
 	if got := testutil.ToFloat64(h.m.EventsFiltered.WithLabelValues("cooldown")); got != 1 {
-		t.Errorf("filtered{cooldown} = %v, attendu 1", got)
+		t.Errorf("filtered{cooldown} = %v, want 1", got)
 	}
 }
 
-// Un événement filtré dont la fin n'arrive jamais est compté quand sweep l'oublie.
+// A filtered event whose end never arrives is counted when sweep forgets it.
 func TestSweptFilteredEventIsCounted(t *testing.T) {
 	h := newHarness(t, "events")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "dog", nil))
 	h.clock.Add(staleAfter + time.Minute)
 	h.n.sweep()
 	if got := testutil.ToFloat64(h.m.EventsFiltered.WithLabelValues("label")); got != 1 {
-		t.Errorf("filtered{label} = %v, attendu 1", got)
+		t.Errorf("filtered{label} = %v, want 1", got)
 	}
 }
 
@@ -199,10 +199,10 @@ func TestFilteredEventIsCountedOnce(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("update", evID, "garage", "dog", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "dog", nil))
 	if h.tg.count() != 0 {
-		t.Error("aucun envoi attendu")
+		t.Error("want no send")
 	}
 	if got := testutil.ToFloat64(h.m.EventsFiltered.WithLabelValues("label")); got != 1 {
-		t.Errorf("filtered{label} = %v, attendu 1", got)
+		t.Errorf("filtered{label} = %v, want 1", got)
 	}
 }
 
@@ -215,7 +215,7 @@ func TestClipRetriedUntilAvailable(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 	if len(h.tg.videos()) != 2 || h.fr.countCalls(clip) != 3 {
-		t.Errorf("vidéos=%d appels clip=%d", len(h.tg.videos()), h.fr.countCalls(clip))
+		t.Errorf("videos=%d clip calls=%d", len(h.tg.videos()), h.fr.countCalls(clip))
 	}
 }
 
@@ -230,7 +230,7 @@ func TestClipTooLargeSendsLink(t *testing.T) {
 		t.Fatalf("messages = %+v", msgs)
 	}
 	if len(h.tg.videos()) != 0 {
-		t.Error("aucune vidéo attendue")
+		t.Error("want no video")
 	}
 }
 
@@ -242,7 +242,7 @@ func TestMissingSnapshotFallsBackToText(t *testing.T) {
 		t.Fatalf("messages = %+v", msgs)
 	}
 	if h.fr.countCalls(frigate.EventSnapshotPath(evID)) != 2 {
-		t.Error("le snapshot doit être réessayé une fois")
+		t.Error("the snapshot must be retried once")
 	}
 }
 
@@ -252,10 +252,10 @@ func TestHandleDropsWhenInboxFull(t *testing.T) {
 		h.n.Handle("frigate/events", []byte("{}"))
 	}
 	if got := testutil.ToFloat64(h.m.EventsDropped); got != 1 {
-		t.Errorf("dropped = %v, attendu 1", got)
+		t.Errorf("dropped = %v, want 1", got)
 	}
 	if n, last := h.n.Dropped(); n != 1 || !last.Equal(h.clock.Now()) {
-		t.Errorf("Dropped() = %d, %v ; attendu 1 à %v", n, last, h.clock.Now())
+		t.Errorf("Dropped() = %d, %v; want 1 at %v", n, last, h.clock.Now())
 	}
 }
 
@@ -272,7 +272,7 @@ func TestCount24hExpires(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.clock.Add(25 * time.Hour)
 	if h.n.Count24h() != 0 {
-		t.Errorf("Count24h = %d, attendu 0", h.n.Count24h())
+		t.Errorf("Count24h = %d, want 0", h.n.Count24h())
 	}
 }
 
@@ -285,7 +285,7 @@ func TestTopicsDependOnMode(t *testing.T) {
 	}
 }
 
-// Un destinataire en heures calmes reçoit la notification sans son, les autres non.
+// A recipient in quiet hours gets the notification silently, the others don't.
 func TestRecipientQuietHoursAreSilentForThatChatOnly(t *testing.T) {
 	h := newHarness(t, "events")
 	o := h.n.Config.CurrentOverlay()
@@ -301,7 +301,7 @@ func TestRecipientQuietHoursAreSilentForThatChatOnly(t *testing.T) {
 	}
 	for _, p := range photos {
 		if want := p.ChatID == -100; p.Opts.Silent != want {
-			t.Errorf("chat %d : silent = %v, attendu %v", p.ChatID, p.Opts.Silent, want)
+			t.Errorf("chat %d: silent = %v, want %v", p.ChatID, p.Opts.Silent, want)
 		}
 	}
 }
@@ -318,35 +318,35 @@ func TestCroppedSnapshot(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	photos := h.tg.byMethod("sendPhoto")
 	if len(photos) == 0 || countData(photos, "zoom") == 0 {
-		t.Fatalf("la photo envoyée doit être la version recadrée : %+v", photos)
+		t.Fatalf("the photo sent must be the cropped version: %+v", photos)
 	}
 	if got := frigate.Cropped(frigate.LatestPath("garage")); got != frigate.LatestPath("garage") {
-		t.Errorf("l'image en direct ne se recadre pas : %q", got)
+		t.Errorf("the live image is not cropped: %q", got)
 	}
 }
 
-// Un message texte (pas d'image) ne peut pas recevoir de média : le clip arrive en réponse.
+// A text message (no image) cannot take a media: the clip arrives as a reply.
 func TestClipRepliesToTextOnlyNotification(t *testing.T) {
 	h := newHarness(t, "events")
-	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4") // pas de snapshot : repli en texte
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4") // no snapshot: falls back to text
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 	if n := len(h.tg.byMethod("editMessageMedia:video")); n != 0 {
-		t.Errorf("remplacements = %d, attendu 0", n)
+		t.Errorf("replacements = %d, want 0", n)
 	}
 	replies := h.tg.byMethod("sendVideo")
 	texts := h.tg.byMethod("sendMessage")
 	if len(replies) != 2 {
-		t.Fatalf("réponses vidéo = %d, attendu 2", len(replies))
+		t.Fatalf("video replies = %d, want 2", len(replies))
 	}
 	for _, v := range replies {
 		if m, _ := find(texts, v.ChatID); v.Opts.ReplyTo != m.Result {
-			t.Errorf("chat %d : réponse à %d, attendu %d", v.ChatID, v.Opts.ReplyTo, m.Result)
+			t.Errorf("chat %d: reply to %d, want %d", v.ChatID, v.Opts.ReplyTo, m.Result)
 		}
 	}
 }
 
-// L'adresse modifiée dans l'interface s'applique aux liens des notifications suivantes.
+// The address changed in the interface applies to the links of the next notifications.
 func TestExternalURLChangeAppliesToLinks(t *testing.T) {
 	h := newHarness(t, "events")
 	o := h.n.Config.CurrentOverlay()
@@ -359,12 +359,12 @@ func TestExternalURLChangeAppliesToLinks(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	photos := h.tg.byMethod("sendPhoto")
 	if len(photos) == 0 || !strings.Contains(photos[0].Text, `href="https://frigate.maison.example/explore?event_id=`) {
-		t.Fatalf("lien : %+v", photos)
+		t.Fatalf("link: %+v", photos)
 	}
 }
 
-// withSubLabel ajoute à un message d'événement l'étiquette que Frigate attribue après
-// coup, au format de Frigate 0.18 : ["nom", score].
+// withSubLabel adds to an event message the label Frigate assigns afterwards, in
+// Frigate 0.18's format: ["name", score].
 func withSubLabel(msg []byte, sub string) []byte {
 	var m map[string]any
 	json.Unmarshal(msg, &m)
@@ -373,8 +373,8 @@ func withSubLabel(msg []byte, sub string) []byte {
 	return b
 }
 
-// L'étiquette (classification, visage : « Océane ») arrive après la notification : la légende est
-// mise à jour, sans nouveau message, et l'activité récente la montre.
+// The label (classification, face: "Océane") arrives after the notification: the
+// caption is updated, without a new message, and the recent activity shows it.
 func TestLateSubLabelUpdatesCaption(t *testing.T) {
 	h := newHarness(t, "events")
 	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
@@ -382,23 +382,23 @@ func TestLateSubLabelUpdatesCaption(t *testing.T) {
 	h.send(t, "frigate/events", withSubLabel(eventMsg("update", evID, "garage", "person", nil), "Océane"))
 
 	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
-		t.Fatalf("photos = %d : l'étiquette ne doit pas créer de nouveau message", n)
+		t.Fatalf("photos = %d: the label must not create a new message", n)
 	}
 	edits := h.tg.byMethod("editMessageCaption")
 	if len(edits) != 2 {
-		t.Fatalf("éditions = %d, attendu une par destinataire", len(edits))
+		t.Fatalf("edits = %d, want one per recipient", len(edits))
 	}
 	for _, e := range edits {
 		if !strings.Contains(e.Text, "🏷 Océane") {
-			t.Errorf("légende mise à jour :\n%s", e.Text)
+			t.Errorf("updated caption:\n%s", e.Text)
 		}
 	}
 	if hist := h.n.History(); hist[0].SubLabel != "Océane" {
-		t.Errorf("historique : %+v", hist[0])
+		t.Errorf("history: %+v", hist[0])
 	}
-	// La même étiquette répétée dans les mises à jour suivantes ne refait pas d'édition.
+	// The same label repeated in the next updates does not edit again.
 	h.send(t, "frigate/events", withSubLabel(eventMsg("update", evID, "garage", "person", nil), "Océane"))
 	if n := len(h.tg.byMethod("editMessageCaption")); n != 2 {
-		t.Errorf("éditions = %d après une étiquette inchangée", n)
+		t.Errorf("edits = %d after an unchanged label", n)
 	}
 }

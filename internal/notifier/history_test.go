@@ -17,19 +17,19 @@ func TestHistoryRecordsSentAndFiltered(t *testing.T) {
 
 	got := h.n.History()
 	if len(got) != 2 {
-		t.Fatalf("historique = %+v", got)
+		t.Fatalf("history = %+v", got)
 	}
 	if got[0].ID != "b" || got[0].Sent || got[0].Reason != "label" || got[0].Label != "dog" {
-		t.Errorf("plus récent = %+v, attendu b filtré pour label", got[0])
+		t.Errorf("most recent = %+v, want b filtered out by label", got[0])
 	}
 	if got[1].ID != "a" || !got[1].Sent || got[1].Camera != "garage" {
-		t.Errorf("plus ancien = %+v, attendu a envoyé", got[1])
+		t.Errorf("oldest = %+v, want a sent", got[1])
 	}
 	if p, ok := h.n.HistoryThumb("a"); !ok || p != frigate.EventThumbnailPath("a") {
-		t.Errorf("miniature de a = %q %v", p, ok)
+		t.Errorf("thumbnail of a = %q %v", p, ok)
 	}
 	if _, ok := h.n.HistoryThumb("inconnu"); ok {
-		t.Error("un id hors historique ne doit pas donner de miniature")
+		t.Error("an id outside the history must not give a thumbnail")
 	}
 }
 
@@ -41,7 +41,7 @@ func TestHistoryIsBounded(t *testing.T) {
 		h.send(t, "frigate/events", eventMsg("end", id, "garage", "dog", nil))
 	}
 	if n := len(h.n.History()); n != historySize {
-		t.Errorf("taille = %d, attendu %d", n, historySize)
+		t.Errorf("size = %d, want %d", n, historySize)
 	}
 }
 
@@ -60,18 +60,18 @@ func TestHistorySurvivesRestart(t *testing.T) {
 	again := newHarness(t, "events", withFile)
 	got := again.n.History()
 	if len(got) != 2 || got[0].ID != "b" || got[0].Reason != "label" || got[1].ID != "a" || !got[1].Sent {
-		t.Fatalf("historique relu = %+v", got)
+		t.Fatalf("history read back = %+v", got)
 	}
 	if p, ok := again.n.HistoryThumb("a"); !ok || p != frigate.EventThumbnailPath("a") {
-		t.Errorf("miniature relue = %q %v", p, ok)
+		t.Errorf("thumbnail read back = %q %v", p, ok)
 	}
 }
 
 func TestHistoryFileCorruptedIsIgnored(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "history.json")
-	os.WriteFile(file, []byte("{pas du json"), 0o600)
+	os.WriteFile(file, []byte("{not json"), 0o600)
 	h := newHarness(t, "events", func(d *Deps) { d.HistoryFile = file })
 	if n := len(h.n.History()); n != 0 {
-		t.Errorf("historique = %d entrées, attendu vide", n)
+		t.Errorf("history = %d entries, want empty", n)
 	}
 }

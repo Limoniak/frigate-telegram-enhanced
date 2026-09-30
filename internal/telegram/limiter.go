@@ -1,4 +1,4 @@
-// Package telegram est un client minimal de l'API Bot Telegram.
+// Package telegram is a minimal client of the Telegram Bot API.
 package telegram
 
 import (
@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// Limiter espace les envois pour respecter les limites de Telegram :
-// environ 30 messages/s au total, 1/s par chat privé, 20/min par groupe.
-// Chaque chat a son propre créneau : un chat lent ne retarde pas les autres.
+// Limiter spaces out the sends to respect Telegram's limits: about 30
+// messages/s overall, 1/s per private chat, 20/min per group. Each chat has its
+// own slot: a slow chat does not delay the others.
 type Limiter struct {
 	mu                     sync.Mutex
 	global, private, group time.Duration
@@ -24,7 +24,7 @@ func NewLimiterWith(global, private, group time.Duration) *Limiter {
 	return &Limiter{global: global, private: private, group: group, nextChat: map[int64]time.Time{}, now: time.Now}
 }
 
-// Wait bloque jusqu'à ce qu'un envoi vers chatID soit autorisé.
+// Wait blocks until a send to chatID is allowed.
 func (l *Limiter) Wait(ctx context.Context, chatID int64) error {
 	if err := sleep(ctx, l.reserveChat(chatID)); err != nil {
 		return err
@@ -60,7 +60,7 @@ func (l *Limiter) reserveGlobal() time.Duration {
 	return at.Sub(now)
 }
 
-// sleep attend d ou l'annulation de ctx.
+// sleep waits for d or for ctx to be canceled.
 func sleep(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return ctx.Err()

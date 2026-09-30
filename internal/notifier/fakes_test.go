@@ -22,20 +22,20 @@ import (
 type fakeFrigate struct {
 	mu       sync.Mutex
 	files    map[string][]byte
-	fails    map[string]int // nombre de 404 à renvoyer avant succès
+	fails    map[string]int // number of 404 to return before success
 	tooLarge map[string]bool
-	stalls   map[string]bool // téléchargement qui cale : files[path] n'est reçu qu'en partie
+	stalls   map[string]bool // stalling download: files[path] is only partly received
 	calls    []string
 	events   []frigate.APIEvent
 	reviews  map[string]frigate.Review
-	// rattrapage : événements par id, revues récentes, et date demandée
+	// catching up: events by id, recent reviews, and the requested date
 	byID       map[string]frigate.APIEvent
 	reviewList []frigate.Review
 	after      time.Time
 
-	downloadDelay time.Duration // pause simulée dans DownloadToFile, pour tester la concurrence
-	concurrent    int32         // téléchargements en cours (atomique)
-	maxConcurrent int32         // pic observé (atomique)
+	downloadDelay time.Duration // simulated pause in DownloadToFile, to test concurrency
+	concurrent    int32         // downloads in progress (atomic)
+	maxConcurrent int32         // observed peak (atomic)
 }
 
 func newFakeFrigate() *fakeFrigate {
@@ -154,12 +154,12 @@ func (f *fakeFrigate) countCalls(path string) int {
 type tgCall struct {
 	Method string
 	ChatID int64
-	Target int    // message visé par une édition
-	Text   string // texte ou légende
+	Target int    // message targeted by an edit
+	Text   string // text or caption
 	FileID string
-	Data   string // contenu uploadé
+	Data   string // uploaded content
 	Opts   telegram.SendOptions
-	Result int // message_id renvoyé
+	Result int // message_id returned
 }
 
 type fakeTelegram struct {
@@ -219,7 +219,7 @@ func (f *fakeTelegram) EditMessageMedia(_ context.Context, chatID int64, message
 	return telegram.Message{MessageID: id, Video: &telegram.Video{FileID: "video-file"}}, nil
 }
 
-// videos renvoie les clips livrés, qu'ils remplacent l'image ou arrivent en réponse.
+// videos returns the delivered clips, whether they replace the image or arrive as a reply.
 func (f *fakeTelegram) videos() []tgCall {
 	return append(f.byMethod("editMessageMedia:video"), f.byMethod("sendVideo")...)
 }
@@ -301,8 +301,8 @@ type harness struct {
 	m     *metrics.Metrics
 }
 
-// newHarness construit un notifier de test. opts permet d'ajuster Deps avant New
-// (ex. MediaWorkers) sans changer les nombreux appels existants sans options.
+// newHarness builds a test notifier. opts adjusts Deps before New (e.g.
+// MediaWorkers) without changing the many existing calls without options.
 func newHarness(t *testing.T, mode string, opts ...func(*Deps)) *harness {
 	t.Helper()
 	cfg, err := config.Parse([]byte(fmt.Sprintf(testConfig, mode)), func(string) (string, bool) { return "", false })
@@ -329,11 +329,11 @@ func newHarness(t *testing.T, mode string, opts ...func(*Deps)) *harness {
 	return h
 }
 
-// send traite un message puis attend la fin de tous les envois déclenchés.
+// send handles a message then waits for every send it triggered to finish.
 func (h *harness) send(t *testing.T, topic string, payload []byte) {
 	t.Helper()
 	h.n.Process(context.Background(), topic, payload)
 	if !h.n.Wait(5 * time.Second) {
-		t.Fatal("envois non terminés après 5 s")
+		t.Fatal("sends not finished after 5 s")
 	}
 }

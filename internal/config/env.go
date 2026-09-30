@@ -9,23 +9,23 @@ import (
 	"frigate-telegram-enhanced/internal/i18n"
 )
 
-// FromEnv construit la configuration depuis les variables d'environnement, pour une
-// installation par docker-compose seul, sans config.yml. Les réglages de
-// notification se font ensuite dans l'interface web.
+// FromEnv builds the configuration from the environment variables, for an
+// installation with docker-compose alone, without config.yml. Notification
+// settings are then made in the web interface.
 //
-// Obligatoires : TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, FRIGATE_URL, MQTT_BROKER.
-// Facultatives : TELEGRAM_ADMINS, FRIGATE_EXTERNAL_URL, FRIGATE_USERNAME,
+// Required: TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, FRIGATE_URL, MQTT_BROKER.
+// Optional: TELEGRAM_ADMINS, FRIGATE_EXTERNAL_URL, FRIGATE_USERNAME,
 // FRIGATE_PASSWORD, FRIGATE_INSECURE_SKIP_VERIFY, MQTT_USERNAME, MQTT_PASSWORD,
 // MQTT_TOPIC_PREFIX, MQTT_CLIENT_ID, MQTT_INSECURE_SKIP_VERIFY, MODE, TZ,
 // WEB_ENABLED, WEB_PASSWORD, WEB_ALLOWED_HOSTS, WEB_PROTECT_METRICS, LOG_LEVEL,
-// STATE_FILE, HTTP_LISTEN, LANGUAGE (en par défaut, ou fr), PRESENCE_TOPICS,
-// PRESENCE_HOME_VALUES.
+// STATE_FILE, HTTP_LISTEN, LANGUAGE (en by default; see internal/i18n/locales),
+// PRESENCE_TOPICS, PRESENCE_HOME_VALUES.
 func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 	get := func(name string) string {
 		v, _ := lookup(name)
 		return strings.TrimSpace(v)
 	}
-	l, _ := i18n.Parse(get("LANGUAGE")) // une langue invalide est signalée par build
+	l, _ := i18n.Parse(get("LANGUAGE")) // an invalid language is reported by build
 	var errs []error
 	boolean := func(name string, def bool) bool {
 		v := get(name)
@@ -118,9 +118,9 @@ func splitList(s string) []string {
 	return out
 }
 
-// parseChats lit TELEGRAM_CHAT_ID : un identifiant, ou une liste séparée par des
-// virgules, chacun éventuellement nommé ("moi=123456789,famille=-1001234567890").
-// Sans nom, l'identifiant lui-même sert de nom.
+// parseChats reads TELEGRAM_CHAT_ID: an ID, or a comma-separated list, each one
+// optionally named ("me=123456789,family=-1001234567890"). Without a name, the ID
+// itself serves as the name.
 func parseChats(s string, l i18n.Lang) (map[string]int64, error) {
 	chats := map[string]int64{}
 	for _, item := range splitList(s) {
@@ -144,9 +144,9 @@ func parseChats(s string, l i18n.Lang) (map[string]int64, error) {
 	return chats, nil
 }
 
-// parseAdmins lit TELEGRAM_ADMINS. Par défaut, les identifiants positifs de
-// TELEGRAM_CHAT_ID : un chat privé avec le bot a l'identifiant de l'utilisateur.
-// Un groupe (identifiant négatif) ne désigne personne : il faut alors TELEGRAM_ADMINS.
+// parseAdmins reads TELEGRAM_ADMINS. By default, the positive IDs of
+// TELEGRAM_CHAT_ID: a private chat with the bot has the user's ID. A group
+// (negative ID) designates nobody: TELEGRAM_ADMINS is then needed.
 func parseAdmins(s string, chats map[string]int64, l i18n.Lang) ([]int64, error) {
 	var admins []int64
 	if s == "" {
@@ -172,8 +172,8 @@ func parseAdmins(s string, chats map[string]int64, l i18n.Lang) ([]int64, error)
 	return admins, nil
 }
 
-// brokerURL accepte "mosquitto", "mosquitto:1883" ou une URL complète
-// ("tcp://…", "ssl://…") et renvoie une URL complète.
+// brokerURL accepts "mosquitto", "mosquitto:1883" or a full URL ("tcp://…",
+// "ssl://…") and returns a full URL.
 func brokerURL(s string) string {
 	if strings.Contains(s, "://") {
 		return s

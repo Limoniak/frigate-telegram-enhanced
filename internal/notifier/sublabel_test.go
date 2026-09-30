@@ -8,8 +8,8 @@ import (
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
-// sublabelHarness : filtre « ne pas prévenir pour Océane », attente de 5 s. Les
-// attentes programmées ne partent pas seules : le test les déclenche avec fire.
+// sublabelHarness: filter "don't notify for Océane", 5 s wait. The scheduled waits
+// do not fire by themselves: the test triggers them with fire.
 func sublabelHarness(t *testing.T) (*harness, *[]time.Duration) {
 	t.Helper()
 	var waits []time.Duration
@@ -33,21 +33,21 @@ func TestIgnoredSubLabelSuppressesNotification(t *testing.T) {
 	h, waits := sublabelHarness(t)
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	if h.tg.count() != 0 || len(*waits) != 1 || (*waits)[0] != 5*time.Second {
-		t.Fatalf("attendu : aucune notification, une attente de 5 s ; envois=%d attentes=%v", h.tg.count(), *waits)
+		t.Fatalf("want no notification and a 5 s wait; sends=%d waits=%v", h.tg.count(), *waits)
 	}
-	// Une mise à jour sans étiquette ne met pas fin à l'attente.
+	// An update without a label does not end the wait.
 	h.send(t, "frigate/events", eventMsg("update", evID, "garage", "person", nil))
 	if h.tg.count() != 0 || len(*waits) != 1 {
-		t.Fatalf("mise à jour sans étiquette : envois=%d attentes=%v", h.tg.count(), *waits)
+		t.Fatalf("update without a label: sends=%d waits=%v", h.tg.count(), *waits)
 	}
 	h.send(t, "frigate/events", withSubLabel(eventMsg("update", evID, "garage", "person", nil), "océane"))
 	fire(t, h)
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 	if h.tg.count() != 0 {
-		t.Fatalf("Océane est ignorée : %d envois", h.tg.count())
+		t.Fatalf("Océane is ignored: %d sends", h.tg.count())
 	}
 	if hist := h.n.History(); len(hist) != 1 || hist[0].Reason != "sub_label" {
-		t.Errorf("historique : %+v", hist)
+		t.Errorf("history: %+v", hist)
 	}
 }
 
@@ -57,7 +57,7 @@ func TestOtherSubLabelNotifiesAtOnceWithLabel(t *testing.T) {
 	h.send(t, "frigate/events", withSubLabel(eventMsg("update", evID, "garage", "person", nil), "Baptiste"))
 	photos := h.tg.byMethod("sendPhoto")
 	if len(photos) != 2 || !strings.Contains(photos[0].Text, "🏷 Baptiste") {
-		t.Fatalf("notification attendue dès l'étiquette connue, avec elle : %+v", photos)
+		t.Fatalf("want a notification as soon as the label is known, with it: %+v", photos)
 	}
 }
 
@@ -66,11 +66,11 @@ func TestUnknownIsNotifiedWhenTheWaitEnds(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	fire(t, h)
 	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
-		t.Fatalf("sans étiquette à la fin de l'attente, l'objet est inconnu : photos = %d", n)
+		t.Fatalf("without a label at the end of the wait, the object is unknown: photos = %d", n)
 	}
 }
 
-// Événement plus court que l'attente : la décision se prend à sa fin, et le clip suit.
+// Event shorter than the wait: the decision is made at its end, and the clip follows.
 func TestShortEventEndingDuringTheWaitIsNotLost(t *testing.T) {
 	h, _ := sublabelHarness(t)
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
@@ -79,11 +79,11 @@ func TestShortEventEndingDuringTheWaitIsNotLost(t *testing.T) {
 		t.Fatalf("photos = %d", n)
 	}
 	if n := len(h.tg.videos()); n != 2 {
-		t.Errorf("clips = %d, attendu 2", n)
+		t.Errorf("clips = %d, want 2", n)
 	}
-	fire(t, h) // l'attente qui se termine ensuite ne notifie pas une seconde fois
+	fire(t, h) // the wait that ends afterwards does not notify a second time
 	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
-		t.Errorf("photos = %d après la fin de l'attente", n)
+		t.Errorf("photos = %d after the end of the wait", n)
 	}
 }
 
@@ -93,6 +93,6 @@ func TestNoWaitWithoutSubLabelFilter(t *testing.T) {
 	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	if waits != 0 || len(h.tg.byMethod("sendPhoto")) != 2 {
-		t.Errorf("sans filtre d'étiquettes : attentes=%d photos=%d", waits, len(h.tg.byMethod("sendPhoto")))
+		t.Errorf("without a label filter: waits=%d photos=%d", waits, len(h.tg.byMethod("sendPhoto")))
 	}
 }

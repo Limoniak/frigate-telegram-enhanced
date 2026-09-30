@@ -53,8 +53,8 @@ func (f fakeCameras) CameraDetails(context.Context) ([]frigate.CameraInfo, error
 	return f.cams, f.err
 }
 
-// setup monte l'interface sur un serveur de test et renvoie la config vivante,
-// le chemin du fichier de surcharge et le serveur.
+// setup mounts the interface on a test server and returns the live configuration,
+// the path of the override file and the server.
 func setup(t *testing.T, password string, cams fakeCameras, opts ...Option) (*config.Config, string, *httptest.Server) {
 	t.Helper()
 	cfg, err := config.Parse([]byte(testConfig), func(string) (string, bool) { return "", false })
@@ -102,7 +102,7 @@ func TestGetSettingsDescribesConfigAndCameras(t *testing.T) {
 
 	resp := do(t, ts, "GET", "/api/settings", "")
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("statut = %d", resp.StatusCode)
+		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var s settings
 	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
@@ -115,27 +115,27 @@ func TestGetSettingsDescribesConfigAndCameras(t *testing.T) {
 		t.Errorf("cameras = %+v", s.Cameras)
 	}
 	if s.Custom {
-		t.Error("aucun fichier de surcharge n'existe encore, custom devrait être faux")
+		t.Error("no override file exists yet, custom should be false")
 	}
 	if s.Overlay.Notify.Labels == nil || (*s.Overlay.Notify.Labels)[0] != "person" {
 		t.Errorf("overlay.notify = %+v", s.Overlay.Notify)
 	}
 	if got := s.Overlay.Cameras["garage"]; got.MinScore == nil || got.MinScore.Default != 0.9 {
-		t.Errorf("garage doit apparaître comme surcharge : %+v", got)
+		t.Errorf("garage must appear as an override: %+v", got)
 	}
 }
 
 func TestGetSettingsWarnsWhenFrigateIsDown(t *testing.T) {
-	_, _, ts := setup(t, "", fakeCameras{err: errors.New("connexion refusée")})
+	_, _, ts := setup(t, "", fakeCameras{err: errors.New("connection refused")})
 
 	var s settings
 	if err := json.NewDecoder(do(t, ts, "GET", "/api/settings", "").Body).Decode(&s); err != nil {
 		t.Fatal(err)
 	}
 	if s.Warning == "" {
-		t.Error("un avertissement était attendu")
+		t.Error("want a warning")
 	}
-	// Les caméras déjà réglées restent proposées, sinon l'interface les effacerait.
+	// The cameras already set up are still offered, otherwise the interface would erase them.
 	if len(s.Cameras) != 2 || s.Cameras[0].Name != "garage" || s.Cameras[1].Name != "salon" {
 		t.Errorf("cameras = %+v", s.Cameras)
 	}
@@ -149,21 +149,21 @@ func TestPutAppliesImmediatelyAndPersists(t *testing.T) {
 	resp := do(t, ts, "PUT", "/api/settings", body)
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		t.Fatalf("statut = %d : %s", resp.StatusCode, b)
+		t.Fatalf("status = %d: %s", resp.StatusCode, b)
 	}
 
 	if got := cfg.Global(); got.Cooldown != 30*time.Second || got.Chats[0] != "famille" {
-		t.Errorf("les réglages n'ont pas été appliqués à chaud : %+v", got)
+		t.Errorf("the settings were not applied live: %+v", got)
 	}
 	if got := cfg.ForCamera("jardin").MinScore.Default; got != 0.5 {
 		t.Errorf("jardin.min_score = %v", got)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("le fichier de surcharge n'a pas été écrit : %v", err)
+		t.Fatalf("the override file was not written: %v", err)
 	}
 	if !strings.Contains(string(raw), "cooldown: 30s") {
-		t.Errorf("fichier écrit :\n%s", raw)
+		t.Errorf("file written:\n%s", raw)
 	}
 }
 
@@ -173,7 +173,7 @@ func TestPutRejectsInvalidSettingsWithoutWriting(t *testing.T) {
 
 	resp := do(t, ts, "PUT", "/api/settings", `{"notify":{"chats":["inconnu"]}}`)
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("statut = %d, attendu 400", resp.StatusCode)
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
 	}
 	var body map[string]string
 	json.NewDecoder(resp.Body).Decode(&body)
@@ -181,10 +181,10 @@ func TestPutRejectsInvalidSettingsWithoutWriting(t *testing.T) {
 		t.Errorf("message = %q", body["error"])
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-		t.Error("rien ne doit être écrit quand la validation échoue")
+		t.Error("nothing must be written when validation fails")
 	}
 	if cfg.Global().Chats[0] != before.Chats[0] {
-		t.Error("les réglages en vigueur ont changé malgré le refus")
+		t.Error("the settings in force changed despite the refusal")
 	}
 }
 
@@ -192,7 +192,7 @@ func TestPutRejectsUnknownFields(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	resp := do(t, ts, "PUT", "/api/settings", `{"notify":{"coldown":"30s"}}`)
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("statut = %d, une clé mal orthographiée doit être signalée", resp.StatusCode)
+		t.Errorf("status = %d, a misspelled key must be reported", resp.StatusCode)
 	}
 }
 
@@ -200,19 +200,19 @@ func TestResetReturnsToConfigFile(t *testing.T) {
 	cfg, path, ts := setup(t, "", fakeCameras{})
 
 	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{"labels":["car"]},"cameras":{}}`); resp.StatusCode != http.StatusOK {
-		t.Fatalf("PUT: statut %d", resp.StatusCode)
+		t.Fatalf("PUT: status %d", resp.StatusCode)
 	}
 	if resp := do(t, ts, "POST", "/api/settings/reset", ""); resp.StatusCode != http.StatusOK {
-		t.Fatalf("reset: statut %d", resp.StatusCode)
+		t.Fatalf("reset: status %d", resp.StatusCode)
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-		t.Error("le fichier de surcharge devait être supprimé")
+		t.Error("the override file should have been deleted")
 	}
 	if got := cfg.Global().Labels; len(got) != 1 || got[0] != "person" {
-		t.Errorf("labels = %v, config.yml devait reprendre la main", got)
+		t.Errorf("labels = %v, config.yml should have taken over again", got)
 	}
 	if got := cfg.ForCamera("garage").MinScore.Default; got != 0.9 {
-		t.Errorf("garage.min_score = %v, la surcharge de config.yml devait revenir", got)
+		t.Errorf("garage.min_score = %v, the override from config.yml should have come back", got)
 	}
 }
 
@@ -224,18 +224,18 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 		auth                     []string
 		want                     int
 	}{
-		{name: "sans mot de passe", method: "GET", path: "/api/settings", want: http.StatusUnauthorized},
-		{name: "mauvais mot de passe", method: "GET", path: "/api/settings", auth: []string{"autre"}, want: http.StatusUnauthorized},
-		{name: "page sans mot de passe", method: "GET", path: "/", want: http.StatusUnauthorized},
-		{name: "script sans mot de passe", method: "GET", path: "/ui.js", want: http.StatusUnauthorized},
-		{name: "script avec mot de passe", method: "GET", path: "/ui.js", auth: []string{"s3cret"}, want: http.StatusOK},
-		{name: "écriture sans mot de passe", method: "PUT", path: "/api/settings", body: "{}", want: http.StatusUnauthorized},
-		{name: "bon mot de passe", method: "GET", path: "/api/settings", auth: []string{"s3cret"}, want: http.StatusOK},
+		{name: "without password", method: "GET", path: "/api/settings", want: http.StatusUnauthorized},
+		{name: "wrong password", method: "GET", path: "/api/settings", auth: []string{"autre"}, want: http.StatusUnauthorized},
+		{name: "page without password", method: "GET", path: "/", want: http.StatusUnauthorized},
+		{name: "script without password", method: "GET", path: "/ui.js", want: http.StatusUnauthorized},
+		{name: "script with password", method: "GET", path: "/ui.js", auth: []string{"s3cret"}, want: http.StatusOK},
+		{name: "write without password", method: "PUT", path: "/api/settings", body: "{}", want: http.StatusUnauthorized},
+		{name: "right password", method: "GET", path: "/api/settings", auth: []string{"s3cret"}, want: http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := do(t, ts, tc.method, tc.path, tc.body, tc.auth...)
 			if resp.StatusCode != tc.want {
-				t.Errorf("statut = %d, attendu %d", resp.StatusCode, tc.want)
+				t.Errorf("status = %d, want %d", resp.StatusCode, tc.want)
 			}
 		})
 	}
@@ -245,41 +245,41 @@ func TestPageIsServed(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	resp := do(t, ts, "GET", "/", "")
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("statut = %d", resp.StatusCode)
+		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	for _, ref := range []string{`href="ui.css"`, `src="ui.js"`} {
 		if !strings.Contains(string(body), ref) {
-			t.Errorf("la page ne charge pas %s", ref)
+			t.Errorf("the page does not load %s", ref)
 		}
 	}
 	for path, want := range map[string]string{"/ui.css": "text/css; charset=utf-8", "/ui.js": "text/javascript; charset=utf-8",
 		"/i18n.js": "text/javascript; charset=utf-8"} {
 		resp := do(t, ts, "GET", path, "")
 		if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != want {
-			t.Errorf("%s : statut %d, type %q", path, resp.StatusCode, resp.Header.Get("Content-Type"))
+			t.Errorf("%s: status %d, type %q", path, resp.StatusCode, resp.Header.Get("Content-Type"))
 		}
 	}
 	js, _ := io.ReadAll(do(t, ts, "GET", "/ui.js", "").Body)
 	if !strings.Contains(string(js), "api/settings") {
-		t.Error("le script ne référence pas l'API")
+		t.Error("the script does not reference the API")
 	}
 	cat, _ := io.ReadAll(do(t, ts, "GET", "/i18n.js", "").Body)
 	for _, want := range []string{`const LANGUAGES = [{"code":"en","name":"English"},{"code":"fr","name":"Français"}]`, `"Help":"Aide"`} {
 		if !strings.Contains(string(cat), want) {
-			t.Errorf("i18n.js ne contient pas %s", want)
+			t.Errorf("i18n.js does not contain %s", want)
 		}
 	}
 	if resp := do(t, ts, "GET", "/web.go", ""); resp.StatusCode != http.StatusNotFound {
-		t.Errorf("/web.go : statut %d, attendu 404", resp.StatusCode)
+		t.Errorf("/web.go: status %d, want 404", resp.StatusCode)
 	}
 }
 
 func TestWritesRequireTheRequestedWithHeader(t *testing.T) {
 	_, path, ts := setup(t, "", fakeCameras{})
 
-	// Une page tierce peut envoyer un POST simple sans contrôle préalable CORS ;
-	// l'en-tête, lui, ne peut pas être ajouté sans ce contrôle.
+	// A third-party page can send a simple POST without a CORS preflight; the header,
+	// however, cannot be added without that check.
 	for _, tc := range []struct{ method, path, body string }{
 		{"PUT", "/api/settings", `{"notify":{"labels":["car"]}}`},
 		{"POST", "/api/settings/reset", ""},
@@ -294,16 +294,16 @@ func TestWritesRequireTheRequestedWithHeader(t *testing.T) {
 		}
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {
-			t.Errorf("%s %s : statut = %d, attendu 403", tc.method, tc.path, resp.StatusCode)
+			t.Errorf("%s %s: status = %d, want 403", tc.method, tc.path, resp.StatusCode)
 		}
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-		t.Error("une écriture refusée ne doit rien laisser sur disque")
+		t.Error("a refused write must leave nothing on disk")
 	}
 }
 
-// Sans mot de passe, un nom de domaine inconnu dans Host signe un rebinding DNS :
-// la requête est refusée même si elle porte X-Requested-With.
+// Without a password, an unknown domain name in Host is the mark of DNS rebinding:
+// the request is refused even if it carries X-Requested-With.
 func TestHostCheckBlocksDNSRebinding(t *testing.T) {
 	_, path, ts := setup(t, "", fakeCameras{})
 	for _, tc := range []struct {
@@ -328,11 +328,11 @@ func TestHostCheckBlocksDNSRebinding(t *testing.T) {
 		}
 		resp.Body.Close()
 		if resp.StatusCode != tc.want {
-			t.Errorf("Host %q : statut = %d, attendu %d", tc.host, resp.StatusCode, tc.want)
+			t.Errorf("Host %q: status = %d, want %d", tc.host, resp.StatusCode, tc.want)
 		}
 		if tc.want == http.StatusForbidden {
 			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("Host %q : une écriture refusée ne doit rien laisser sur disque", tc.host)
+				t.Fatalf("Host %q: a refused write must leave nothing on disk", tc.host)
 			}
 		}
 	}
@@ -351,14 +351,14 @@ func TestHostAllowed(t *testing.T) {
 		"localhost.evil.com": false,
 	} {
 		if got := hostAllowed(host, allowed); got != want {
-			t.Errorf("hostAllowed(%q) = %v, attendu %v", host, got, want)
+			t.Errorf("hostAllowed(%q) = %v, want %v", host, got, want)
 		}
 	}
 }
 
-// Ouvrir l'interface puis enregistrer sans rien toucher doit laisser les réglages
-// effectifs identiques : c'est l'aller-retour que fait le premier enregistrement,
-// celui qui bascule une installation de config.yml vers le fichier de surcharge.
+// Opening the interface then saving without touching anything must leave the
+// effective settings identical: that is the round trip of the first save, the one
+// that moves an installation from config.yml to the override file.
 func TestSavingUntouchedSettingsChangesNothing(t *testing.T) {
 	cfg, _, ts := setup(t, "", fakeCameras{})
 	names := append(cfg.CameraNames(), "inconnue")
@@ -371,7 +371,7 @@ func TestSavingUntouchedSettingsChangesNothing(t *testing.T) {
 	if err := json.NewDecoder(do(t, ts, "GET", "/api/settings", "").Body).Decode(&s); err != nil {
 		t.Fatal(err)
 	}
-	// La page retire les caméras qui ne surchargent rien avant d'envoyer.
+	// The page removes the cameras that override nothing before sending.
 	for name, patch := range s.Overlay.Cameras {
 		if patch == (config.NotifyPatch{}) {
 			delete(s.Overlay.Cameras, name)
@@ -383,34 +383,34 @@ func TestSavingUntouchedSettingsChangesNothing(t *testing.T) {
 	}
 	if resp := do(t, ts, "PUT", "/api/settings", string(body)); resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		t.Fatalf("statut = %d : %s", resp.StatusCode, b)
+		t.Fatalf("status = %d: %s", resp.StatusCode, b)
 	}
 
 	if got := cfg.Global(); !reflect.DeepEqual(got, before[""]) {
-		t.Errorf("global :\navant %+v\naprès %+v", before[""], got)
+		t.Errorf("global:\nbefore %+v\nafter %+v", before[""], got)
 	}
 	for _, n := range names {
 		if got := cfg.ForCamera(n); !reflect.DeepEqual(got, before[n]) {
-			t.Errorf("caméra %s :\navant %+v\naprès %+v", n, before[n], got)
+			t.Errorf("camera %s:\nbefore %+v\nafter %+v", n, before[n], got)
 		}
 	}
 }
 
-// Personnaliser un réglage pour le vider — « cette caméra, elle, n'a aucune contrainte
-// de zone » — doit être distingué de « ne rien surcharger ».
+// Customizing a setting to empty it — "this camera has no zone constraint" — must
+// be told apart from "override nothing".
 func TestEmptyOverrideIsDistinctFromNoOverride(t *testing.T) {
 	cfg, _, ts := setup(t, "", fakeCameras{})
 
 	body := `{"notify":{"zones":["allee"]},"cameras":{"jardin":{"zones":[]},"garage":{}}}`
 	if resp := do(t, ts, "PUT", "/api/settings", body); resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		t.Fatalf("statut = %d : %s", resp.StatusCode, b)
+		t.Fatalf("status = %d: %s", resp.StatusCode, b)
 	}
 	if got := cfg.ForCamera("jardin").Zones; len(got) != 0 {
-		t.Errorf("jardin.zones = %v, la surcharge vide devait lever la contrainte", got)
+		t.Errorf("jardin.zones = %v, the empty override should have lifted the constraint", got)
 	}
 	if got := cfg.ForCamera("garage").Zones; len(got) != 1 || got[0] != "allee" {
-		t.Errorf("garage.zones = %v, sans surcharge elle suit le global", got)
+		t.Errorf("garage.zones = %v, without an override it follows the global settings", got)
 	}
 }
 
@@ -433,23 +433,23 @@ func TestSendTestNotification(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{}, WithTester(tester), WithClock(func() time.Time { return clock }))
 
 	if resp := do(t, ts, "POST", "/api/test", `{"camera":"garage"}`); resp.StatusCode != http.StatusOK {
-		t.Fatalf("statut = %d", resp.StatusCode)
+		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	if resp := do(t, ts, "POST", "/api/test", `{"camera":"garage"}`); resp.StatusCode != http.StatusTooManyRequests {
-		t.Errorf("second test immédiat : statut = %d, attendu 429", resp.StatusCode)
+		t.Errorf("second immediate test: status = %d, want 429", resp.StatusCode)
 	}
 	clock = clock.Add(testInterval)
 	if resp := do(t, ts, "POST", "/api/test", `{}`); resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("sans caméra : statut = %d, attendu 400", resp.StatusCode)
+		t.Errorf("without a camera: status = %d, want 400", resp.StatusCode)
 	}
-	tester.err = errors.New("chat introuvable")
+	tester.err = errors.New("chat not found")
 	resp := do(t, ts, "POST", "/api/test", `{"camera":"salon"}`)
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusBadGateway || !strings.Contains(string(body), "chat introuvable") {
-		t.Errorf("échec d'envoi : %d %s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusBadGateway || !strings.Contains(string(body), "chat not found") {
+		t.Errorf("send failure: %d %s", resp.StatusCode, body)
 	}
 	if !reflect.DeepEqual(tester.cameras, []string{"garage", "salon"}) {
-		t.Errorf("tests envoyés = %v", tester.cameras)
+		t.Errorf("tests sent = %v", tester.cameras)
 	}
 }
 
@@ -464,7 +464,7 @@ func TestPauseAndResume(t *testing.T) {
 	read := func(resp *http.Response) stateView {
 		t.Helper()
 		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("statut = %d", resp.StatusCode)
+			t.Fatalf("status = %d", resp.StatusCode)
 		}
 		var v stateView
 		if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
@@ -475,26 +475,26 @@ func TestPauseAndResume(t *testing.T) {
 
 	v := read(do(t, ts, "GET", "/api/state", ""))
 	if v.Paused || len(v.Mutes) != 1 || v.Mutes[0].Camera != "garage" {
-		t.Fatalf("état initial = %+v", v)
+		t.Fatalf("initial state = %+v", v)
 	}
 	v = read(do(t, ts, "POST", "/api/pause", `{"minutes":30}`))
 	if !v.Paused || v.PausedUntil == nil || !v.PausedUntil.Equal(clock.Add(30*time.Minute)) {
-		t.Errorf("après pause 30 min = %+v", v)
+		t.Errorf("after a 30 min pause = %+v", v)
 	}
 	v = read(do(t, ts, "POST", "/api/pause", `{"minutes":0}`))
 	if !v.Paused || v.PausedUntil != nil {
-		t.Errorf("pause sans échéance = %+v", v)
+		t.Errorf("pause without a deadline = %+v", v)
 	}
 	v = read(do(t, ts, "POST", "/api/resume", `{"camera":"garage"}`))
 	if !v.Paused || len(v.Mutes) != 0 {
-		t.Errorf("après reprise de garage = %+v", v)
+		t.Errorf("after resuming garage = %+v", v)
 	}
 	v = read(do(t, ts, "POST", "/api/resume", ""))
 	if v.Paused {
-		t.Errorf("après reprise globale = %+v", v)
+		t.Errorf("after the global resume = %+v", v)
 	}
 	if resp := do(t, ts, "POST", "/api/pause", `{"minutes":-5}`); resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("durée négative : statut = %d", resp.StatusCode)
+		t.Errorf("negative duration: status = %d", resp.StatusCode)
 	}
 }
 
@@ -503,10 +503,10 @@ func TestOptionalFeaturesAreAdvertised(t *testing.T) {
 	var s settings
 	json.NewDecoder(do(t, ts, "GET", "/api/settings", "").Body).Decode(&s)
 	if s.CanTest || s.CanPause {
-		t.Errorf("sans options : can_test=%v can_pause=%v", s.CanTest, s.CanPause)
+		t.Errorf("without options: can_test=%v can_pause=%v", s.CanTest, s.CanPause)
 	}
 	if resp := do(t, ts, "POST", "/api/test", `{"camera":"garage"}`); resp.StatusCode != http.StatusNotFound {
-		t.Errorf("test sans Tester : statut = %d", resp.StatusCode)
+		t.Errorf("test without a Tester: status = %d", resp.StatusCode)
 	}
 }
 
@@ -553,26 +553,26 @@ func TestHistoryAndThumbnails(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(v.Entries) != 2 || v.Entries[0].Reason != "label" || !v.Entries[0].HasThumb || v.Entries[1].HasThumb || !v.Entries[1].Sent {
-		t.Errorf("historique = %+v", v.Entries)
+		t.Errorf("history = %+v", v.Entries)
 	}
 	if v.Entries[0].Thumb != "" {
-		t.Error("le chemin Frigate ne doit pas être exposé")
+		t.Error("the Frigate path must not be exposed")
 	}
 
 	resp = do(t, ts, "GET", "/api/history/b/thumb", "")
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK || string(body) != "jpeg" || resp.Header.Get("Content-Type") != "image/jpeg" {
-		t.Errorf("miniature : %d %q", resp.StatusCode, body)
+		t.Errorf("thumbnail: %d %q", resp.StatusCode, body)
 	}
 	for _, id := range []string{"a", "inconnu"} {
 		if resp := do(t, ts, "GET", "/api/history/"+id+"/thumb", ""); resp.StatusCode != http.StatusNotFound {
-			t.Errorf("miniature de %s : statut = %d, attendu 404", id, resp.StatusCode)
+			t.Errorf("thumbnail of %s: status = %d, want 404", id, resp.StatusCode)
 		}
 	}
 }
 
-// Les erreurs suivent la langue de l'interface (X-Lang), sinon celle du navigateur,
-// sinon celle du service (anglais par défaut).
+// Errors follow the interface's language (X-Lang), otherwise the browser's,
+// otherwise the service's (English by default).
 func TestErrorsFollowInterfaceLanguage(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	bad := `{"notify":{"chats":["nope"]}}`
@@ -581,7 +581,7 @@ func TestErrorsFollowInterfaceLanguage(t *testing.T) {
 		headers map[string]string
 		want    string
 	}{
-		{"défaut", nil, "unknown chat"},
+		{"default", nil, "unknown chat"},
 		{"X-Lang", map[string]string{"X-Lang": "fr"}, "inconnu (voir"},
 		{"Accept-Language", map[string]string{"Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8"}, "inconnu (voir"},
 		{"X-Lang prime", map[string]string{"X-Lang": "en", "Accept-Language": "fr-FR"}, "unknown chat"},
@@ -599,7 +599,7 @@ func TestErrorsFollowInterfaceLanguage(t *testing.T) {
 			defer resp.Body.Close()
 			body, _ := io.ReadAll(resp.Body)
 			if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), tc.want) {
-				t.Errorf("%d %s ; attendu %q", resp.StatusCode, body, tc.want)
+				t.Errorf("%d %s; want %q", resp.StatusCode, body, tc.want)
 			}
 		})
 	}
@@ -608,18 +608,18 @@ func TestErrorsFollowInterfaceLanguage(t *testing.T) {
 func TestRecipientsAreSavedAndValidated(t *testing.T) {
 	cfg, path, ts := setup(t, "", fakeCameras{})
 	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{},"recipients":{"inconnu":{"labels":["person"]}}}`); resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("destinataire inconnu : statut = %d", resp.StatusCode)
+		t.Errorf("unknown recipient: status = %d", resp.StatusCode)
 	}
 	body := `{"notify":{},"recipients":{"famille":{"labels":["person"],"off_hours":[{"from":"07:00","to":"22:00"}]}}}`
 	if resp := do(t, ts, "PUT", "/api/settings", body); resp.StatusCode != http.StatusOK {
-		t.Fatalf("statut = %d", resp.StatusCode)
+		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	if r := cfg.Recipient("famille"); !reflect.DeepEqual(r.Labels, []string{"person"}) || len(r.OffHours) != 1 {
 		t.Errorf("famille = %+v", r)
 	}
 	raw, _ := os.ReadFile(path)
 	if !strings.Contains(string(raw), "recipients:") {
-		t.Errorf("fichier sans destinataires :\n%s", raw)
+		t.Errorf("file without recipients:\n%s", raw)
 	}
 }
 
@@ -627,13 +627,13 @@ func TestWrongPasswordsBlockTheAddress(t *testing.T) {
 	_, _, ts := setup(t, "s3cret", fakeCameras{})
 	for i := range maxFailures {
 		if resp := do(t, ts, "GET", "/api/settings", "", "faux"); resp.StatusCode != http.StatusUnauthorized {
-			t.Fatalf("essai %d : statut = %d", i+1, resp.StatusCode)
+			t.Fatalf("attempt %d: status = %d", i+1, resp.StatusCode)
 		}
 	}
-	// Bloquée, même avec le bon mot de passe, et sur une autre route.
+	// Blocked, even with the right password, and on another route.
 	resp := do(t, ts, "GET", "/", "", "s3cret")
 	if resp.StatusCode != http.StatusTooManyRequests || resp.Header.Get("Retry-After") == "" {
-		t.Fatalf("après %d échecs : statut = %d, Retry-After = %q", maxFailures, resp.StatusCode, resp.Header.Get("Retry-After"))
+		t.Fatalf("after %d failures: status = %d, Retry-After = %q", maxFailures, resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 }
 
@@ -645,19 +645,19 @@ func TestAuthUnblocksAfterDelay(t *testing.T) {
 		a.fail("10.0.0.1")
 	}
 	if a.blocked("10.0.0.1") <= 0 || a.blocked("10.0.0.2") > 0 {
-		t.Fatal("seule 10.0.0.1 doit être bloquée")
+		t.Fatal("only 10.0.0.1 must be blocked")
 	}
 	now = now.Add(blockFor + time.Second)
 	if a.blocked("10.0.0.1") > 0 {
-		t.Error("le blocage doit expirer")
+		t.Error("the block must expire")
 	}
-	// Des échecs espacés de plus d'une minute ne s'additionnent pas.
+	// Failures more than a minute apart do not add up.
 	for range maxFailures {
 		a.fail("10.0.0.3")
 		now = now.Add(failureWindow + time.Second)
 	}
 	if a.blocked("10.0.0.3") > 0 {
-		t.Error("des échecs espacés ne doivent pas bloquer")
+		t.Error("failures far apart must not block")
 	}
 }
 
@@ -666,16 +666,16 @@ func TestExternalURLIsSavedAndValidated(t *testing.T) {
 	var s settings
 	json.NewDecoder(do(t, ts, "GET", "/api/settings", "").Body).Decode(&s)
 	if s.Overlay.ExternalURL == nil {
-		t.Fatal("l'adresse actuelle doit être transmise à l'interface")
+		t.Fatal("the current address must be passed to the interface")
 	}
 	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{},"external_url":"frigate.lan"}`); resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("adresse invalide : statut = %d", resp.StatusCode)
+		t.Errorf("invalid address: status = %d", resp.StatusCode)
 	}
 	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{},"external_url":"http://192.168.1.10:5000/"}`); resp.StatusCode != http.StatusOK {
-		t.Fatalf("statut = %d", resp.StatusCode)
+		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	if got := cfg.ExternalURL(); got != "http://192.168.1.10:5000" {
-		t.Errorf("adresse = %q", got)
+		t.Errorf("address = %q", got)
 	}
 }
 
@@ -698,13 +698,13 @@ func TestHealthListsRefusedUsers(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got.Components) != 1 || len(got.Refused) != 1 || got.Refused[0].ID != 999 || got.Refused[0].Username != "alice" {
-		t.Errorf("réponse = %+v", got)
+		t.Errorf("response = %+v", got)
 	}
 
 	_, _, ts = setup(t, "", fakeCameras{}, WithHealth(health))
 	var bare map[string]json.RawMessage
 	json.NewDecoder(do(t, ts, "GET", "/api/health", "").Body).Decode(&bare)
 	if string(bare["refused"]) != "[]" {
-		t.Errorf("refused sans source = %s, attendu []", bare["refused"])
+		t.Errorf("refused without a source = %s, want []", bare["refused"])
 	}
 }

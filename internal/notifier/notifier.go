@@ -1,4 +1,4 @@
-// Package notifier transforme les messages MQTT de Frigate en notifications Telegram.
+// Package notifier turns Frigate's MQTT messages into Telegram notifications.
 package notifier
 
 import (
@@ -21,9 +21,9 @@ const (
 	maxPhotoSize        = 10 << 20
 	maxUploadSize       = 50 << 20
 	inboxSize           = 256
-	endedRetention      = 10 * time.Minute // laisse le temps aux descriptions GenAI d'arriver
+	endedRetention      = 10 * time.Minute // gives the GenAI descriptions time to arrive
 	staleAfter          = time.Hour
-	defaultMediaWorkers = 4 // pool de téléchargements clip/GIF concurrents (spec §2)
+	defaultMediaWorkers = 4 // pool of concurrent clip/GIF downloads (spec §2)
 )
 
 type Frigate interface {
@@ -31,7 +31,7 @@ type Frigate interface {
 	DownloadToFile(ctx context.Context, path string, max int64) (string, error)
 	Review(ctx context.Context, id string) (frigate.Review, error)
 	Events(ctx context.Context, camera string, limit int) ([]frigate.APIEvent, error)
-	// Rattrapage après une coupure MQTT (voir CatchUp).
+	// Catching up after an MQTT outage (see CatchUp).
 	Event(ctx context.Context, id string) (frigate.APIEvent, error)
 	EventsSince(ctx context.Context, after time.Time, limit int) ([]frigate.APIEvent, error)
 	ReviewsSince(ctx context.Context, after time.Time, limit int) ([]frigate.Review, error)
@@ -48,7 +48,7 @@ type Telegram interface {
 }
 
 type Deps struct {
-	// Schedule lance f après d (défaut : time.AfterFunc) ; remplaçable en test.
+	// Schedule runs f after d (default: time.AfterFunc); replaceable in tests.
 	Schedule           func(d time.Duration, f func())
 	Config             *config.Config
 	Engine             *filter.Engine
@@ -57,11 +57,11 @@ type Deps struct {
 	Telegram           Telegram
 	Metrics            *metrics.Metrics
 	Log                *slog.Logger
-	Now                func() time.Time // défaut : time.Now
-	ClipRetryDelays    []time.Duration  // défaut : 5 s, 10 s, 20 s
-	SnapshotRetryDelay time.Duration    // défaut : 1 s
-	MediaWorkers       int              // défaut : 4 (téléchargements clip/GIF concurrents)
-	HistoryFile        string           // activité récente conservée entre deux démarrages ; vide : en mémoire seulement
+	Now                func() time.Time // default: time.Now
+	ClipRetryDelays    []time.Duration  // default: 5 s, 10 s, 20 s
+	SnapshotRetryDelay time.Duration    // default: 1 s
+	MediaWorkers       int              // default: 4 (concurrent clip/GIF downloads)
+	HistoryFile        string           // recent activity kept across restarts; empty: in memory only
 }
 
 type Notifier struct {
@@ -71,16 +71,16 @@ type Notifier struct {
 	sendCtx     context.Context
 	cancelSends context.CancelFunc
 	wg          sync.WaitGroup
-	media       chan struct{} // sémaphore : limite les téléchargements clip/GIF concurrents
-	dropped     atomic.Int64  // messages écartés, file pleine, depuis le démarrage
-	lastDrop    atomic.Int64  // heure du dernier (UnixNano), 0 si aucun
+	media       chan struct{} // semaphore: bounds the concurrent clip/GIF downloads
+	dropped     atomic.Int64  // messages dropped, queue full, since startup
+	lastDrop    atomic.Int64  // time of the last one (UnixNano), 0 if none
 
-	mu      sync.Mutex // protège tracked, sent et les champs des *tracked (sauf messages)
-	tracked map[string]*tracked
-	sent    []time.Time
-	history []HistoryEntry
-	histDirty bool // history a changé depuis la dernière écriture de HistoryFile
-	groups  map[string]*group // regroupement en cours, par destinataire
+	mu        sync.Mutex // guards tracked, sent and the fields of the *tracked (except messages)
+	tracked   map[string]*tracked
+	sent      []time.Time
+	history   []HistoryEntry
+	histDirty bool              // history changed since the last write of HistoryFile
+	groups    map[string]*group // regroupement en cours, par destinataire
 }
 
 type inMsg struct {
@@ -92,12 +92,12 @@ type topics struct{ events, reviews, updates string }
 
 type sentMsg struct {
 	id   int
-	text bool // message texte (pas de photo) : s'édite avec editMessageText
+	text bool // text message (no photo): edited with editMessageText
 }
 
-// tracked suit un événement (mode events) ou une review (mode reviews).
+// tracked follows an event (events mode) or a review (reviews mode).
 type tracked struct {
-	id, camera   string // immuables après création
+	id, camera   string // immutable after creation
 	label        string
 	subLabel     string
 	zones        []string
@@ -105,7 +105,7 @@ type tracked struct {
 	hasScore     bool
 	start        time.Time
 	startTS      float64
-	eventIDs     []string // ids des événements Frigate liés (descriptions GenAI)
+	eventIDs     []string // ids of the linked Frigate events (GenAI descriptions)
 	snapshotPath string
 	clipPath     string
 	gifPath      string
@@ -114,20 +114,20 @@ type tracked struct {
 	lastReason   string
 
 	notified, silent, ended bool
-	// suppressed : refusé pour cooldown. On ne le réévalue plus, sinon un objet qui
-	// reste dans le champ serait notifié à l'expiration du cooldown, en plein milieu
-	// de l'événement, avec un snapshot sans rapport avec son début.
+	// suppressed: refused because of the cooldown. It is not evaluated again,
+	// otherwise an object staying in view would be notified when the cooldown expires,
+	// in the middle of the event, with a snapshot unrelated to its start.
 	suppressed        bool
 	chats             []string
 	endedAt, lastSeen time.Time
 
-	ready    chan struct{} // fermé quand le snapshot a été envoyé à tous les chats
+	ready    chan struct{} // closed when the snapshot was sent to every chat
 	msgMu    sync.Mutex
-	messages map[string]sentMsg // nom du chat → message envoyé
-	groups   map[string]*group  // regroupements dont t est la tête, par chat (sous n.mu)
-	grouped  bool               // ajouté au message d'une autre notification
-	// pending : détection qui serait notifiée, en attente de son étiquette pour le
-	// filtre des étiquettes (voir decide) ; nil sinon.
+	messages map[string]sentMsg // chat name → message sent
+	groups   map[string]*group  // groupings t is the head of, per chat (under n.mu)
+	grouped  bool               // added to the message of another notification
+	// pending: a detection that would be notified, waiting for its label for the
+	// label filter (see decide); nil otherwise.
 	pending *filter.Input
 }
 
@@ -178,7 +178,7 @@ func New(d Deps) *Notifier {
 	return n
 }
 
-// Topics renvoie les topics MQTT à écouter selon le mode.
+// Topics returns the MQTT topics to listen to, depending on the mode.
 func (n *Notifier) Topics() []string {
 	main := n.topics.events
 	if n.Config.Mode == config.ModeReviews {
@@ -187,7 +187,7 @@ func (n *Notifier) Topics() []string {
 	return []string{main, n.topics.updates}
 }
 
-// Handle est appelé par le client MQTT ; il ne bloque jamais.
+// Handle is called by the MQTT client; it never blocks.
 func (n *Notifier) Handle(topic string, payload []byte) {
 	select {
 	case n.inbox <- inMsg{topic: topic, payload: payload}:
@@ -199,8 +199,8 @@ func (n *Notifier) Handle(topic string, payload []byte) {
 	}
 }
 
-// Dropped renvoie le nombre de messages MQTT écartés faute de place dans la file
-// depuis le démarrage, et l'heure du dernier (zéro si aucun).
+// Dropped returns the number of MQTT messages dropped for lack of room in the
+// queue since startup, and the time of the last one (zero if none).
 func (n *Notifier) Dropped() (int, time.Time) {
 	last := n.lastDrop.Load()
 	if last == 0 {
@@ -209,8 +209,8 @@ func (n *Notifier) Dropped() (int, time.Time) {
 	return int(n.dropped.Load()), time.Unix(0, last)
 }
 
-// Run consomme la file jusqu'à l'annulation de ctx. Les envois utilisent un contexte
-// distinct, annulé seulement par Shutdown, pour pouvoir se terminer proprement.
+// Run consumes the queue until ctx is canceled. Sends use a separate context,
+// canceled only by Shutdown, so that they can finish cleanly.
 func (n *Notifier) Run(ctx context.Context) {
 	sweep := time.NewTicker(time.Minute)
 	defer sweep.Stop()
@@ -226,7 +226,7 @@ func (n *Notifier) Run(ctx context.Context) {
 	}
 }
 
-// Process traite un message de façon synchrone ; les envois partent en arrière-plan.
+// Process handles a message synchronously; the sends go out in the background.
 func (n *Notifier) Process(ctx context.Context, topic string, payload []byte) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -255,7 +255,7 @@ func (n *Notifier) Process(ctx context.Context, topic string, payload []byte) {
 	}
 }
 
-// Wait attend la fin des envois en cours ; false si timeout est dépassé.
+// Wait waits for the sends in progress to finish; false if timeout is exceeded.
 func (n *Notifier) Wait(timeout time.Duration) bool {
 	done := make(chan struct{})
 	go func() {
@@ -270,7 +270,7 @@ func (n *Notifier) Wait(timeout time.Duration) bool {
 	}
 }
 
-// Shutdown laisse timeout aux envois en cours, puis les annule.
+// Shutdown gives the sends in progress timeout to finish, then cancels them.
 func (n *Notifier) Shutdown(timeout time.Duration) bool {
 	ok := n.Wait(timeout)
 	n.cancelSends()
@@ -280,7 +280,7 @@ func (n *Notifier) Shutdown(timeout time.Duration) bool {
 	return ok
 }
 
-// Count24h renvoie le nombre de notifications envoyées sur les dernières 24 h.
+// Count24h returns the number of notifications sent over the last 24 h.
 func (n *Notifier) Count24h() int {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -321,8 +321,8 @@ func (n *Notifier) sweep() {
 	}
 	for id, t := range n.tracked {
 		if (t.ended && now.Sub(t.endedAt) > endedRetention) || now.Sub(t.lastSeen) > staleAfter {
-			// Un événement filtré dont la fin n'est jamais arrivée doit tout de même
-			// compter dans les métriques de filtrage (finish ne le verra pas).
+			// A filtered event whose end never arrived must still count in the
+			// filtering metrics (finish will not see it).
 			if !t.notified && t.lastReason != "" {
 				n.Metrics.EventsFiltered.WithLabelValues(t.lastReason).Inc()
 				n.record(t, false)
@@ -352,11 +352,11 @@ func (n *Notifier) caption(t *tracked) string {
 	return buildCaption(n.captionData(t), n.Config.Location, n.Config.Language)
 }
 
-// notify marque l'événement notifié et lance l'envoi du snapshot. Appelé sous n.mu.
+// notify marks the event notified and starts sending the snapshot. Called under n.mu.
 func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 	now := n.Now()
 	fresh, grouped := n.split(t, d.Chats, now)
-	// Seuls les destinataires d'un nouveau message recevront clip et GIF en réponse.
+	// Only the recipients of a new message will get the clip and GIF as a reply.
 	t.notified, t.silent, t.chats, t.label = true, d.Silent, fresh, d.Label
 	t.ready = make(chan struct{})
 	t.messages = map[string]sentMsg{}
@@ -388,7 +388,7 @@ func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 	n.goAsync(func() { n.sendSnapshot(ctx, t, path, caption, silent, chats) })
 }
 
-// finish traite la fin d'un événement : comptage du filtrage, ou envoi du clip et du GIF. Appelé sous n.mu.
+// finish handles the end of an event: counting the filtering, or sending the clip and GIF. Called under n.mu.
 func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool) {
 	if t == nil {
 		return
@@ -410,7 +410,7 @@ func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool) {
 	cfg := n.Config.ForCamera(t.camera)
 	chats := t.chats
 	if len(chats) == 0 {
-		return // regroupée dans le message d'une autre notification : ni clip ni GIF
+		return // grouped into another notification's message: no clip or GIF
 	}
 	clip := cfg.Clip && hasClip
 	if clip {
@@ -418,15 +418,15 @@ func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool) {
 		n.goAsync(func() { n.sendFollowUp(ctx, t, "video", path, chats, cfg.ClipDelay, cfg.MediaInPlace) })
 	}
 	if cfg.GIF && t.gifPath != "" {
-		// Avec un clip, c'est lui qui prend la place de l'image : le GIF arrive en réponse.
+		// With a clip, the clip takes the image's place: the GIF arrives as a reply.
 		path, inPlace := t.gifPath, cfg.MediaInPlace && !clip
 		n.goAsync(func() { n.sendFollowUp(ctx, t, "animation", path, chats, 0, inPlace) })
 	}
 }
 
-// setSubLabel enregistre l'étiquette que Frigate attribue à un objet déjà notifié
-// (classification personnalisée, visage, plaque) et met à jour la légende des
-// messages envoyés, sans nouvelle sonnerie. Appelé sous n.mu.
+// setSubLabel records the label Frigate assigns to an object already notified
+// (custom classification, face, plate) and updates the caption of the messages
+// sent, without a new ring. Called under n.mu.
 func (n *Notifier) setSubLabel(ctx context.Context, t *tracked, sub string) {
 	if sub == "" || sub == t.subLabel {
 		return
@@ -438,15 +438,15 @@ func (n *Notifier) setSubLabel(ctx context.Context, t *tracked, sub string) {
 	}
 }
 
-// recheckTopic est un « topic » interne : la fin de l'attente d'une étiquette passe
-// par la même file que les messages MQTT, pour être traitée sous n.mu, dans l'ordre.
+// recheckTopic is an internal "topic": the end of the wait for a label goes through
+// the same queue as the MQTT messages, to be handled under n.mu, in order.
 const recheckTopic = "\x00recheck-sub-label"
 
-// decide évalue une détection non encore notifiée et la notifie, la refuse, ou la
-// met en attente de son étiquette : avec un filtre sur les étiquettes, une détection
-// sans étiquette attend jusqu'à SubLabelWait que Frigate la classe. final (fin de
-// l'attente ou de l'événement) notifie sans plus attendre : l'objet est un inconnu.
-// Appelé sous n.mu.
+// decide evaluates a detection not notified yet and notifies it, refuses it, or
+// holds it until its label arrives: with a filter on labels, a detection without a
+// label waits up to SubLabelWait for Frigate to classify it. final (end of the wait
+// or of the event) notifies without waiting any longer: the object is unknown.
+// Called under n.mu.
 func (n *Notifier) decide(ctx context.Context, t *tracked, in filter.Input, now time.Time, final bool) {
 	d := n.Engine.Evaluate(in, now)
 	if !d.Notify {
@@ -462,16 +462,16 @@ func (n *Notifier) decide(ctx context.Context, t *tracked, in filter.Input, now 
 			id := t.id
 			n.Schedule(cfg.SubLabelWait, func() { n.Handle(recheckTopic, []byte(id)) })
 		}
-		t.pending = &in // la dernière version de la détection sera évaluée à la fin
+		t.pending = &in // the latest version of the detection will be evaluated at the end
 		return
 	}
 	t.pending = nil
 	n.notify(ctx, t, d)
 }
 
-// recheck termine l'attente de l'étiquette d'une détection : sans étiquette arrivée
-// entre-temps, l'objet est tenu pour inconnu et notifié (si les autres règles le
-// permettent toujours). Appelé sous n.mu.
+// recheck ends the wait for a detection's label: with no label arrived in the
+// meantime, the object is considered unknown and notified (if the other rules still
+// allow it). Called under n.mu.
 func (n *Notifier) recheck(ctx context.Context, id string) {
 	t := n.tracked[id]
 	if t == nil || t.pending == nil || t.notified || t.suppressed {

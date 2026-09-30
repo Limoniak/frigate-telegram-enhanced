@@ -151,7 +151,7 @@ Pour mettre à jour : `docker compose pull && docker compose up -d`.
 
 À la place des variables d'environnement, tout peut se régler dans un fichier YAML —
 pratique pour préparer des réglages par caméra à l'avance ou les versionner. Copier
-[`config.example.yml`](config.example.yml) vers `config/config.yml`, l'adapter, et
+[`config.example.yml`](config.example.yml) (commentaires en anglais) vers `config/config.yml`, l'adapter, et
 ajouter ce volume au service :
 
 ```yaml

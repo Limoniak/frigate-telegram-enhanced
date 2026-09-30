@@ -2,9 +2,9 @@
 
 const DUR = /^(\d+(\.\d+)?(ns|us|ms|s|m|h))+$/;
 
-// En-tête exigé par le serveur sur les écritures. Ce n'est pas un secret : un en-tête
-// non standard force le navigateur à un contrôle préalable CORS, qu'un site tiers ne
-// peut pas franchir — il ne peut donc pas faire écrire l'interface à notre place.
+// Header the server requires on writes. It is not a secret: a non-standard header
+// forces the browser into a CORS preflight check, which a third-party site cannot
+// pass — so it cannot make the interface write on our behalf.
 const TOKEN = "frigate-telegram-enhanced";
 
 // ---- langue -------------------------------------------------------------------
@@ -44,7 +44,7 @@ function applyStatic() {
 
 function setLang(l) {
   lang = l;
-  try { localStorage.setItem(LANG_KEY, l); } catch (e) { /* choix non retenu, sans gravité */ }
+  try { localStorage.setItem(LANG_KEY, l); } catch (e) { /* choice not remembered, no harm done */ }
   applyStatic();
   if (!data) return;
   $("mode").textContent = T("mode ") + data.mode;
@@ -52,24 +52,24 @@ function setLang(l) {
   renderLive();
   renderHistory();
   renderHealth();
-  if (data.can_health) loadHealth(); // messages du serveur : redemandés dans la nouvelle langue
+  if (data.can_health) loadHealth(); // server messages: asked again in the new language
   touched();
 }
 
-// api est fetch avec la langue de la page : le serveur répond ses erreurs dans la même.
+// api is fetch with the page's language: the server answers its errors in the same one.
 function api(path, opts) {
   opts = Object.assign({}, opts);
   opts.headers = Object.assign({"X-Lang": lang}, opts.headers || {});
   return fetch(path, opts);
 }
 
-// ---- modèles et questions simples ------------------------------------------
+// ---- styles and simple questions ---------------------------------------------
 //
-// Chaque choix est un petit patch de réglages. Il est « actif » quand les réglages
-// effectifs lui correspondent ; si aucun ne correspond, la question affiche
-// « Personnalisé » et renvoie aux réglages avancés.
+// Each choice is a small patch of settings. It is "active" when the effective
+// settings match it; if none matches, the question shows "Custom" and points to the
+// advanced settings.
 
-// inPlace : la vidéo (ou le GIF) remplace l'image dans le message de la notification.
+// inPlace: the video (or GIF) replaces the image in the notification message.
 const inPlace = () => !overlay || overlay.notify.media_in_place !== false;
 
 const STYLES = () => [
@@ -131,8 +131,8 @@ const QUESTIONS = () => [
   ]},
 ];
 
-// Chaque réglage détaillé est décrit une fois et rendu deux fois : dans les réglages
-// avancés globaux, et dans chaque caméra où il devient une surcharge optionnelle.
+// Each detailed setting is described once and rendered twice: in the global advanced
+// settings, and in each camera where it becomes an optional override.
 const FIELDS = () => [
   {key: "enabled", type: "bool", name: T("Notifications enabled"),
    hint: T("Unchecked: no notifications at all (or none for this camera).")},
@@ -178,8 +178,8 @@ const FIELDS = () => [
 ];
 const TYPES = Object.fromEntries(FIELDS().map((f) => [f.key, f.type]));
 
-// Les réglages détaillés, rangés par thème ; `extra` ajoute ce qui n'est pas un
-// réglage de notification (le lien vers Frigate, global seulement).
+// The detailed settings, sorted by theme; `extra` adds what is not a notification
+// setting (the link to Frigate, global only).
 const GROUPS = () => [
   {title: T("Recipients and filtering"),
    keys: ["enabled", "chats", "labels", "zones", "min_score", "ignore_stationary", "severity"]},
@@ -191,9 +191,9 @@ const GROUPS = () => [
   {title: T("Links"), keys: [], extra: () => externalURLField(), globalOnly: true},
 ];
 
-let data = null;      // réponse de /api/settings
-let overlay = null;   // ce que l'on enregistrera
-let saved = null;     // sérialisation du dernier état enregistré, pour détecter les changements
+let data = null;      // response of /api/settings
+let overlay = null;   // what will be saved
+let saved = null;     // serialization of the last saved state, to detect changes
 
 const $ = (id) => document.getElementById(id);
 
@@ -235,10 +235,10 @@ function el(tag, attrs, ...kids) {
   return n;
 }
 
-// ---- comparaison des réglages ---------------------------------------------
+// ---- comparing settings -------------------------------------------------------
 
-// seconds convertit une durée Go ("1m0s", "90s", "1h30m") en secondes, pour que
-// "1m" et "1m0s" soient reconnus comme identiques.
+// seconds converts a Go duration ("1m0s", "90s", "1h30m") into seconds, so that
+// "1m" and "1m0s" are recognized as identical.
 function seconds(d) {
   const unit = {ns: 1e-9, us: 1e-6, ms: 1e-3, s: 1, m: 60, h: 3600};
   let total = 0;
@@ -258,7 +258,7 @@ function norm(key, v) {
 
 function same(key, a, b) { return JSON.stringify(norm(key, a)) === JSON.stringify(norm(key, b)); }
 
-// effective renvoie les réglages effectifs du global, ou d'une caméra.
+// effective returns the effective settings of the global level, or of a camera.
 function effective(camera) {
   return camera ? Object.assign({}, overlay.notify, overlay.cameras[camera]) : overlay.notify;
 }
@@ -267,8 +267,8 @@ function matches(patch, values) {
   return Object.entries(patch).every(([k, v]) => same(k, v, values[k]));
 }
 
-// apply pose un choix. Pour une caméra, un choix identique au global efface la
-// surcharge plutôt que de la dupliquer : la caméra suit alors le global.
+// apply sets a choice. For a camera, a choice identical to the global one removes
+// the override rather than duplicating it: the camera then follows the global one.
 function apply(patch, camera) {
   if (!camera) {
     Object.assign(overlay.notify, clone(patch));
@@ -283,7 +283,7 @@ function inheritsAll(patch, camera) {
   return Object.keys(patch).every((k) => !(k in overlay.cameras[camera]));
 }
 
-// ---- aperçus façon Telegram -------------------------------------------------
+// ---- Telegram-like previews ---------------------------------------------------
 
 function sampleCamera() {
   const cams = data.cameras || [];
@@ -303,7 +303,7 @@ function preview(style) {
   const kb = el("div", {class: "kb"}, el("span", {text: T("📷 Now")}), el("span", {text: "🎬 Clip"}));
   const kb2 = el("div", {class: "kb"}, el("span", {text: "🔇 1 h"}), el("span", {text: "⏸️ 30 min"}));
 
-  // La vidéo (ou le GIF) prend la place de l'image : un seul message, montré à la fin.
+  // The video (or GIF) takes the image's place: a single message, shown at the end.
   const replaced = p.snapshot && (p.clip || p.gif) && inPlace();
   const first = el("div", {class: "bubble"});
   if (p.snapshot) {
@@ -327,8 +327,8 @@ function preview(style) {
 
 // ---- notification d'essai ----------------------------------------------------
 
-// Le test part avec les réglages enregistrés côté serveur : tant que la page a des
-// modifications en attente, on invite à enregistrer d'abord.
+// The test goes out with the settings saved on the server: while the page has
+// pending changes, it invites to save first.
 function testButton(camera, label) {
   const wrap = el("span", {class: "try-one"});
   const result = el("span", {class: "result"});
@@ -380,7 +380,7 @@ function renderTry() {
   }
 }
 
-// ---- rendu des choix simples ----------------------------------------------
+// ---- rendering the simple choices ---------------------------------------------
 
 function renderStyles() {
   const box = $("styles");
@@ -404,8 +404,8 @@ function renderStyles() {
   }
 }
 
-// externalURLField : l'adresse de Frigate utilisée par le lien « Ouvrir dans Frigate »
-// des notifications. Vide, c'est celle par laquelle le service joint Frigate (FRIGATE_URL).
+// externalURLField: the Frigate address used by the "Open in Frigate" link of the
+// notifications. Empty, it is the one the service reaches Frigate at (FRIGATE_URL).
 function externalURLField() {
   const valid = (u) => u === "" || /^https?:\/\/[^\s/]+/i.test(u);
   const input = el("input", {type: "url", class: "url", placeholder: data.frigate_url || "https://frigate.example.com",
@@ -432,7 +432,7 @@ function externalURLField() {
     el("p", {class: "hint", text: T("Empty: Frigate's address (FRIGATE_URL). Set another one to open Frigate from outside.")}));
 }
 
-// renderFraming : cadrage de l'image et place de la vidéo, pour les modèles concernés.
+// renderFraming: image framing and video placement, for the styles concerned.
 function renderFraming() {
   const box = $("framing");
   box.innerHTML = "";
@@ -453,8 +453,8 @@ function renderFraming() {
   }
 }
 
-// pills rend un groupe de choix exclusifs. Pour une caméra, « Par défaut » en
-// tête retire la surcharge.
+// pills renders a group of exclusive choices. For a camera, "Default" first removes
+// the override.
 function pills(options, camera) {
   const eff = effective(camera);
   const wrap = el("div", {class: "pills"});
@@ -480,7 +480,7 @@ function pills(options, camera) {
   return wrap;
 }
 
-// zonePills : « Partout » ou une sélection de zones de la caméra (choix multiple).
+// zonePills: "Everywhere" or a selection of the camera's zones (multiple choice).
 function zonePills(camera, zones) {
   const cam = overlay.cameras[camera];
   const current = effective(camera).zones || [];
@@ -511,14 +511,14 @@ function question(title, hint, content) {
   return q;
 }
 
-// ---- sensibilité ----------------------------------------------------------------
+// ---- sensitivity ----------------------------------------------------------------
 
-// scoredHistory : les détections récentes qui ont un score (mode events).
+// scoredHistory: the recent detections that have a score (events mode).
 function scoredHistory() {
   return (history || []).filter((e) => e.score > 0);
 }
 
-// sensitivityEffect décrit, sur l'activité récente, l'effet d'un score minimal.
+// sensitivityEffect describes, on the recent activity, the effect of a minimum score.
 function sensitivityEffect(threshold) {
   const scored = scoredHistory();
   if (!scored.length) {
@@ -547,8 +547,8 @@ function sensitivity() {
   range.value = ms.default || 0;
   const val = el("span", {class: "val", text: pct(Number(range.value))});
   const effect = el("p", {class: "hint sens-effect", text: sensitivityEffect(Number(range.value))});
-  // Pendant le glissement, on ne met à jour que le texte : redessiner la page ferait
-  // perdre le curseur à l'utilisateur. La valeur est retenue au relâchement.
+  // While dragging, only the text is updated: redrawing the page would make the
+  // user lose the slider. The value is kept on release.
   range.addEventListener("input", () => {
     val.textContent = pct(Number(range.value));
     effect.textContent = sensitivityEffect(Number(range.value));
@@ -575,8 +575,8 @@ function renderQuestions() {
     if (q.presence && !data.presence) continue;
     box.append(question(q.title, q.hint, pills(q.options, null)));
   }
-  // Étiquettes connues de Frigate (« clio 3 océane », « ohana »…) : les ignorer, ou
-  // ne garder que les inconnus.
+  // Labels Frigate knows ("clio 3 océane", "ohana"…): ignore them, or only keep the
+  // unknown ones.
   const subs = data.sub_labels || [];
   if (subs.length || (overlay.notify.ignore_sub_labels || []).length || overlay.notify.ignore_known) {
     const known = !!overlay.notify.ignore_known;
@@ -594,7 +594,7 @@ function renderQuestions() {
       T("Frigate takes a few seconds to recognize an object: with a label filter, notifications wait up to 5 s for it."),
       content));
   }
-  // Le score n'existe qu'en mode events : Frigate n'en donne pas pour une revue.
+  // The score only exists in events mode: Frigate gives none for a review.
   if (data.mode !== "reviews") {
     box.append(question(T("Sensitivity"),
       T("Frigate's confidence that the object is real. Higher = fewer false alarms, but more risk of missing something."),
@@ -602,10 +602,10 @@ function renderQuestions() {
   }
 }
 
-// ---- destinataires ------------------------------------------------------------
+// ---- recipients -----------------------------------------------------------------
 //
-// Chaque destinataire peut restreindre ce qu'il reçoit : certains objets, certains
-// moments. Vide, il reçoit tout ce que les caméras lui envoient.
+// Each recipient can restrict what they receive: some objects, some times. Empty,
+// they receive everything the cameras send them.
 
 const DAY = [{from: "07:00", to: "22:00"}];
 
@@ -663,7 +663,7 @@ function renderRecipients() {
   }
 }
 
-// ---- caméras ----------------------------------------------------------------
+// ---- cameras --------------------------------------------------------------------
 
 function cameraSummary(name) {
   const eff = effective(name);
@@ -681,8 +681,8 @@ function cameraSummary(name) {
   return bits.join(" · ");
 }
 
-// untracked liste les objets demandés que Frigate ne suit pas sur la caméra. Vide
-// si Frigate n'a pas donné sa liste (injoignable) : on ne sait pas, on ne dit rien.
+// untracked lists the requested objects Frigate does not track on the camera. Empty
+// if Frigate did not give its list (unreachable): we don't know, we say nothing.
 function untracked(name) {
   const info = (data.cameras || []).find((c) => c.name === name);
   if (!info || !info.labels || !info.labels.length) return [];
@@ -707,7 +707,7 @@ function renderCameras() {
 
     const input = el("input", {type: "checkbox", "aria-label": T("Notifications for ") + name});
     input.checked = on;
-    input.addEventListener("click", (e) => e.stopPropagation()); // ne pas ouvrir/fermer la caméra
+    input.addEventListener("click", (e) => e.stopPropagation()); // do not open/close the camera
     input.addEventListener("change", () => { apply({enabled: input.checked}, name); changed(); });
     const toggle = el("label", {class: "toggle", onclick: (e) => e.stopPropagation()}, input, el("span"));
 
@@ -751,17 +751,17 @@ function renderCameras() {
   }
 }
 
-// ---- éditeur détaillé (réglages avancés) -----------------------------------
+// ---- detailed editor (advanced settings) --------------------------------------
 
-// Valeur vide par type. Elle sert quand le global n'a rien à hériter : envoyer null
-// reviendrait à ne rien surcharger du tout, le serveur traitant null comme « absent ».
+// Empty value per type. It serves when the global level has nothing to inherit:
+// sending null would mean overriding nothing at all, since the server treats null as "missing".
 const EMPTY = {bool: false, chips: [], ranges: [], duration: "0s", score: {default: 0}, choice: "skip"};
 
 function defaultFor(field, inherited) {
   return clone(inherited === undefined || inherited === null ? EMPTY[field.type] : inherited);
 }
 
-// Chaque constructeur renvoie un élément ; `on(v)` remonte la nouvelle valeur.
+// Each builder returns an element; `on(v)` reports the new value.
 const CONTROLS = {
   choice(field, value, on, ctx) {
     const sel = el("select", {onchange: () => on(sel.value)});
@@ -925,8 +925,8 @@ function optionsFor(field, camera) {
   }
 }
 
-// unionOf rassemble les valeurs proposées : celles de la caméra, ou celles de
-// toutes les caméras pour les réglages par défaut.
+// unionOf gathers the values offered: those of the camera, or those of every
+// camera for the default settings.
 function unionOf(kind, camera) {
   const cams = camera ? (data.cameras || []).filter((c) => c.name === camera) : (data.cameras || []);
   const out = [];
@@ -934,9 +934,9 @@ function unionOf(kind, camera) {
   return out.sort();
 }
 
-// renderField dessine un réglage. Sans `camera`, il porte sur les réglages par
-// défaut ; avec, il porte sur la surcharge de cette caméra et gagne une case
-// « personnaliser » qui la crée ou la retire.
+// renderField draws a setting. Without `camera`, it applies to the default
+// settings; with it, it applies to that camera's override and gets a "customize"
+// box that creates or removes it.
 function renderField(field, camera) {
   if (field.mode && field.mode !== data.mode) return null;
   if (field.presence && !data.presence) return null;
@@ -971,15 +971,15 @@ function renderField(field, camera) {
   return wrap;
 }
 
-// renderGrouped ajoute à `box` les réglages détaillés, groupe par groupe ; un groupe
-// sans aucun réglage à montrer (mode, présence, caméra) est omis.
+// renderGrouped adds the detailed settings to `box`, group by group; a group with
+// no setting to show (mode, presence, camera) is left out.
 function renderGrouped(box, camera) {
   const byKey = Object.fromEntries(FIELDS().map((f) => [f.key, f]));
   for (const g of GROUPS()) {
     if (g.globalOnly && camera) continue;
     const nodes = [];
     for (const k of g.keys) {
-      if (camera && k === "enabled") continue; // déjà l'interrupteur de la caméra
+      if (camera && k === "enabled") continue; // already the camera's switch
       const node = renderField(byKey[k], camera);
       if (node) nodes.push(node);
     }
@@ -1003,13 +1003,13 @@ function syncToc() {
   }
 }
 
-// tocClicked : le lien choisi dans le sommaire. Une section du bas ne peut pas
-// remonter sous l'en-tête (la page s'arrête avant) : on la garde surlignée
-// jusqu'à ce que l'utilisateur fasse défiler lui-même.
+// tocClicked: the link picked in the table of contents. A section at the bottom
+// cannot scroll up under the header (the page ends before): it stays highlighted
+// until the user scrolls by themselves.
 let tocClicked = null;
 
-// La section « en cours » est la dernière dont le haut est passé sous l'en-tête ;
-// en bas de page, la dernière visible.
+// The "current" section is the last one whose top went under the header; at the
+// bottom of the page, the last visible one.
 function currentSection() {
   const links = [...document.querySelectorAll(".toc li:not([hidden]) a")];
   let current = links[0];
@@ -1046,11 +1046,11 @@ function render() {
   currentSection();
 }
 
-// ---- pause et reprise ---------------------------------------------------------
+// ---- pause and resume -----------------------------------------------------------
 
-let live = null; // réponse de /api/state
+let live = null; // response of /api/state
 
-// presenceName : "homeassistant/person/alice/state" → "alice".
+// presenceName: "homeassistant/person/alice/state" → "alice".
 function presenceName(topic) {
   const p = topic.split("/");
   return p.length >= 2 && p[p.length - 1] === "state" ? p[p.length - 2] : p[p.length - 1];
@@ -1074,8 +1074,8 @@ async function stateCall(path, body) {
     });
     const v = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(v.error || "HTTP " + resp.status);
-    // Les résumés des caméras affichent les coupures : on ne les redessine que si
-    // elles ont changé, pour ne pas perturber une saisie en cours.
+    // The camera summaries show the mutes: they are only redrawn if the mutes
+    // changed, so as not to disturb an input in progress.
     const mutesChanged = JSON.stringify(live && live.mutes) !== JSON.stringify(v.mutes);
     live = v;
     renderLive();
@@ -1125,10 +1125,10 @@ function renderLive() {
   if (sub.children.length) box.append(sub);
 }
 
-// ---- état des connexions ----------------------------------------------------------
+// ---- connection status ------------------------------------------------------------
 
-let health = null; // réponse de /api/health
-let refused = []; // utilisateurs Telegram refusés récemment par le bot
+let health = null; // response of /api/health
+let refused = []; // Telegram users recently refused by the bot
 
 async function loadHealth() {
   try {
@@ -1138,10 +1138,10 @@ async function loadHealth() {
     health = body.components;
     refused = body.refused || [];
     renderHealth();
-  } catch (e) { /* l'état est un plus : on n'interrompt rien */ }
+  } catch (e) { /* the status is a bonus: interrupt nothing */ }
 }
 
-// stateBox montre la carte d'état dès qu'une de ses parties a quelque chose à dire.
+// stateBox shows the status card as soon as one of its parts has something to say.
 function stateBox() {
   $("state-box").hidden = !live && !health;
   syncToc();
@@ -1169,8 +1169,8 @@ function renderHealth() {
   errors.hidden = !errors.children.length;
 }
 
-// refusedBox liste les utilisateurs que le bot a refusés, avec l'identifiant à
-// ajouter à la configuration : c'est ainsi qu'on trouve le sien à l'installation.
+// refusedBox lists the users the bot refused, with the ID to add to the
+// configuration: that is how one finds one's own at installation.
 function refusedBox() {
   const box = el("div", {class: "health-error warn"},
     el("b", {text: T("Telegram — users refused by the bot")}));
@@ -1185,7 +1185,7 @@ function refusedBox() {
   return box;
 }
 
-// ---- activité récente ---------------------------------------------------------
+// ---- recent activity ------------------------------------------------------------
 
 const LABELS = {
   person: ["🚶", "Person"], car: ["🚗", "Car"], dog: ["🐕", "Dog"],
@@ -1198,7 +1198,7 @@ function labelText(l) {
   return x ? x[0] + " " + T(x[1]) : "🔔 " + (l || T("Detection"));
 }
 
-// Raison d'un filtrage en clair ; `fix` indique si un réglage de la caméra y peut quelque chose.
+// Reason for a filtering in plain words; `fix` tells whether a camera setting can do something about it.
 const REASONS = () => ({
   camera_disabled: {text: T("camera disabled"), fix: true},
   false_positive: {text: T("false positive according to Frigate")},
@@ -1230,7 +1230,7 @@ function whenText(iso) {
   return d.toLocaleDateString(locale(), Object.assign({day: "numeric", month: "short"}, tz)) + " " + time;
 }
 
-// openCamera déplie une caméra et y amène la page.
+// openCamera expands a camera and brings the page to it.
 function openCamera(name) {
   const d = document.querySelector('details.camera[data-name="' + CSS.escape(name) + '"]');
   if (!d) return;
@@ -1245,8 +1245,8 @@ async function loadHistory() {
     const first = history === null;
     history = (await resp.json()).entries;
     renderHistory();
-    if (first && overlay) renderQuestions(); // l'effet du curseur de sensibilité dépend de l'historique
-  } catch (e) { /* l'activité est un plus : on n'interrompt rien */ }
+    if (first && overlay) renderQuestions(); // the effect of the sensitivity slider depends on the history
+  } catch (e) { /* the activity is a bonus: interrupt nothing */ }
 }
 
 function renderHistory() {
@@ -1300,10 +1300,10 @@ function renderHistory() {
   }
 }
 
-// ---- chargement et enregistrement -------------------------------------------
+// ---- loading and saving -----------------------------------------------------------
 
-// toSend retire les caméras sans aucune surcharge : elles suivent les réglages
-// par défaut et n'ont rien à faire dans le fichier enregistré.
+// toSend removes the cameras without any override: they follow the default settings
+// and have nothing to do in the saved file.
 function toSend() {
   const cameras = {};
   for (const [name, patch] of Object.entries(overlay.cameras)) {
@@ -1318,8 +1318,8 @@ async function load() {
   data = await resp.json();
   overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}, recipients: data.overlay.recipients || {},
     external_url: data.overlay.external_url || ""};
-  // Chaque caméra connue a une entrée (vide = suit le global) avant la mémorisation
-  // de l'état enregistré, sinon la page se croirait modifiée dès l'ouverture.
+  // Each known camera gets an entry (empty = follows the global level) before the
+  // saved state is recorded, otherwise the page would think it was modified on opening.
   for (const c of data.cameras || []) if (!overlay.cameras[c.name]) overlay.cameras[c.name] = {};
   $("mode").textContent = T("mode ") + data.mode;
   $("tz").textContent = data.timezone;
@@ -1328,12 +1328,12 @@ async function load() {
   saved = JSON.stringify(overlay);
   if (data.can_pause) await stateCall("api/state");
   if (data.can_history) await loadHistory();
-  if (data.can_health) loadHealth(); // peut prendre quelques secondes (essai MQTT) : sans attendre
+  if (data.can_health) loadHealth(); // may take a few seconds (MQTT probe): don't wait
   render();
   touched();
 }
 
-// discard revient au dernier état enregistré.
+// discard goes back to the last saved state.
 function discard() {
   overlay = JSON.parse(saved);
   message("", "");
@@ -1358,7 +1358,7 @@ async function save() {
     document.body.classList.remove("has-savebar");
     data.custom = true;
     $("reset").hidden = false;
-    render(); // réactive les boutons d'essai
+    render(); // re-enables the test buttons
     $("status").textContent = T("Saved ✓ — applied immediately");
     $("status").className = "status saved";
     setTimeout(touched, 3000);
@@ -1396,7 +1396,7 @@ for (const l of LANGUAGES) {
 }
 applyStatic();
 load().catch((e) => message(T("Loading failed:\n") + e.message, "err"));
-// La pause peut aussi changer depuis Telegram : on rafraîchit le bandeau.
+// The pause can also change from Telegram: refresh the banner.
 setInterval(() => {
   if (!data || document.hidden) return;
   if (data.can_pause) stateCall("api/state");

@@ -36,7 +36,7 @@ func TestPaths(t *testing.T) {
 	}
 	for got, want := range cases {
 		if got != want {
-			t.Errorf("%q, attendu %q", got, want)
+			t.Errorf("%q, want %q", got, want)
 		}
 	}
 }
@@ -63,7 +63,7 @@ func TestGetBytesTooLarge(t *testing.T) {
 	defer srv.Close()
 	_, err := newTestClient(t, srv.URL, "", "").GetBytes(context.Background(), "/x", 10)
 	if !errors.Is(err, ErrTooLarge) {
-		t.Fatalf("err = %v, attendu ErrTooLarge", err)
+		t.Fatalf("err = %v, want ErrTooLarge", err)
 	}
 }
 
@@ -73,7 +73,7 @@ func TestHTTPErrorAndRetryable(t *testing.T) {
 	_, err := newTestClient(t, srv.URL, "", "").GetBytes(context.Background(), "/x", 10)
 	var he *HTTPError
 	if !errors.As(err, &he) || he.Status != 404 {
-		t.Fatalf("err = %v, attendu HTTPError 404", err)
+		t.Fatalf("err = %v, want HTTPError 404", err)
 	}
 	cases := []struct {
 		err  error
@@ -88,7 +88,7 @@ func TestHTTPErrorAndRetryable(t *testing.T) {
 	}
 	for _, tc := range cases {
 		if got := Retryable(tc.err); got != tc.want {
-			t.Errorf("Retryable(%v) = %v, attendu %v", tc.err, got, tc.want)
+			t.Errorf("Retryable(%v) = %v, want %v", tc.err, got, tc.want)
 		}
 	}
 }
@@ -118,16 +118,16 @@ func TestLoginOnUnauthorized(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		b, err := c.GetBytes(context.Background(), "/api/x", 10)
 		if err != nil || string(b) != "ok" {
-			t.Fatalf("appel %d : %q, %v", i, b, err)
+			t.Fatalf("call %d: %q, %v", i, b, err)
 		}
 	}
 	if logins.Load() != 1 {
-		t.Errorf("logins = %d, attendu 1", logins.Load())
+		t.Errorf("logins = %d, want 1", logins.Load())
 	}
 }
 
-// Plusieurs requêtes refusées en même temps (session expirée) ne doivent déclencher
-// qu'une connexion : les suivantes profitent de celle qui vient de réussir.
+// Several requests refused at once (expired session) must trigger a single login:
+// the following ones benefit from the one that just succeeded.
 func TestConcurrentUnauthorizedLogInOnce(t *testing.T) {
 	const n = 8
 	var logins atomic.Int32
@@ -141,7 +141,7 @@ func TestConcurrentUnauthorizedLogInOnce(t *testing.T) {
 		}
 		if _, err := r.Cookie("frigate_token"); err != nil {
 			arrived.Done()
-			arrived.Wait() // toutes les requêtes sont refusées avant la première connexion
+			arrived.Wait() // every request is refused before the first login
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -153,13 +153,13 @@ func TestConcurrentUnauthorizedLogInOnce(t *testing.T) {
 	for range n {
 		wg.Go(func() {
 			if b, err := c.GetBytes(context.Background(), "/api/x", 10); err != nil || string(b) != "ok" {
-				t.Errorf("GetBytes : %q, %v", b, err)
+				t.Errorf("GetBytes: %q, %v", b, err)
 			}
 		})
 	}
 	wg.Wait()
 	if got := logins.Load(); got != 1 {
-		t.Errorf("logins = %d, attendu 1", got)
+		t.Errorf("logins = %d, want 1", got)
 	}
 }
 
@@ -176,16 +176,16 @@ func TestDownloadToFile(t *testing.T) {
 	defer os.Remove(path)
 	b, _ := os.ReadFile(path)
 	if string(b) != "mp4data" {
-		t.Errorf("contenu = %q", b)
+		t.Errorf("content = %q", b)
 	}
 	if _, err := c.DownloadToFile(context.Background(), "/clip.mp4", 3); !errors.Is(err, ErrTooLarge) {
-		t.Errorf("err = %v, attendu ErrTooLarge", err)
+		t.Errorf("err = %v, want ErrTooLarge", err)
 	}
 }
 
-// Frigate envoie parfois presque tout un clip puis garde la connexion ouverte sans
-// jamais finir : le téléchargement s'arrête dès que plus rien n'arrive, et rend ce qui
-// a été reçu.
+// Frigate sometimes sends almost all of a clip, then keeps the connection open
+// without ever finishing: the download stops as soon as nothing arrives any more,
+// and returns what was received.
 func TestDownloadToFileStalled(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/partial.mp4" {
@@ -200,18 +200,18 @@ func TestDownloadToFileStalled(t *testing.T) {
 
 	path, err := c.DownloadToFile(context.Background(), "/partial.mp4", 1024)
 	if !errors.Is(err, ErrIncomplete) || path == "" {
-		t.Fatalf("DownloadToFile = %q, %v ; attendu le fichier partiel et ErrIncomplete", path, err)
+		t.Fatalf("DownloadToFile = %q, %v; want the partial file and ErrIncomplete", path, err)
 	}
 	defer os.Remove(path)
 	if b, _ := os.ReadFile(path); string(b) != "partial" {
-		t.Errorf("contenu = %q", b)
+		t.Errorf("content = %q", b)
 	}
 	if Retryable(err) {
-		t.Error("un clip qui cale ne doit pas être retenté : Frigate cale au même endroit")
+		t.Error("a stalled clip must not be retried: Frigate stalls at the same place")
 	}
 
 	if path, err := c.DownloadToFile(context.Background(), "/empty.mp4", 1024); !errors.Is(err, ErrIncomplete) || path != "" {
-		t.Errorf("rien reçu : %q, %v ; attendu aucun fichier et ErrIncomplete", path, err)
+		t.Errorf("nothing received: %q, %v; want no file and ErrIncomplete", path, err)
 	}
 }
 
@@ -286,11 +286,11 @@ func TestCatchUpQueries(t *testing.T) {
 		"/api/review?after=1790604000.250&limit=50",
 	}
 	if len(queries) != len(want) {
-		t.Fatalf("requêtes = %q", queries)
+		t.Fatalf("requests = %q", queries)
 	}
 	for i := range want {
 		if queries[i] != want[i] {
-			t.Errorf("requête %d = %q, attendu %q", i, queries[i], want[i])
+			t.Errorf("request %d = %q, want %q", i, queries[i], want[i])
 		}
 	}
 }

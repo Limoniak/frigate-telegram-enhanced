@@ -16,8 +16,8 @@ import (
 
 type sendFunc func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error)
 
-// deliver envoie un contenu à plusieurs chats. Si f porte un fichier, il est uploadé
-// une seule fois (premier chat qui l'accepte) ; les autres réutilisent le file_id, en parallèle.
+// deliver sends a content to several chats. If f holds a file, it is uploaded only
+// once (first chat that accepts it); the others reuse the file_id, in parallel.
 func (n *Notifier) deliver(ctx context.Context, chats []string, kind string, f telegram.InputFile, send sendFunc, onSent func(chat string, m telegram.Message)) {
 	one := func(chat string, f telegram.InputFile) (telegram.Message, error) {
 		m, err := send(ctx, n.Config.ChatID(chat), chat, f)
@@ -37,7 +37,7 @@ func (n *Notifier) deliver(ctx context.Context, chats []string, kind string, f t
 			rest = chats[i+1:]
 			m, err := one(chat, f)
 			if err != nil {
-				continue // on retente l'upload avec le chat suivant
+				continue // retry the upload with the next chat
 			}
 			if id := m.FileID(); id != "" {
 				f = telegram.InputFile{FileID: id}
@@ -56,7 +56,7 @@ func (n *Notifier) deliver(ctx context.Context, chats []string, kind string, f t
 	wg.Wait()
 }
 
-// fetchSnapshot récupère le snapshot (un nouvel essai si Frigate ne l'a pas encore) ; nil si indisponible.
+// fetchSnapshot gets the snapshot (one more try if Frigate does not have it yet); nil if unavailable.
 func (n *Notifier) fetchSnapshot(ctx context.Context, path string) []byte {
 	if path == "" {
 		return nil
@@ -79,8 +79,8 @@ func (n *Notifier) fetchSnapshot(ctx context.Context, path string) []byte {
 	return nil
 }
 
-// sendSnapshot envoie la notification initiale (photo, ou texte si pas de snapshot), puis ferme t.ready.
-// silent indique, chat par chat, s'il la reçoit sans son.
+// sendSnapshot sends the initial notification (photo, or text without a snapshot), then closes t.ready.
+// silent tells, chat by chat, whether it gets it silently.
 func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption string, silent func(chat string) bool, chats []string) {
 	defer close(t.ready)
 	markup := buttons(t.camera, t.id, n.Config.Language)
@@ -100,9 +100,9 @@ func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption s
 		func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID}) })
 }
 
-// sendFollowUp envoie le clip ("video") ou le GIF ("animation"). Avec inPlace, il
-// remplace l'image du message de la notification (même message, pas de nouvelle
-// sonnerie) ; sinon, ou si ce message n'a pas d'image, il arrive en réponse.
+// sendFollowUp sends the clip ("video") or the GIF ("animation"). With inPlace, it
+// replaces the image of the notification message (same message, no new ring);
+// otherwise, or if that message has no image, it arrives as a reply.
 func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path string, chats []string, delay time.Duration, inPlace bool) {
 	select {
 	case <-t.ready:
@@ -145,7 +145,7 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 				if err == nil {
 					return edited, nil
 				}
-				// Message supprimé entre-temps, par exemple : on retombe sur une réponse.
+				// Message deleted in the meantime, for example: fall back to a reply.
 				n.Log.Warn("replacing the image failed, sending as a reply", "kind", kind, "chat", chat, "err", err)
 			}
 			o := telegram.SendOptions{Silent: true, ReplyTo: m.id}
@@ -156,13 +156,13 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 		}, nil)
 }
 
-// download récupère un média dans un fichier temporaire, avec les nouveaux essais de ClipRetryDelays.
+// download fetches a media into a temporary file, with the retries of ClipRetryDelays.
 func (n *Notifier) download(ctx context.Context, path string) (string, error) {
 	for attempt := 0; ; attempt++ {
 		start := time.Now()
 		file, err := n.Frigate.DownloadToFile(ctx, path, maxUploadSize)
 		n.Metrics.MediaDownload.Observe(time.Since(start).Seconds())
-		if err != nil && file != "" { // reçu en partie (frigate.ErrIncomplete)
+		if err != nil && file != "" { // partly received (frigate.ErrIncomplete)
 			if n.keepCompletePart(file, path) {
 				err = nil
 			} else {
@@ -182,9 +182,9 @@ func (n *Notifier) download(ctx context.Context, path string) (string, error) {
 	}
 }
 
-// repairClip corrige les horodatages aberrants d'un clip MP4 de Frigate (voir
-// mp4fix) : sans cela, Telegram peut annoncer une vidéo de plusieurs heures qui ne
-// se lit pas. Un échec laisse le fichier tel quel.
+// repairClip fixes the aberrant timestamps of a Frigate MP4 clip (see mp4fix):
+// without it, Telegram may announce a video of several hours that does not play.
+// A failure leaves the file as is.
 func (n *Notifier) repairClip(file, path string) {
 	if !isMP4(path) {
 		return
@@ -198,8 +198,8 @@ func (n *Notifier) repairClip(file, path string) {
 	}
 }
 
-// keepCompletePart coupe un clip MP4 reçu en partie après son dernier fragment
-// complet ; false s'il n'en reste rien d'envoyable.
+// keepCompletePart cuts a partly received MP4 clip after its last complete
+// fragment; false if nothing sendable is left.
 func (n *Notifier) keepCompletePart(file, path string) bool {
 	if !isMP4(path) {
 		return false
@@ -227,8 +227,8 @@ func (n *Notifier) tooLargeText(path string) string {
 	return text
 }
 
-// acquireMedia bloque jusqu'à obtenir un slot du pool de téléchargement (clip/GIF),
-// ou jusqu'à l'annulation de ctx.
+// acquireMedia blocks until it gets a slot of the download pool (clip/GIF), or
+// until ctx is canceled.
 func (n *Notifier) acquireMedia(ctx context.Context) error {
 	select {
 	case n.media <- struct{}{}:

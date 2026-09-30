@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// box construit une boîte MP4 : taille, type, contenu.
+// box builds an MP4 box: size, type, content.
 func box(typ string, parts ...[]byte) []byte {
 	body := bytes.Join(parts, nil)
 	b := make([]byte, 8, 8+len(body))
@@ -26,19 +26,19 @@ func u32(vs ...uint32) []byte {
 	return b
 }
 
-// trak : tkhd (version 0) avec l'identifiant de piste, mdhd avec l'échelle de temps.
+// trak: tkhd (version 0) with the track ID, mdhd with the timescale.
 func trak(id, timescale uint32) []byte {
-	tkhd := box("tkhd", u32(0, 0, 0, id, 0))                            // version/flags, dates, id, réservé
-	mdhd := box("mdhd", u32(0, 0, 0, timescale, 0), []byte{0, 0, 0, 0}) // version/flags, dates, timescale, durée
+	tkhd := box("tkhd", u32(0, 0, 0, id, 0))                            // version/flags, dates, id, reserved
+	mdhd := box("mdhd", u32(0, 0, 0, timescale, 0), []byte{0, 0, 0, 0}) // version/flags, dates, timescale, duration
 	return box("trak", tkhd, box("mdia", mdhd))
 }
 
-// traf : tfhd + trun avec data_offset et une durée par échantillon.
+// traf: tfhd + trun with data_offset and a duration per sample.
 func traf(id uint32, durations ...uint32) []byte {
 	tfhd := box("tfhd", u32(0x020000, id))
 	trun := box("trun", u32(0x000301, uint32(len(durations)), 0))
 	for _, d := range durations {
-		trun = append(trun, u32(d, 100)...) // durée, taille
+		trun = append(trun, u32(d, 100)...) // duration, size
 	}
 	binary.BigEndian.PutUint32(trun, uint32(len(trun)))
 	return box("traf", tfhd, trun)
@@ -53,7 +53,7 @@ func write(t *testing.T, data []byte) string {
 	return path
 }
 
-// durations relit les durées du trun de la piste id dans le fichier.
+// durations reads back the durations of the trun of track id in the file.
 func durations(t *testing.T, path string, id uint32) []uint32 {
 	t.Helper()
 	data, _ := os.ReadFile(path)
@@ -80,7 +80,7 @@ func durations(t *testing.T, path string, id uint32) []uint32 {
 	return out
 }
 
-// Le cas réel : premier échantillon audio décalé de 9 h 25 par la caméra.
+// The real case: first audio sample shifted by 9 h 25 by the camera.
 func TestFixClampsAbsurdSampleDuration(t *testing.T) {
 	const audio = 16000
 	data := bytes.Join([][]byte{
@@ -95,18 +95,18 @@ func TestFixClampsAbsurdSampleDuration(t *testing.T) {
 
 	n, err := Fix(path)
 	if err != nil || n != 1 {
-		t.Fatalf("Fix = %d, %v ; attendu 1 échantillon corrigé", n, err)
+		t.Fatalf("Fix = %d, %v; want 1 sample fixed", n, err)
 	}
 	got := durations(t, path, 2)
 	if got[0] != 1024 || got[1] != 818 || got[4] != 1024 {
-		t.Errorf("durées audio = %v, attendu la médiane (1024) à la place de la durée aberrante", got)
+		t.Errorf("audio durations = %v, want the median (1024) instead of the aberrant duration", got)
 	}
 	if v := durations(t, path, 1); len(v) != 5 || v[0] != 3000 {
-		t.Errorf("la vidéo ne doit pas changer : %v", v)
+		t.Errorf("the video must not change: %v", v)
 	}
 	after, _ := os.ReadFile(path)
 	if len(after) != len(data) {
-		t.Error("la taille du fichier ne doit pas changer")
+		t.Error("the file size must not change")
 	}
 }
 
@@ -119,25 +119,25 @@ func TestFixLeavesHealthyAndForeignFilesAlone(t *testing.T) {
 	}, nil)
 	path := write(t, healthy)
 	if n, err := Fix(path); n != 0 || err != nil {
-		t.Errorf("clip sain : %d, %v", n, err)
+		t.Errorf("healthy clip: %d, %v", n, err)
 	}
 	if after, _ := os.ReadFile(path); !bytes.Equal(after, healthy) {
-		t.Error("un clip sain ne doit pas être modifié")
+		t.Error("a healthy clip must not be modified")
 	}
 
-	// Un fichier qui n'est pas un MP4 (GIF, HTML d'erreur…) est refusé sans être touché.
+	// A file that is not an MP4 (GIF, error HTML…) is refused without being touched.
 	gif := []byte("GIF89a\x01\x00\x01\x00\x00\x00\x00;")
 	path = write(t, gif)
 	if n, err := Fix(path); n != 0 || err == nil {
-		t.Errorf("fichier étranger : %d, %v ; attendu une erreur", n, err)
+		t.Errorf("foreign file: %d, %v; want an error", n, err)
 	}
 	if after, _ := os.ReadFile(path); !bytes.Equal(after, gif) {
-		t.Error("un fichier étranger ne doit pas être modifié")
+		t.Error("a foreign file must not be modified")
 	}
 }
 
-// Le cas réel : Frigate cesse d'envoyer le clip 1 479 octets avant la fin du dernier
-// fragment. Trim ne garde que les fragments complets.
+// The real case: Frigate stops sending the clip 1,479 bytes before the end of the
+// last fragment. Trim only keeps the complete fragments.
 func TestTrimDropsIncompleteFragment(t *testing.T) {
 	head := bytes.Join([][]byte{
 		box("ftyp", []byte("isom")),
@@ -153,25 +153,25 @@ func TestTrimDropsIncompleteFragment(t *testing.T) {
 		wantLen   int
 		wantFrags int
 	}{
-		"mdat tronqué":       {join(head, last[:len(last)-10]), len(head), 1},
-		"moof sans son mdat": {join(head, box("moof", traf(1, 3000))), len(head), 1},
-		"en-tête coupé":      {join(head, last[:5]), len(head), 1},
-		"complet":            {join(head, last), len(head) + len(last), 2},
+		"truncated mdat":    {join(head, last[:len(last)-10]), len(head), 1},
+		"moof without mdat": {join(head, box("moof", traf(1, 3000))), len(head), 1},
+		"header cut":        {join(head, last[:5]), len(head), 1},
+		"complet":           {join(head, last), len(head) + len(last), 2},
 	}
 	for name, tc := range cases {
 		path := write(t, tc.data)
 		if n, err := Trim(path); err != nil || n != tc.wantFrags {
-			t.Errorf("%s : Trim = %d, %v ; attendu %d fragments", name, n, err, tc.wantFrags)
+			t.Errorf("%s: Trim = %d, %v; want %d fragments", name, n, err, tc.wantFrags)
 		}
 		if after, _ := os.ReadFile(path); !bytes.Equal(after, tc.data[:tc.wantLen]) {
-			t.Errorf("%s : %d octets gardés, attendu %d", name, len(after), tc.wantLen)
+			t.Errorf("%s: %d bytes kept, want %d", name, len(after), tc.wantLen)
 		}
 	}
 
-	// Rien d'exploitable : aucun fragment complet, ou pas un MP4.
+	// Nothing usable: no complete fragment, or not an MP4.
 	for _, data := range [][]byte{head[:len(head)-10], []byte("GIF89a\x01\x00\x01\x00")} {
 		if n, _ := Trim(write(t, data)); n != 0 {
-			t.Errorf("Trim(%q…) = %d, attendu 0", data[:8], n)
+			t.Errorf("Trim(%q…) = %d, want 0", data[:8], n)
 		}
 	}
 }

@@ -44,7 +44,7 @@ func TestParseMinimalAppliesDefaults(t *testing.T) {
 		t.Errorf("token = %q", c.Telegram.Token)
 	}
 	if c.Frigate.URL != "http://frigate:5000" {
-		t.Errorf("url = %q, le / final doit être retiré", c.Frigate.URL)
+		t.Errorf("url = %q, the trailing / must be removed", c.Frigate.URL)
 	}
 	if c.Mode != ModeEvents || c.Location.String() != "UTC" {
 		t.Errorf("mode=%q location=%q", c.Mode, c.Location)
@@ -53,33 +53,33 @@ func TestParseMinimalAppliesDefaults(t *testing.T) {
 		t.Errorf("mqtt = %+v", c.MQTT)
 	}
 	if c.StateFile != "/data/state.json" || c.HTTPListen != ":8431" || c.LogLevel != "info" {
-		t.Errorf("défauts = %q %q %q", c.StateFile, c.HTTPListen, c.LogLevel)
+		t.Errorf("defaults = %q %q %q", c.StateFile, c.HTTPListen, c.LogLevel)
 	}
 	n := c.Global()
 	if !n.Enabled || !n.Snapshot || !n.Clip || n.GIF || !n.GenAIDescription || !n.IgnoreStationary {
-		t.Errorf("booléens par défaut incorrects : %+v", n)
+		t.Errorf("wrong default booleans: %+v", n)
 	}
 	if n.Cooldown != time.Minute || n.ClipDelay != 5*time.Second {
-		t.Errorf("durées = %v %v", n.Cooldown, n.ClipDelay)
+		t.Errorf("durations = %v %v", n.Cooldown, n.ClipDelay)
 	}
 	if !reflect.DeepEqual(n.Chats, []string{"famille", "moi"}) {
-		t.Errorf("chats = %v, attendu tous les chats triés", n.Chats)
+		t.Errorf("chats = %v, want every chat, sorted", n.Chats)
 	}
 	if !reflect.DeepEqual(n.Severity, []string{"alert"}) {
 		t.Errorf("severity = %v", n.Severity)
 	}
 	if !c.IsAdmin(42) || c.IsAdmin(7) {
-		t.Error("IsAdmin incorrect")
+		t.Error("IsAdmin wrong")
 	}
 	if c.ChatID("famille") != -100 {
-		t.Error("ChatID incorrect")
+		t.Error("ChatID wrong")
 	}
 }
 
 func TestMissingEnvVarIsAnError(t *testing.T) {
 	_, err := Parse([]byte(minimal), env(nil))
 	if err == nil || !strings.Contains(err.Error(), "TG_TOKEN") {
-		t.Fatalf("erreur attendue mentionnant TG_TOKEN, obtenu %v", err)
+		t.Fatalf("want an error mentioning TG_TOKEN, got %v", err)
 	}
 }
 
@@ -122,10 +122,10 @@ cameras:
 		t.Errorf("quiet_hours = %v", j.QuietHours)
 	}
 	if c.ForCamera("salon").Enabled {
-		t.Error("salon doit être désactivée")
+		t.Error("salon must be disabled")
 	}
 	if other := c.ForCamera("inconnue"); !reflect.DeepEqual(other.Chats, []string{"famille", "moi"}) {
-		t.Errorf("caméra non listée : chats = %v", other.Chats)
+		t.Errorf("camera not listed: chats = %v", other.Chats)
 	}
 }
 
@@ -136,25 +136,25 @@ func TestValidationErrors(t *testing.T) {
 		{"severity", "notify:\n  severity: [urgent]\n", "severity"},
 		{"score", "notify:\n  min_score: 1.5\n", "min_score"},
 		{"timezone", "timezone: Mars/Olympus\n", "timezone"},
-		{"champ inconnu", "notfy:\n  labels: [x]\n", "notfy"},
-		{"heure", "notify:\n  quiet_hours: [{from: \"25:00\", to: \"07:00\"}]\n", "25:00"},
+		{"unknown field", "notfy:\n  labels: [x]\n", "notfy"},
+		{"hour", "notify:\n  quiet_hours: [{from: \"25:00\", to: \"07:00\"}]\n", "25:00"},
 		{"log level", "log_level: verbose\n", "log_level"},
-		{"metrics sans mot de passe", "web:\n  protect_metrics: true\n", "protect_metrics"},
+		{"metrics without password", "web:\n  protect_metrics: true\n", "protect_metrics"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Parse([]byte(minimal+tc.extra), testEnv)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
-				t.Fatalf("erreur attendue contenant %q, obtenu %v", tc.want, err)
+				t.Fatalf("want an error containing %q, got %v", tc.want, err)
 			}
 		})
 	}
 }
 
 func TestEnvVarInCommentIsIgnored(t *testing.T) {
-	raw := minimal + "# adresse de secours ${NOT_SET}\n"
+	raw := minimal + "# fallback address ${NOT_SET}\n"
 	if _, err := Parse([]byte(raw), testEnv); err != nil {
-		t.Fatalf("Parse: %v, un ${VAR} en commentaire ne doit pas provoquer d'erreur", err)
+		t.Fatalf("Parse: %v, a ${VAR} in a comment must not cause an error", err)
 	}
 }
 
@@ -166,7 +166,7 @@ func TestEnvVarPreservesSpecialCharacters(t *testing.T) {
 		t.Fatal(err)
 	}
 	if c.Telegram.Token != value {
-		t.Errorf("token = %q, attendu %q (identique octet pour octet)", c.Telegram.Token, value)
+		t.Errorf("token = %q, want %q (byte for byte)", c.Telegram.Token, value)
 	}
 }
 
@@ -183,7 +183,7 @@ func TestTimeRangeContains(t *testing.T) {
 	}
 	for _, tc := range cases {
 		if got := tc.r.Contains(tc.hhmm); got != tc.want {
-			t.Errorf("%+v.Contains(%d) = %v, attendu %v", tc.r, tc.hhmm, got, tc.want)
+			t.Errorf("%+v.Contains(%d) = %v, want %v", tc.r, tc.hhmm, got, tc.want)
 		}
 	}
 }
@@ -191,9 +191,9 @@ func TestTimeRangeContains(t *testing.T) {
 func TestInRanges(t *testing.T) {
 	rs := []TimeRange{{From: 22 * 60, To: 7 * 60}}
 	if !InRanges(rs, time.Date(2026, 1, 1, 23, 30, 0, 0, time.UTC)) {
-		t.Error("23:30 doit être dans la plage")
+		t.Error("23:30 must be in the range")
 	}
 	if InRanges(rs, time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)) {
-		t.Error("12:00 ne doit pas être dans la plage")
+		t.Error("12:00 must not be in the range")
 	}
 }

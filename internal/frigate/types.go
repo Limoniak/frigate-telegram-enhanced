@@ -1,4 +1,4 @@
-// Package frigate décrit les messages MQTT de Frigate et fournit un client pour son API HTTP.
+// Package frigate describes Frigate's MQTT messages and provides a client for its HTTP API.
 package frigate
 
 import (
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// SubLabel accepte les formats de Frigate : null, "nom" ou ["nom", score].
+// SubLabel accepts Frigate's formats: null, "name" or ["name", score].
 type SubLabel string
 
 func (s *SubLabel) UnmarshalJSON(b []byte) error {
@@ -24,19 +24,19 @@ func (s *SubLabel) UnmarshalJSON(b []byte) error {
 	}
 	var arr []json.RawMessage
 	if err := json.Unmarshal(b, &arr); err != nil {
-		return fmt.Errorf("sub_label: format inattendu %s", b)
+		return fmt.Errorf("sub_label: unexpected format %s", b)
 	}
 	if len(arr) == 0 {
 		return nil
 	}
 	if err := json.Unmarshal(arr[0], &str); err != nil {
-		return fmt.Errorf("sub_label: format inattendu %s", b)
+		return fmt.Errorf("sub_label: unexpected format %s", b)
 	}
 	*s = SubLabel(str)
 	return nil
 }
 
-// Event est l'objet suivi publié sur frigate/events.
+// Event is the tracked object published on frigate/events.
 type Event struct {
 	ID            string   `json:"id"`
 	Camera        string   `json:"camera"`
@@ -54,7 +54,7 @@ type Event struct {
 	EndTime       *float64 `json:"end_time"`
 }
 
-// BestScore renvoie le meilleur score connu de l'objet.
+// BestScore returns the best known score of the object.
 func (e Event) BestScore() float64 { return math.Max(e.Score, e.TopScore) }
 
 type EventMessage struct {
@@ -70,7 +70,7 @@ type ReviewData struct {
 	Zones      []string `json:"zones"`
 }
 
-// Review est un élément de revue (alert ou detection) publié sur frigate/reviews.
+// Review is a review item (alert or detection) published on frigate/reviews.
 type Review struct {
 	ID        string     `json:"id"`
 	Camera    string     `json:"camera"`
@@ -86,14 +86,14 @@ type ReviewMessage struct {
 	After  Review  `json:"after"`
 }
 
-// TrackedObjectUpdate est publié sur frigate/tracked_object_update (ex. description GenAI).
+// TrackedObjectUpdate is published on frigate/tracked_object_update (e.g. GenAI description).
 type TrackedObjectUpdate struct {
 	Type        string `json:"type"`
 	ID          string `json:"id"`
 	Description string `json:"description"`
 }
 
-// APIEvent est un événement tel que renvoyé par GET /api/events.
+// APIEvent is an event as returned by GET /api/events.
 type APIEvent struct {
 	ID          string   `json:"id"`
 	Camera      string   `json:"camera"`
@@ -104,7 +104,7 @@ type APIEvent struct {
 	Zones       []string `json:"zones"`
 	HasClip     bool     `json:"has_clip"`
 	HasSnapshot bool     `json:"has_snapshot"`
-	// FalsePositive : présent dans les versions de Frigate qui le renseignent.
+	// FalsePositive: present in the Frigate versions that fill it in.
 	FalsePositive bool     `json:"false_positive"`
 	TopScore      *float64 `json:"top_score"`
 	Data          struct {
@@ -112,7 +112,7 @@ type APIEvent struct {
 	} `json:"data"`
 }
 
-// Score renvoie le meilleur score, quel que soit l'emplacement utilisé par la version de Frigate.
+// Score returns the best score, wherever the Frigate version puts it.
 func (e APIEvent) Score() float64 {
 	if e.TopScore != nil && *e.TopScore > 0 {
 		return *e.TopScore
@@ -120,12 +120,12 @@ func (e APIEvent) Score() float64 {
 	return e.Data.TopScore
 }
 
-var errNoID = errors.New("message frigate sans id")
+var errNoID = errors.New("frigate message without an id")
 
 func ParseEventMessage(b []byte) (EventMessage, error) {
 	var m EventMessage
 	if err := json.Unmarshal(b, &m); err != nil {
-		return m, fmt.Errorf("event frigate illisible: %w", err)
+		return m, fmt.Errorf("unreadable frigate event: %w", err)
 	}
 	if m.After.ID == "" {
 		return m, errNoID
@@ -136,7 +136,7 @@ func ParseEventMessage(b []byte) (EventMessage, error) {
 func ParseReviewMessage(b []byte) (ReviewMessage, error) {
 	var m ReviewMessage
 	if err := json.Unmarshal(b, &m); err != nil {
-		return m, fmt.Errorf("review frigate illisible: %w", err)
+		return m, fmt.Errorf("unreadable frigate review: %w", err)
 	}
 	if m.After.ID == "" {
 		return m, errNoID
@@ -147,7 +147,7 @@ func ParseReviewMessage(b []byte) (ReviewMessage, error) {
 func ParseTrackedObjectUpdate(b []byte) (TrackedObjectUpdate, error) {
 	var u TrackedObjectUpdate
 	if err := json.Unmarshal(b, &u); err != nil {
-		return u, fmt.Errorf("tracked_object_update illisible: %w", err)
+		return u, fmt.Errorf("unreadable tracked_object_update: %w", err)
 	}
 	if u.ID == "" {
 		return u, errNoID
@@ -155,7 +155,7 @@ func ParseTrackedObjectUpdate(b []byte) (TrackedObjectUpdate, error) {
 	return u, nil
 }
 
-// UnixTime convertit un horodatage Frigate (secondes flottantes) en time.Time.
+// UnixTime converts a Frigate timestamp (floating-point seconds) into a time.Time.
 func UnixTime(ts float64) time.Time {
 	sec, frac := math.Modf(ts)
 	return time.Unix(int64(sec), int64(math.Round(frac*1e9)))

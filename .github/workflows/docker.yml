@@ -14,7 +14,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      GOTOOLCHAIN: local # les outils ci-dessous se compilent avec le Go de go.mod
+      GOTOOLCHAIN: local # the tools below are built with the Go of go.mod
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -22,7 +22,7 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: go test -race ./...
-      # Test de fumée de l'interface web dans Chrome, préinstallé sur les runners ubuntu.
+      # Smoke test of the web interface in Chrome, preinstalled on the ubuntu runners.
       - run: go test -tags browser -run Browser ./internal/web/
       - run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
@@ -47,8 +47,8 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
-          # :latest suit main, pour que le docker-compose.yml fourni fonctionne tel quel ;
-          # les tags v* publient en plus :X.Y.Z et :X.Y.
+          # :latest follows main, so that the provided docker-compose.yml works as is;
+          # v* tags also publish :X.Y.Z and :X.Y.
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}

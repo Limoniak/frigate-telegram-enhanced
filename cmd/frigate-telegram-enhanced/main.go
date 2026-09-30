@@ -1,4 +1,4 @@
-// Commande frigate-telegram-enhanced : notifications Telegram pour Frigate NVR.
+// Command frigate-telegram-enhanced: Telegram notifications for Frigate NVR.
 package main
 
 import (
@@ -20,13 +20,13 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stderr))
 }
 
-// run exécute la commande avec les arguments args et renvoie son code de sortie.
+// run runs the command with the arguments args and returns its exit code.
 func run(args []string, stderr io.Writer) int {
 	flags := flag.NewFlagSet("frigate-telegram-enhanced", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	configPath := flags.String("config", "/config/config.yml", "chemin du fichier de configuration")
-	healthcheck := flags.Bool("healthcheck", false, "interroge /healthz et sort avec 0 si le service est sain")
-	healthURL := flags.String("healthcheck-url", "", "URL utilisée par -healthcheck (défaut : déduite du port configuré)")
+	configPath := flags.String("config", "/config/config.yml", "path of the configuration file")
+	healthcheck := flags.Bool("healthcheck", false, "query /healthz and exit with 0 if the service is healthy")
+	healthURL := flags.String("healthcheck-url", "", "URL used by -healthcheck (default: derived from the configured port)")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -51,8 +51,8 @@ func run(args []string, stderr io.Writer) int {
 	return 0
 }
 
-// healthURLFor déduit l'URL de /healthz du port configuré (http_listen ou
-// HTTP_LISTEN), pour que la sonde du conteneur suive un port personnalisé.
+// healthURLFor derives the /healthz URL from the configured port (http_listen or
+// HTTP_LISTEN), so that the container probe follows a custom port.
 func healthURLFor(configPath string) string {
 	listen := config.DefaultHTTPListen
 	if cfg, err := config.Load(configPath); err == nil {

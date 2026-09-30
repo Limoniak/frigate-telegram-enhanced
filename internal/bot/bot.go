@@ -1,4 +1,4 @@
-// Package bot traite les commandes et les boutons Telegram (long polling).
+// Package bot handles the Telegram commands and buttons (long polling).
 package bot
 
 import (
@@ -46,26 +46,26 @@ type Deps struct {
 	MQTTConnected func() bool
 }
 
-// camerasTTL borne la fraîcheur de la liste des caméras : elle change rarement, et
-// /cameras, /snapshot et /pause <caméra> la consultent à chaque appel.
+// camerasTTL bounds how fresh the list of cameras is: it rarely changes, and
+// /cameras, /snapshot and /pause <camera> read it on every call.
 const camerasTTL = 30 * time.Second
 
 type Bot struct {
 	Deps
 	lastPoll atomic.Int64
-	pollErr  atomic.Pointer[error] // dernière erreur de getUpdates, nil après un succès
+	pollErr  atomic.Pointer[error] // last getUpdates error, nil after a success
 	wg       sync.WaitGroup
 
 	serialMu sync.Mutex
-	tail     chan struct{} // fermé quand la dernière commande mise en file est terminée
+	tail     chan struct{} // closed when the last queued command is done
 
 	camMu    sync.Mutex
 	camList  []string
 	camUntil time.Time
 
 	refMu   sync.Mutex
-	refused []Refused           // derniers utilisateurs refusés, du plus ancien au plus récent
-	replied map[int64]time.Time // dernière réponse « votre identifiant » par utilisateur
+	refused []Refused           // latest refused users, oldest first
+	replied map[int64]time.Time // last "your ID" reply, per user
 }
 
 func New(d Deps) *Bot {
@@ -83,10 +83,10 @@ func New(d Deps) *Bot {
 	return b
 }
 
-// LastPoll renvoie l'heure du dernier getUpdates réussi (utilisé par /healthz).
+// LastPoll returns the time of the last successful getUpdates (used by /healthz).
 func (b *Bot) LastPoll() time.Time { return time.Unix(0, b.lastPoll.Load()) }
 
-// PollError renvoie l'erreur du dernier getUpdates, nil s'il a réussi.
+// PollError returns the error of the last getUpdates, nil if it succeeded.
 func (b *Bot) PollError() error {
 	if p := b.pollErr.Load(); p != nil {
 		return *p
@@ -94,7 +94,7 @@ func (b *Bot) PollError() error {
 	return nil
 }
 
-// Wait attend la fin des actions lancées en arrière-plan.
+// Wait waits for the actions started in the background to finish.
 func (b *Bot) Wait() { b.wg.Wait() }
 
 func (b *Bot) async(f func()) {
@@ -105,9 +105,9 @@ func (b *Bot) async(f func()) {
 	}()
 }
 
-// serial exécute f en arrière-plan, après toutes les commandes mises en file avant
-// elle : la boucle de long polling n'attend jamais Frigate, et « /pause » puis
-// « /resume » s'appliquent toujours dans cet ordre.
+// serial runs f in the background, after every command queued before it: the long
+// polling loop never waits for Frigate, and "/pause" then "/resume" are always
+// applied in that order.
 func (b *Bot) serial(f func()) {
 	b.serialMu.Lock()
 	prev, done := b.tail, make(chan struct{})
@@ -122,7 +122,7 @@ func (b *Bot) serial(f func()) {
 	})
 }
 
-// cameras renvoie la liste des caméras de Frigate, gardée en cache camerasTTL.
+// cameras returns the list of Frigate's cameras, cached for camerasTTL.
 func (b *Bot) cameras(ctx context.Context) ([]string, error) {
 	b.camMu.Lock()
 	defer b.camMu.Unlock()
@@ -138,7 +138,7 @@ func (b *Bot) cameras(ctx context.Context) ([]string, error) {
 	return slices.Clone(cams), nil
 }
 
-// commands est le menu des commandes affiché par Telegram, dans la langue l.
+// commands is the command menu shown by Telegram, in the language l.
 func commands(l i18n.Lang) []telegram.BotCommand {
 	return []telegram.BotCommand{
 		{Command: "pause", Description: l.T("Pause: /pause [duration] [camera]")},
@@ -152,7 +152,7 @@ func commands(l i18n.Lang) []telegram.BotCommand {
 	}
 }
 
-// Run fait du long polling jusqu'à l'annulation de ctx.
+// Run long-polls until ctx is canceled.
 func (b *Bot) Run(ctx context.Context) {
 	if err := b.Telegram.SetMyCommands(ctx, commands(b.Config.Language)); err != nil {
 		b.Log.Warn("setMyCommands failed", "err", err)
@@ -179,7 +179,7 @@ func (b *Bot) Run(ctx context.Context) {
 	b.wg.Wait()
 }
 
-// HandleUpdate route une mise à jour vers la commande ou le bouton concerné.
+// HandleUpdate routes an update to the command or button it concerns.
 func (b *Bot) HandleUpdate(ctx context.Context, u telegram.Update) {
 	switch {
 	case u.CallbackQuery != nil:

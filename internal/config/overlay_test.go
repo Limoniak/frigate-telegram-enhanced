@@ -21,9 +21,9 @@ func TestSaveLoadOverlayRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Les durées doivent rester lisibles : time.Duration s'encoderait en nanosecondes.
+	// Durations must stay readable: time.Duration would be encoded in nanoseconds.
 	if !strings.Contains(string(raw), "cooldown: 1m0s") {
-		t.Errorf("durée illisible dans le fichier écrit :\n%s", raw)
+		t.Errorf("unreadable duration in the written file:\n%s", raw)
 	}
 	back, err := LoadOverlay(path)
 	if err != nil {
@@ -33,14 +33,14 @@ func TestSaveLoadOverlayRoundTrip(t *testing.T) {
 		t.Fatalf("ApplyOverlay: %v", err)
 	}
 	if got := c.Global().Cooldown; got != time.Minute {
-		t.Errorf("cooldown après aller-retour = %v", got)
+		t.Errorf("cooldown after a round trip = %v", got)
 	}
 }
 
 func TestLoadOverlayMissingFileIsNotAnError(t *testing.T) {
 	o, err := LoadOverlay(filepath.Join(t.TempDir(), "absent.yml"))
 	if err != nil || o != nil {
-		t.Fatalf("LoadOverlay(absent) = %v, %v ; attendu nil, nil", o, err)
+		t.Fatalf("LoadOverlay(missing) = %v, %v; want nil, nil", o, err)
 	}
 }
 
@@ -64,23 +64,23 @@ cameras:
 	if g := c.Global(); g.Cooldown != 30*time.Second || len(g.Labels) != 1 || g.Labels[0] != "car" {
 		t.Errorf("global = %+v", g)
 	}
-	// L'overlay remplace entièrement la section cameras : garage retrouve le global.
+	// The overlay entirely replaces the cameras section: garage gets the global settings back.
 	if got := c.ForCamera("garage").MinScore.Default; got != 0 {
-		t.Errorf("garage.min_score = %v, la surcharge de config.yml devait disparaître", got)
+		t.Errorf("garage.min_score = %v, the override from config.yml should have gone", got)
 	}
 	if got := c.ForCamera("jardin").Zones; len(got) != 1 || got[0] != "allee" {
 		t.Errorf("jardin.zones = %v", got)
 	}
 
-	// Retour à config.yml.
+	// Back to config.yml.
 	if err := c.ApplyOverlay(nil); err != nil {
 		t.Fatalf("ApplyOverlay(nil): %v", err)
 	}
 	if got := c.ForCamera("garage").MinScore.Default; got != 0.9 {
-		t.Errorf("garage.min_score après retour = %v", got)
+		t.Errorf("garage.min_score after going back = %v", got)
 	}
 	if got := c.Global().Labels; len(got) != 1 || got[0] != "person" {
-		t.Errorf("labels après retour = %v", got)
+		t.Errorf("labels after going back = %v", got)
 	}
 }
 
@@ -91,13 +91,13 @@ func TestApplyOverlayRejectsInvalidAndKeepsPrevious(t *testing.T) {
 	o := &Overlay{Notify: NotifyPatch{Chats: &[]string{"inconnu"}}}
 	err := c.ApplyOverlay(o)
 	if err == nil || !strings.Contains(err.Error(), "inconnu") {
-		t.Fatalf("ApplyOverlay = %v, attendu un refus mentionnant le chat inconnu", err)
+		t.Fatalf("ApplyOverlay = %v, want a refusal mentioning the unknown chat", err)
 	}
 	if got := c.Global(); got.Chats[0] != before.Chats[0] {
-		t.Errorf("les réglages ont changé malgré le refus : %v", got.Chats)
+		t.Errorf("the settings changed despite the refusal: %v", got.Chats)
 	}
 	if c.ValidateOverlay(o, c.Language) == nil {
-		t.Error("ValidateOverlay devrait refuser le même overlay")
+		t.Error("ValidateOverlay should refuse the same overlay")
 	}
 }
 
@@ -112,17 +112,17 @@ cameras:
 `)
 	o := c.CurrentOverlay()
 	if o.Notify.Labels == nil || len(*o.Notify.Labels) != 2 {
-		t.Errorf("le global doit être entièrement décrit : %+v", o.Notify)
+		t.Errorf("the global settings must be described in full: %+v", o.Notify)
 	}
 	garage := o.Cameras["garage"]
 	if garage.Labels == nil || len(*garage.Labels) != 1 {
 		t.Errorf("garage.labels = %+v", garage.Labels)
 	}
 	if garage.Cooldown != nil {
-		t.Errorf("garage ne surcharge pas cooldown, il ne doit pas apparaître : %v", *garage.Cooldown)
+		t.Errorf("garage does not override cooldown, it must not appear: %v", *garage.Cooldown)
 	}
 	if salon, ok := o.Cameras["salon"]; !ok || salon != (NotifyPatch{}) {
-		t.Errorf("salon ne surcharge rien, son patch doit être vide : %+v", salon)
+		t.Errorf("salon overrides nothing, its patch must be empty: %+v", salon)
 	}
 }
 
@@ -140,12 +140,12 @@ func TestSaveOverlayReplacesAtomically(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(entries) != 1 || entries[0].Name() != "notify.yml" {
-		t.Errorf("le fichier temporaire n'a pas été nettoyé : %v", entries)
+		t.Errorf("the temporary file was not cleaned up: %v", entries)
 	}
 }
 
-// Le rechargement se fait pendant que le moteur de filtrage lit la configuration :
-// ce test n'a d'intérêt que sous -race.
+// The reload happens while the filter engine reads the configuration: this test
+// is only meaningful under -race.
 func TestApplyOverlayIsSafeWhileReading(t *testing.T) {
 	c := mustParse(t, minimal)
 	done := make(chan struct{})
@@ -173,7 +173,7 @@ func TestApplyOverlayIsSafeWhileReading(t *testing.T) {
 func TestExternalURLOverride(t *testing.T) {
 	c := mustParse(t, strings.Replace(minimal, "url: http://frigate:5000/", "url: http://frigate:5000/\n  external_url: https://ancien.example/", 1))
 	if c.ExternalURL() != "https://ancien.example" {
-		t.Fatalf("depuis la config = %q", c.ExternalURL())
+		t.Fatalf("from the configuration = %q", c.ExternalURL())
 	}
 	o := c.CurrentOverlay()
 	u := " https://frigate.maison.example/ "
@@ -182,25 +182,25 @@ func TestExternalURLOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	if c.ExternalURL() != "https://frigate.maison.example" {
-		t.Errorf("après modification = %q", c.ExternalURL())
+		t.Errorf("after the change = %q", c.ExternalURL())
 	}
 	bad := "frigate.maison"
 	o.ExternalURL = &bad
 	if err := c.ApplyOverlay(&o); err == nil || !strings.Contains(err.Error(), "external URL") {
-		t.Errorf("adresse sans http(s) : %v", err)
+		t.Errorf("address without http(s): %v", err)
 	}
 	empty := ""
 	o.ExternalURL = &empty
 	if err := c.ApplyOverlay(&o); err != nil || c.ExternalURL() != "http://frigate:5000" {
-		t.Errorf("vide = l'adresse de frigate.url : %q, %v", c.ExternalURL(), err)
+		t.Errorf("empty = the address of frigate.url: %q, %v", c.ExternalURL(), err)
 	}
 	if err := c.ApplyOverlay(nil); err != nil || c.ExternalURL() != "https://ancien.example" {
-		t.Errorf("retour à la config : %q, %v", c.ExternalURL(), err)
+		t.Errorf("back to the configuration: %q, %v", c.ExternalURL(), err)
 	}
 }
 
 func TestExternalURLDefaultsToFrigateURL(t *testing.T) {
 	if c := mustParse(t, minimal); c.ExternalURL() != "http://frigate:5000" {
-		t.Errorf("sans adresse externe, les liens utilisent frigate.url : %q", c.ExternalURL())
+		t.Errorf("without an external address, the links use frigate.url: %q", c.ExternalURL())
 	}
 }

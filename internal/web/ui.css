@@ -31,7 +31,7 @@ body {
 svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ---- en-tête ---- */
+/* ---- header ---- */
 header {
   position: sticky; top: 0; z-index: 10;
   background: color-mix(in srgb, var(--card) 88%, transparent);
@@ -63,7 +63,7 @@ header .spacer { flex: 1; }
 main { max-width: 960px; margin: 0 auto; padding: 20px var(--pad) 8px; }
 section, details.advanced { scroll-margin-top: 76px; }
 
-/* ---- sommaire (grands écrans) ---- */
+/* ---- table of contents (large screens) ---- */
 .toc { display: none; }
 @media (min-width: 1240px) {
   :root { --wrap: 1220px; }
@@ -96,7 +96,7 @@ section, details.advanced {
 .body { padding: 0 var(--pad) 8px; }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 
-/* ---- modèles de notification ---- */
+/* ---- notification styles ---- */
 .styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; padding: 2px var(--pad) 18px; }
 .styles > .hint { grid-column: 1 / -1; }
 .style-card {
@@ -121,7 +121,7 @@ section, details.advanced {
 }
 .style-card[aria-pressed=true] .check { transform: none; opacity: 1; }
 
-/* aperçu façon Telegram */
+/* Telegram-like preview */
 .tg {
   background-color: var(--tg-bg);
   background-image: radial-gradient(rgba(255,255,255,.18) 1px, transparent 1.2px);
@@ -146,7 +146,7 @@ section, details.advanced {
 .kb span { flex: 1; text-align: center; background: var(--tg-btn); border-radius: 6px; padding: 3px 0; font-size: 11px; white-space: nowrap; }
 .quote { border-left: 2px solid var(--tg-link); margin: 6px 8px 0; padding-left: 6px; color: var(--tg-link); font-size: 11px; }
 
-/* options du modèle : cadrage, lien, vidéo */
+/* style options: framing, link, video */
 .framing {
   display: flex; flex-direction: column; gap: 10px; margin: 0 var(--pad) 16px; padding: 14px 16px;
   background: var(--card-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
@@ -160,7 +160,7 @@ section, details.advanced {
 .control a.test { font-size: 14px; color: var(--accent); text-decoration: none; font-weight: 500; }
 .control a.test:hover { text-decoration: underline; }
 
-/* ---- questions à choix ---- */
+/* ---- multiple-choice questions ---- */
 .question { padding: 16px 0; border-top: 1px solid var(--line); }
 .question:first-child { border-top: 0; padding-top: 4px; }
 .question .q { font-weight: 600; }
@@ -183,7 +183,7 @@ section, details.advanced {
 .pill.custom { cursor: default; border-style: dashed; }
 .pill.custom[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); box-shadow: none; }
 
-/* ---- sensibilité ---- */
+/* ---- sensitivity ---- */
 .sens { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .sens input[type=range] { flex: 1; min-width: 180px; accent-color: var(--accent); margin: 0; }
 .sens .val { font-weight: 650; min-width: 3.5em; text-align: center; font-variant-numeric: tabular-nums; background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 2px 8px; }
@@ -200,7 +200,7 @@ section, details.advanced {
   .recipient .sub-q { margin-top: 6px; }
 }
 
-/* ---- caméras ---- */
+/* ---- cameras ---- */
 #cameras { border-top: 1px solid var(--line); }
 details.camera + details.camera { border-top: 1px solid var(--line); }
 details.camera > summary {
@@ -231,7 +231,7 @@ details.camera > .body .pill[aria-pressed=true] { background: var(--accent); }
 .toggle input:checked + span::after { transform: translateX(17px); }
 .toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ---- réglages avancés (éditeur détaillé) ---- */
+/* ---- advanced settings (detailed editor) ---- */
 details.advanced > summary { cursor: pointer; list-style: none; align-items: center; padding-bottom: 18px; }
 details.advanced > summary::-webkit-details-marker { display: none; }
 details.advanced > summary .t { flex: 1; }
@@ -321,7 +321,7 @@ button.icon { padding: 4px 9px; line-height: 1; }
 .notice.warn { background: var(--warn-soft); color: var(--fg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); border-left-color: var(--warn); }
 .notice.err { background: var(--danger-soft); color: var(--fg); border-color: color-mix(in srgb, var(--danger) 35%, transparent); border-left-color: var(--danger); white-space: pre-wrap; }
 
-/* ---- pastilles d'état ---- */
+/* ---- status dots ---- */
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
 .dot.pending, .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
@@ -331,7 +331,7 @@ button.icon { padding: 4px 9px; line-height: 1; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px transparent; } }
 @media (prefers-reduced-motion: reduce) { .dot.pulse { animation: none; } * { transition: none !important; } }
 
-/* ---- bandeau d'état ---- */
+/* ---- status banner ---- */
 .overview { display: grid; gap: 0; }
 .live { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 14px var(--pad); }
 .live .state { font-weight: 650; margin-right: auto; display: inline-flex; align-items: center; gap: 10px; }
@@ -341,7 +341,7 @@ button.icon { padding: 4px 9px; line-height: 1; }
 .live .sub { width: 100%; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); padding-left: 19px; }
 .live .sub .row { gap: 8px; }
 
-/* ---- état des connexions ---- */
+/* ---- connection status ---- */
 .health { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px var(--pad); font-size: 13.5px; background: var(--card-2); }
 .live + .health { border-top: 1px solid var(--line); }
 .health .lbl { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 2px; }
@@ -366,7 +366,7 @@ button.icon { padding: 4px 9px; line-height: 1; }
 .try-one .result.ok { color: var(--ok); font-weight: 500; }
 .try-one .result.err { color: var(--danger); }
 
-/* ---- activité récente ---- */
+/* ---- recent activity ---- */
 .activity { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .activity li { display: flex; align-items: center; gap: 14px; padding: 10px var(--pad); }
 .activity li + li { border-top: 1px solid var(--line); }

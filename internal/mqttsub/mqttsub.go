@@ -1,4 +1,4 @@
-// Package mqttsub gère la connexion au broker MQTT et l'abonnement aux topics de Frigate.
+// Package mqttsub manages the connection to the MQTT broker and the subscription to Frigate's topics.
 package mqttsub
 
 import (
@@ -20,7 +20,7 @@ type Subscriber struct {
 	client    mqtt.Client
 	connected atomic.Bool
 	opts      *mqtt.ClientOptions
-	lost      atomic.Pointer[error] // cause de la dernière perte de connexion
+	lost      atomic.Pointer[error] // cause of the last connection loss
 }
 
 func New(cfg config.MQTT, topics []string, h Handler, log *slog.Logger, onState func(connected bool)) *Subscriber {
@@ -51,11 +51,11 @@ func New(cfg config.MQTT, topics []string, h Handler, log *slog.Logger, onState 
 			filters[t] = 0
 		}
 		tok := c.SubscribeMultiple(filters, func(_ mqtt.Client, m mqtt.Message) { h(m.Topic(), m.Payload()) })
-		go func() { // ne jamais attendre un token dans un handler paho
+		go func() { // never wait for a token in a paho handler
 			tok.Wait()
 			if err := tok.Error(); err != nil {
 				log.Error("MQTT subscription failed", "err", err)
-				return // état laissé à false : pas sain tant que l'abonnement n'a pas réussi
+				return // state left false: not healthy until the subscription succeeded
 			}
 			log.Info("MQTT connected", "broker", cfg.Broker, "topics", topics)
 			setState(true)
@@ -74,7 +74,7 @@ func New(cfg config.MQTT, topics []string, h Handler, log *slog.Logger, onState 
 	return s
 }
 
-// LostError renvoie la cause de la dernière perte de connexion, nil si aucune.
+// LostError returns the cause of the last connection loss, nil if none.
 func (s *Subscriber) LostError() error {
 	if p := s.lost.Load(); p != nil {
 		return *p
@@ -82,10 +82,10 @@ func (s *Subscriber) LostError() error {
 	return nil
 }
 
-// Probe tente une connexion unique au broker, avec les mêmes paramètres mais un
-// identifiant distinct, et renvoie l'erreur obtenue : le client principal, qui
-// réessaie en boucle, ne remonte pas la cause d'un échec (identifiants refusés,
-// broker injoignable…). Sert au diagnostic de l'interface web.
+// Probe tries a single connection to the broker, with the same parameters but a
+// distinct client ID, and returns the error it gets: the main client, which retries
+// in a loop, does not report why it fails (credentials refused, broker
+// unreachable…). Used by the web interface's diagnosis.
 func (s *Subscriber) Probe(timeout time.Duration) error {
 	o := *s.opts
 	o.SetClientID(s.opts.ClientID + "-probe").
@@ -109,7 +109,7 @@ func (s *Subscriber) Probe(timeout time.Duration) error {
 
 var errProbeTimeout = errors.New("timed out")
 
-// Start lance la connexion ; les échecs sont retentés en arrière-plan.
+// Start starts the connection; failures are retried in the background.
 func (s *Subscriber) Start() { s.client.Connect() }
 
 func (s *Subscriber) Connected() bool { return s.connected.Load() }
@@ -119,8 +119,8 @@ func (s *Subscriber) Stop() {
 	s.connected.Store(false)
 }
 
-// Match indique si topic correspond au filtre MQTT filter, jokers + (un niveau) et
-// # (tous les niveaux restants) compris.
+// Match reports whether topic matches the MQTT filter, wildcards + (one level) and
+// # (every remaining level) included.
 func Match(filter, topic string) bool {
 	f, t := strings.Split(filter, "/"), strings.Split(topic, "/")
 	for i, part := range f {

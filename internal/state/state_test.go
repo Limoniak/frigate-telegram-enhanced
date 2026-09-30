@@ -22,20 +22,20 @@ func newStore(t *testing.T) (*Store, string) {
 func TestPauseAndResume(t *testing.T) {
 	s, _ := newStore(t)
 	if s.IsPaused(t0) {
-		t.Fatal("pause au démarrage")
+		t.Fatal("paused at startup")
 	}
 	if err := s.Pause(t0.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if !s.IsPaused(t0.Add(30*time.Minute)) || s.IsPaused(t0.Add(2*time.Hour)) {
-		t.Error("fenêtre de pause incorrecte")
+		t.Error("wrong pause window")
 	}
 	s.Mute("jardin", Forever)
 	if err := s.Resume(); err != nil {
 		t.Fatal(err)
 	}
 	if s.IsPaused(t0) || s.IsMuted("jardin", t0) {
-		t.Error("Resume doit tout lever")
+		t.Error("Resume must lift everything")
 	}
 }
 
@@ -43,11 +43,11 @@ func TestMuteIsPerCamera(t *testing.T) {
 	s, _ := newStore(t)
 	s.Mute("jardin", t0.Add(time.Hour))
 	if !s.IsMuted("jardin", t0) || s.IsMuted("garage", t0) {
-		t.Error("coupure mal ciblée")
+		t.Error("mute on the wrong camera")
 	}
 	s.Unmute("jardin")
 	if s.IsMuted("jardin", t0) {
-		t.Error("Unmute sans effet")
+		t.Error("Unmute had no effect")
 	}
 }
 
@@ -67,13 +67,13 @@ func TestPersistenceRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !s2.IsPaused(later) || !s2.IsMuted("garage", later) {
-		t.Error("état non restauré")
+		t.Error("state not restored")
 	}
 	if _, ok := s2.Status(later).Mutes["jardin"]; ok {
-		t.Error("coupure expirée non purgée")
+		t.Error("expired mute not purged")
 	}
 	if !s2.LastNotified("jardin/person").Equal(t0) {
-		t.Error("cooldown non restauré")
+		t.Error("cooldown not restored")
 	}
 }
 
@@ -82,7 +82,7 @@ func TestForeverSurvivesRoundTrip(t *testing.T) {
 	s.Pause(Forever)
 	s2, _ := Load(path, t0.AddDate(5, 0, 0))
 	if !s2.IsPaused(t0.AddDate(5, 0, 0)) {
-		t.Error("pause illimitée perdue")
+		t.Error("unlimited pause lost")
 	}
 }
 
@@ -91,10 +91,10 @@ func TestCorruptFileGivesEmptyState(t *testing.T) {
 	os.WriteFile(path, []byte("{"), 0o600)
 	s, err := Load(path, t0)
 	if err == nil {
-		t.Error("avertissement attendu")
+		t.Error("want a warning")
 	}
 	if s == nil || s.IsPaused(t0) {
-		t.Fatal("un état vide utilisable est attendu")
+		t.Fatal("want a usable empty state")
 	}
 }
 
@@ -104,21 +104,21 @@ func TestFlushIfDirty(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Error("aucune écriture attendue sans modification")
+		t.Error("want no write without a change")
 	}
 	s.MarkNotified("jardin/person", t0)
 	if err := s.FlushIfDirty(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(path); err != nil {
-		t.Errorf("fichier attendu : %v", err)
+		t.Errorf("want a file: %v", err)
 	}
 }
 
 func TestStatus(t *testing.T) {
 	s, _ := newStore(t)
 	if st := s.Status(t0); !st.PausedUntil.IsZero() || len(st.Mutes) != 0 {
-		t.Errorf("status vide attendu : %+v", st)
+		t.Errorf("want an empty status: %+v", st)
 	}
 	s.Pause(t0.Add(time.Hour))
 	s.Mute("jardin", t0.Add(time.Hour))
@@ -134,9 +134,9 @@ func TestMarkNotifiedForgetsOldCooldowns(t *testing.T) {
 	s.MarkNotified("garage/person", now)
 	s.MarkNotified("jardin/cat", now.Add(cooldownRetention))
 	if !s.LastNotified("garage/person").IsZero() {
-		t.Error("un cooldown de plus de 24 h doit être oublié")
+		t.Error("a cooldown older than 24 h must be forgotten")
 	}
 	if s.LastNotified("jardin/cat").IsZero() {
-		t.Error("le cooldown qui vient d'être posé doit rester")
+		t.Error("the cooldown just set must stay")
 	}
 }

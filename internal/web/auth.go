@@ -12,17 +12,17 @@ import (
 	"frigate-telegram-enhanced/internal/i18n"
 )
 
-// Limites contre les essais de mot de passe à répétition : au-delà de maxFailures
-// échecs en failureWindow depuis une même adresse, elle est bloquée blockFor.
+// Limits against repeated password attempts: beyond maxFailures failures in
+// failureWindow from one address, it is blocked for blockFor.
 const (
 	maxFailures   = 5
 	failureWindow = time.Minute
 	blockFor      = 5 * time.Minute
 )
 
-// Auth protège des routes par mot de passe (authentification HTTP Basic, nom
-// d'utilisateur libre) et bloque temporairement une adresse qui enchaîne les échecs.
-// Une seule instance doit servir toutes les routes : le décompte est commun.
+// Auth protects routes with a password (HTTP Basic authentication, any user name)
+// and temporarily blocks an address that piles up failures. A single instance must
+// serve every route: the count is shared.
 type Auth struct {
 	pass string
 	log  *slog.Logger
@@ -34,7 +34,7 @@ type Auth struct {
 
 type attempts struct {
 	failures     int
-	since        time.Time // début de la fenêtre de décompte
+	since        time.Time // start of the counting window
 	blockedUntil time.Time
 }
 
@@ -42,7 +42,7 @@ func NewAuth(pass string, log *slog.Logger) *Auth {
 	return &Auth{pass: pass, log: log, now: time.Now, clients: map[string]*attempts{}}
 }
 
-// Wrap exige le mot de passe avant next.
+// Wrap requires the password before next.
 func (a *Auth) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := clientIP(r)
@@ -54,7 +54,7 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 		}
 		_, got, ok := r.BasicAuth()
 		if !ok || subtle.ConstantTimeCompare([]byte(got), []byte(a.pass)) != 1 {
-			if ok { // sans identifiants, c'est le navigateur qui demande : pas un échec
+			if ok { // without credentials, it is the browser asking: not a failure
 				a.fail(ip)
 			}
 			w.Header().Set("WWW-Authenticate", `Basic realm="frigate-telegram-enhanced", charset="UTF-8"`)
@@ -100,7 +100,7 @@ func (a *Auth) succeed(ip string) {
 	delete(a.clients, ip)
 }
 
-// prune oublie les adresses sans échec récent ni blocage en cours. Appelé sous a.mu.
+// prune forgets the addresses with no recent failure nor ongoing block. Called under a.mu.
 func (a *Auth) prune(now time.Time) {
 	for ip, c := range a.clients {
 		if now.Sub(c.since) > failureWindow && now.After(c.blockedUntil) {

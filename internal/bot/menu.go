@@ -10,11 +10,11 @@ import (
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
-// menuMute est la durée de coupure d'une caméra depuis le menu.
+// menuMute is how long the menu mutes a camera.
 const menuMute = time.Hour
 
-// menu construit le message de contrôle : l'état du service et des boutons pour
-// mettre en pause, reprendre, et couper ou réactiver chaque caméra.
+// menu builds the control message: the state of the service, and buttons to pause,
+// resume, and mute or turn back on each camera.
 func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup) {
 	l := b.Config.Language
 	now := b.Now()
@@ -55,7 +55,7 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 
 	cams, err := b.cameras(ctx)
 	if err != nil {
-		// Frigate injoignable : au moins les caméras connues de la configuration et de l'état.
+		// Frigate unreachable: at least the cameras known from the configuration and the state.
 		cams = b.Config.CameraNames()
 		for cam := range st.Mutes {
 			if !slices.Contains(cams, cam) {
@@ -83,7 +83,7 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 		rows = append(rows, row)
 	}
 	rows = append(rows, []telegram.InlineKeyboardButton{btn(l.T("🔄 Refresh"), actions.Refresh())})
-	// Un bouton dont callback_data dépasse la limite de Telegram serait refusé en bloc.
+	// A button whose callback_data exceeds Telegram's limit would get the whole keyboard refused.
 	for i := range rows {
 		rows[i] = slices.DeleteFunc(rows[i], func(k telegram.InlineKeyboardButton) bool { return len(k.CallbackData) > 64 })
 	}
@@ -97,7 +97,7 @@ func (b *Bot) cmdMenu(ctx context.Context, chat int64) {
 	}
 }
 
-// refreshMenu redessine le message du menu après une action.
+// refreshMenu redraws the menu message after an action.
 func (b *Bot) refreshMenu(ctx context.Context, q telegram.CallbackQuery) {
 	if q.Message == nil {
 		return

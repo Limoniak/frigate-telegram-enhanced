@@ -7,8 +7,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -tags timetzdata -ldflags="-s -w" -o /out/frigate-telegram-enhanced ./cmd/frigate-telegram-enhanced
-# /data existe dans l'image et appartient à l'utilisateur du conteneur : un volume
-# nommé monté dessus en hérite, sans chown à faire à la main.
+# /data exists in the image and belongs to the container's user: a named volume
+# mounted on it inherits that, with no chown to do by hand.
 RUN mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot

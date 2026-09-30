@@ -1,90 +1,90 @@
-# Configuration avancée de frigate-telegram-enhanced — FACULTATIVE.
+# Advanced configuration of frigate-telegram-enhanced — OPTIONAL.
 #
-# L'installation normale n'en a pas besoin : tout se règle par les variables
-# d'environnement de docker-compose.yml, puis dans l'interface web.
+# A normal installation does not need it: everything is set with the environment
+# variables of docker-compose.yml, then in the web interface.
 #
-# Pour utiliser ce fichier à la place : le copier vers config/config.yml, l'adapter,
-# et ajouter au service le volume « - ./config:/config:ro ». Quand
-# /config/config.yml existe, il est seul pris en compte.
+# To use this file instead: copy it to config/config.yml, adapt it, and add the
+# volume "- ./config:/config:ro" to the service. When /config/config.yml exists,
+# it is the only one taken into account.
 #
-# Les valeurs ${VAR} viennent des variables d'environnement du conteneur (section
-# environment du compose) ; ${VAR:-défaut} utilise « défaut » si elle n'est pas définie.
+# ${VAR} values come from the container's environment variables (environment
+# section of the compose file); ${VAR:-default} uses "default" when it is not set.
 
-language: en                     # langue des messages Telegram et des erreurs : en, fr (voir internal/i18n/locales)
+language: en                     # language of Telegram messages and errors: en, fr (see internal/i18n/locales)
 timezone: Europe/Paris
-mode: events                     # events (un message par objet) ou reviews (alertes Frigate ≥ 0.14)
+mode: events                     # events (one message per object) or reviews (Frigate ≥ 0.14 alerts)
 
 frigate:
-  url: http://frigate:5000       # URL interne de l'API (5000 sans auth, 8971 avec auth)
-  external_url: ""               # adresse des liens « Ouvrir dans Frigate » (vide : celle de url)
-  username: ""                   # renseigner si l'authentification Frigate est activée
+  url: http://frigate:5000       # internal API URL (5000 without auth, 8971 with auth)
+  external_url: ""               # address of the "Open in Frigate" links (empty: the one of url)
+  username: ""                   # fill in if Frigate authentication is enabled
   password: "${FRIGATE_PASSWORD:-}"
-  insecure_skip_verify: false    # true pour un certificat auto-signé
+  insecure_skip_verify: false    # true for a self-signed certificate
 
 mqtt:
-  broker: tcp://mosquitto:1883   # ssl://hôte:8883 pour du TLS
+  broker: tcp://mosquitto:1883   # ssl://host:8883 for TLS
   username: ""
   password: "${MQTT_PASSWORD:-}"
   client_id: frigate-telegram-enhanced
-  topic_prefix: frigate          # doit correspondre à mqtt.topic_prefix de Frigate
+  topic_prefix: frigate          # must match Frigate's mqtt.topic_prefix
 
 telegram:
   token: "${TELEGRAM_TOKEN}"
-  admins: [123456789]            # identifiants des utilisateurs autorisés à piloter le bot
-  chats:                         # noms libres → identifiants de chat
-    moi: 123456789
-    # famille: -1001234567890    # un groupe a un identifiant négatif
+  admins: [123456789]            # IDs of the users allowed to control the bot
+  chats:                         # free names → chat IDs
+    me: 123456789
+    # family: -1001234567890     # a group has a negative ID
 
-web:                             # interface de réglage des notifications, sur http_listen
+web:                             # notification settings interface, on http_listen
   enabled: true
-  password: "${WEB_PASSWORD:-}"  # vide = aucune authentification (ne l'exposer alors que sur 127.0.0.1)
-  # Sans mot de passe, l'interface n'accepte que les adresses IP et localhost dans
-  # l'URL (protection contre le rebinding DNS). Pour l'ouvrir par un nom d'hôte
-  # (http://nas.lan:8431), l'ajouter ici — ou définir un mot de passe.
+  password: "${WEB_PASSWORD:-}"  # empty = no authentication (then only expose it on 127.0.0.1)
+  # Without a password, the interface only accepts IP addresses and localhost in the
+  # URL (protection against DNS rebinding). To open it by a host name
+  # (http://nas.lan:8431), add it here — or set a password.
   allowed_hosts: []
-  protect_metrics: false         # true = /metrics exige aussi le mot de passe (à renseigner côté Prometheus)
+  protect_metrics: false         # true = /metrics also requires the password (to set on the Prometheus side)
 
-# Les sections notify et cameras ci-dessous sont celles que l'interface web modifie.
-# Dès le premier enregistrement, elle écrit /data/notify.yml, qui les remplace toutes
-# les deux ; ce fichier-ci reste la source des secrets et des ${VAR}. Le bouton
-# « Revenir à config.yml » de l'interface supprime /data/notify.yml.
+# The notify and cameras sections below are the ones the web interface changes. From
+# the first save on, it writes /data/notify.yml, which replaces both of them; this
+# file stays the source of the secrets and the ${VAR}. The interface's "Back to the
+# config.yml settings" button deletes /data/notify.yml.
 
-notify:                          # réglages globaux, surchargeables par caméra
-  chats: [moi]
-  labels: [person, car]          # vide = tous les objets
-  zones: []                      # vide = pas de contrainte de zone
-  min_score: 0.7                 # ou par label : {person: 0.7, car: 0.85}
-  cooldown: 60s                  # délai minimum entre deux notifications caméra+objet
-  ignore_stationary: true        # ignorer les objets immobiles (voitures garées…)
-  severity: [alert]              # mode reviews : alert et/ou detection
+notify:                          # global settings, can be overridden per camera
+  chats: [me]
+  labels: [person, car]          # empty = every object
+  zones: []                      # empty = no zone constraint
+  min_score: 0.7                 # or per label: {person: 0.7, car: 0.85}
+  cooldown: 60s                  # minimum delay between two camera+object notifications
+  ignore_stationary: true        # ignore stationary objects (parked cars…)
+  severity: [alert]              # reviews mode: alert and/or detection
   snapshot: true
-  crop: false                    # true = image recadrée sur l'objet (bien plus lisible sur téléphone)
+  crop: false                    # true = image cropped on the object (much more readable on a phone)
   clip: true
-  media_in_place: true           # la vidéo (ou le GIF) remplace l'image dans le même message ; false = en réponse
+  media_in_place: true           # the video (or GIF) replaces the image in the same message; false = as a reply
   gif: false
-  genai_description: true        # ajoute la description GenAI de Frigate quand elle arrive
-  clip_delay: 5s                 # attente après la fin de l'événement avant de récupérer le clip
-  quiet_hours:                   # notifications sans son
+  genai_description: true        # adds Frigate's GenAI description when it arrives
+  clip_delay: 5s                 # wait after the end of the event before fetching the clip
+  quiet_hours:                   # silent notifications
     - {from: "22:00", to: "07:00"}
-  off_hours: []                  # aucune notification
-  when_home: skip                # quand quelqu'un est à la maison (voir presence) : notify, silent ou skip
-  group: 0s                      # regroupe les rafales sur ce délai (ex. 2m) : un message mis à jour ; réglage global
-  ignore_sub_labels: []          # étiquettes de Frigate à ne pas notifier, ex. ["clio 3 océane", ohana]
-  ignore_known: false            # true = seulement les inconnus (tout objet étiqueté est ignoré)
-  sub_label_wait: 5s             # avec un filtre d'étiquettes : attente maximale de l'étiquette
+  off_hours: []                  # no notification
+  when_home: skip                # when someone is home (see presence): notify, silent or skip
+  group: 0s                      # groups bursts over this delay (e.g. 2m): one updated message; global setting
+  ignore_sub_labels: []          # Frigate labels not to notify, e.g. ["clio 3 océane", ohana]
+  ignore_known: false            # true = unknown objects only (any labeled object is ignored)
+  sub_label_wait: 5s             # with a label filter: maximum wait for the label
 
-# Présence (facultatif) : quelqu'un est à la maison dès qu'un de ces topics MQTT
-# porte une des valeurs de home_values. Jokers + et # acceptés. Avec Home Assistant,
-# publier l'état des personnes (mqtt_statestream, ou une automatisation).
+# Presence (optional): someone is home as soon as one of these MQTT topics carries one
+# of the home_values. Wildcards + and # accepted. With Home Assistant, publish the
+# state of the persons (mqtt_statestream, or an automation).
 # presence:
 #   topics: ["homeassistant/person/+/state"]
-#   home_values: [home, on, true, "1", present]   # valeurs par défaut
+#   home_values: [home, on, true, "1", present]   # default values
 
-# Restrictions par destinataire (facultatif), en plus des réglages des caméras.
+# Per-recipient restrictions (optional), on top of the cameras' settings.
 # recipients:
-#   famille:
-#     labels: [person]                          # seulement les personnes
-#     off_hours: [{from: "07:00", to: "22:00"}] # seulement la nuit
+#   family:
+#     labels: [person]                          # people only
+#     off_hours: [{from: "07:00", to: "22:00"}] # at night only
 #     quiet_hours: []
 
 cameras:

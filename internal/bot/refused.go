@@ -9,15 +9,15 @@ import (
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
-// maxRefused borne la liste des utilisateurs refusés gardée pour l'interface web.
+// maxRefused bounds the list of refused users kept for the web interface.
 const maxRefused = 10
 
-// idReplyInterval espace les réponses « voici votre identifiant » à un même
-// utilisateur : le bot ne doit pas devenir bavard avec un inconnu insistant.
+// idReplyInterval spaces out the "here is your ID" replies to the same user: the
+// bot must not become chatty with an insistent stranger.
 const idReplyInterval = 10 * time.Minute
 
-// Refused décrit un utilisateur Telegram dont une commande ou un bouton a été
-// refusé. L'interface web le montre, pour qu'on retrouve facilement son identifiant.
+// Refused describes a Telegram user whose command or button was refused. The web
+// interface shows it, so that one's own ID is easy to find.
 type Refused struct {
 	ID       int64     `json:"id"`
 	Name     string    `json:"name,omitempty"`
@@ -25,7 +25,7 @@ type Refused struct {
 	At       time.Time `json:"at"`
 }
 
-// Refused renvoie les derniers utilisateurs refusés, du plus récent au plus ancien.
+// Refused returns the latest refused users, most recent first.
 func (b *Bot) Refused() []Refused {
 	b.refMu.Lock()
 	defer b.refMu.Unlock()
@@ -34,8 +34,8 @@ func (b *Bot) Refused() []Refused {
 	return out
 }
 
-// refuse note un utilisateur refusé. Il renvoie true si le bot doit lui répondre
-// avec son identifiant : pas plus d'une fois par idReplyInterval.
+// refuse records a refused user. It returns true if the bot should reply with
+// their ID: no more than once per idReplyInterval.
 func (b *Bot) refuse(u telegram.User) bool {
 	b.refMu.Lock()
 	defer b.refMu.Unlock()
@@ -60,9 +60,9 @@ func (b *Bot) refuse(u telegram.User) bool {
 	return true
 }
 
-// refuseCommand traite une commande d'un utilisateur non autorisé : en privé, le
-// bot lui donne son identifiant, que le propriétaire du bot doit ajouter à la
-// configuration ; dans un groupe, il se tait.
+// refuseCommand handles a command from a user who is not allowed: in private, the
+// bot gives them their ID, which the bot's owner has to add to the configuration;
+// in a group, it stays silent.
 func (b *Bot) refuseCommand(ctx context.Context, m telegram.Message) {
 	if m.From == nil {
 		b.Log.Warn("command refused: unknown sender", "text", m.Text)

@@ -9,10 +9,10 @@ import (
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
-// TestMediaPoolBoundsConcurrentDownloads vérifie que le pool limite le nombre de
-// DownloadToFile concurrents (F1) : deux événements se terminant en même temps sur
-// des caméras différentes ne doivent pas dépasser MediaWorkers téléchargements en
-// parallèle, et les deux clips doivent quand même être livrés.
+// TestMediaPoolBoundsConcurrentDownloads checks that the pool bounds the number of
+// concurrent DownloadToFile (F1): two events ending at the same time on different
+// cameras must not exceed MediaWorkers parallel downloads, and both clips must
+// still be delivered.
 func TestMediaPoolBoundsConcurrentDownloads(t *testing.T) {
 	h := newHarness(t, "events", func(d *Deps) { d.MediaWorkers = 1 })
 	h.fr.downloadDelay = 50 * time.Millisecond
@@ -25,18 +25,18 @@ func TestMediaPoolBoundsConcurrentDownloads(t *testing.T) {
 	for _, cam := range cams {
 		h.send(t, "frigate/events", eventMsg("new", cam, cam, "person", nil))
 	}
-	// Déclenche les deux fins d'événement "en même temps" pour forcer la concurrence.
+	// Triggers both event ends "at the same time" to force concurrency.
 	for _, cam := range cams {
 		h.n.Process(context.Background(), "frigate/events", eventMsg("end", cam, cam, "person", nil))
 	}
 	if !h.n.Wait(5 * time.Second) {
-		t.Fatal("envois non terminés après 5 s")
+		t.Fatal("sends not finished after 5 s")
 	}
 
 	if max := atomic.LoadInt32(&h.fr.maxConcurrent); max != 1 {
-		t.Errorf("concurrence max des téléchargements = %d, attendu 1", max)
+		t.Errorf("max download concurrency = %d, want 1", max)
 	}
 	if n := len(h.tg.videos()); n != 4 {
-		t.Errorf("vidéos envoyées = %d, attendu 4 (2 événements x 2 chats)", n)
+		t.Errorf("videos sent = %d, want 4 (2 events x 2 chats)", n)
 	}
 }

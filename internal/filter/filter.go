@@ -1,4 +1,4 @@
-// Package filter décide, sans aucune entrée/sortie, si une détection doit être notifiée.
+// Package filter decides, without any input/output, whether a detection must be notified.
 package filter
 
 import (
@@ -25,7 +25,7 @@ const (
 	ReasonCooldown       = "cooldown"
 )
 
-// State est la vue en lecture de l'état (pauses, coupures, cooldowns).
+// State is the read view of the state (pauses, mutes, cooldowns).
 type State interface {
 	IsPaused(now time.Time) bool
 	IsMuted(camera string, now time.Time) bool
@@ -33,7 +33,7 @@ type State interface {
 	SomeoneHome() bool
 }
 
-// Input décrit une détection. Labels contient un label (events) ou plusieurs objets (reviews).
+// Input describes a detection. Labels holds one label (events) or several objects (reviews).
 type Input struct {
 	Camera        string
 	Labels        []string
@@ -43,19 +43,19 @@ type Input struct {
 	Severity      string
 	Stationary    bool
 	FalsePositive bool
-	SubLabels     []string // étiquettes de Frigate connues (classification, visage, plaque)
+	SubLabels     []string // known Frigate labels (classification, face, plate)
 }
 
 type Decision struct {
 	Notify     bool
-	Silent     bool     // notification sans son pour tous (quiet_hours de la caméra, présence)
-	Label      string   // label retenu, pour la légende et le cooldown
-	Chats      []string // noms des chats destinataires
-	QuietChats []string // destinataires qui la reçoivent sans son (leurs propres quiet_hours)
-	Reason     string   // raison du refus quand Notify est faux
+	Silent     bool     // silent notification for everyone (camera's quiet_hours, presence)
+	Label      string   // label kept, for the caption and the cooldown
+	Chats      []string // names of the recipient chats
+	QuietChats []string // recipients who get it silently (their own quiet_hours)
+	Reason     string   // reason for the refusal when Notify is false
 }
 
-// SilentFor indique si chat reçoit la notification sans son.
+// SilentFor reports whether chat gets the notification silently.
 func (d Decision) SilentFor(chat string) bool { return d.Silent || slices.Contains(d.QuietChats, chat) }
 
 type Engine struct {
@@ -67,7 +67,7 @@ func New(cfg *config.Config, st State) *Engine { return &Engine{cfg: cfg, state:
 
 func CooldownKey(camera, label string) string { return camera + "/" + label }
 
-// Evaluate applique les règles dans l'ordre de la spec ; la première qui échoue donne Reason.
+// Evaluate applies the rules in the order of the spec; the first one that fails gives Reason.
 func (e *Engine) Evaluate(in Input, now time.Time) Decision {
 	n := e.cfg.ForCamera(in.Camera)
 	reject := func(reason string) Decision { return Decision{Reason: reason} }
@@ -101,7 +101,7 @@ func (e *Engine) Evaluate(in Input, now time.Time) Decision {
 	if e.state.IsMuted(in.Camera, now) {
 		return reject(ReasonMuted)
 	}
-	// Quelqu'un à la maison : selon la caméra, rien, sans son, ou comme d'habitude.
+	// Someone home: depending on the camera, nothing, silent, or as usual.
 	homeSilent := false
 	if e.cfg.Presence.Enabled() && e.state.SomeoneHome() {
 		switch n.WhenHome {
@@ -116,7 +116,7 @@ func (e *Engine) Evaluate(in Input, now time.Time) Decision {
 	if config.InRanges(n.OffHours, local) {
 		return reject(ReasonOffHours)
 	}
-	// Restrictions propres à chaque destinataire : objets et heures.
+	// Restrictions of each recipient: objects and hours.
 	var chats, quiet []string
 	for _, chat := range n.Chats {
 		r := e.cfg.Recipient(chat)
@@ -148,7 +148,7 @@ func (e *Engine) Evaluate(in Input, now time.Time) Decision {
 	}
 }
 
-// matchLabel renvoie le premier label accepté (tous si la liste autorisée est vide).
+// matchLabel returns the first accepted label (any label if the allowed list is empty).
 func matchLabel(allowed, labels []string) string {
 	for _, l := range labels {
 		if len(allowed) == 0 || slices.Contains(allowed, l) {
@@ -158,9 +158,9 @@ func matchLabel(allowed, labels []string) string {
 	return ""
 }
 
-// ignoredSubLabels indique si tous les objets de la détection portent une étiquette
-// à ignorer. Une étiquette vide désigne un objet sans étiquette, peut-être un
-// inconnu : la détection est alors notifiée.
+// ignoredSubLabels reports whether every object of the detection carries a label to
+// ignore. An empty label stands for an object without a label, maybe an unknown
+// one: the detection is then notified.
 func ignoredSubLabels(n config.Notify, subs []string) bool {
 	if len(subs) == 0 {
 		return false

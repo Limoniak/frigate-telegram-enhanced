@@ -10,9 +10,9 @@ import (
 	"frigate-telegram-enhanced/internal/i18n"
 )
 
-// Duration est une durée sérialisée en texte ("60s", "1h30m") aussi bien en YAML
-// qu'en JSON. time.Duration s'encoderait en nanosecondes, illisible dans le fichier
-// d'overlay écrit par l'interface web.
+// Duration is a duration serialized as text ("60s", "1h30m") in YAML as well as in
+// JSON. time.Duration would be encoded in nanoseconds, unreadable in the overlay
+// file written by the web interface.
 type Duration time.Duration
 
 func (d Duration) String() string { return time.Duration(d).String() }
@@ -46,9 +46,9 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 func (d Duration) MarshalJSON() ([]byte, error) { return json.Marshal(d.String()) }
 
-// MinScore est un score minimal global ou par label.
-// En YAML : `min_score: 0.7` ou `min_score: {person: 0.7, car: 0.85}`.
-// En JSON (interface web) : `{"default": 0.7}` ou `{"by_label": {"person": 0.7}}`.
+// MinScore is a minimum score, global or per label.
+// In YAML: `min_score: 0.7` or `min_score: {person: 0.7, car: 0.85}`.
+// In JSON (web interface): `{"default": 0.7}` or `{"by_label": {"person": 0.7}}`.
 type MinScore struct {
 	Default float64            `json:"default"`
 	ByLabel map[string]float64 `json:"by_label,omitempty"`
@@ -68,7 +68,7 @@ func (m MinScore) MarshalYAML() (any, error) {
 	return m.Default, nil
 }
 
-// For renvoie le score minimal applicable à un label.
+// For returns the minimum score that applies to a label.
 func (m MinScore) For(label string) float64 {
 	if v, ok := m.ByLabel[label]; ok {
 		return v
@@ -89,13 +89,13 @@ func (m MinScore) valid() bool {
 	return true
 }
 
-// TimeRange est une plage horaire quotidienne, en minutes depuis minuit.
-// Une plage dont From > To passe minuit (ex. 22:00 → 07:00).
+// TimeRange is a daily time range, in minutes since midnight.
+// A range whose From > To spans midnight (e.g. 22:00 → 07:00).
 type TimeRange struct {
 	From, To int
 }
 
-// clockRange est la forme sérialisée d'une plage : {from: "22:00", to: "07:00"}.
+// clockRange is the serialized form of a range: {from: "22:00", to: "07:00"}.
 type clockRange struct {
 	From string `yaml:"from" json:"from"`
 	To   string `yaml:"to" json:"to"`
@@ -144,7 +144,7 @@ func parseClock(s string) (int, error) {
 
 func formatClock(minute int) string { return fmt.Sprintf("%02d:%02d", minute/60, minute%60) }
 
-// Contains indique si la minute de la journée tombe dans la plage (borne de fin exclue).
+// Contains reports whether the minute of the day falls in the range (end excluded).
 func (t TimeRange) Contains(minute int) bool {
 	if t.From <= t.To {
 		return minute >= t.From && minute < t.To
@@ -152,7 +152,7 @@ func (t TimeRange) Contains(minute int) bool {
 	return minute >= t.From || minute < t.To
 }
 
-// InRanges indique si l'heure locale de at tombe dans une des plages.
+// InRanges reports whether the local time of at falls in one of the ranges.
 func InRanges(rs []TimeRange, at time.Time) bool {
 	minute := at.Hour()*60 + at.Minute()
 	for _, r := range rs {

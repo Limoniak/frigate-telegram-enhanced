@@ -19,7 +19,7 @@ func TestLimiterSpacesMessagesPerChat(t *testing.T) {
 	}
 	for i, s := range steps {
 		if got := l.reserveChat(s.chat); got != s.want {
-			t.Errorf("étape %d (chat %d) : %v, attendu %v", i, s.chat, got, s.want)
+			t.Errorf("step %d (chat %d): %v, want %v", i, s.chat, got, s.want)
 		}
 	}
 }
@@ -30,7 +30,7 @@ func TestLimiterGlobal(t *testing.T) {
 	l.now = func() time.Time { return now }
 	for i, want := range []time.Duration{0, 100 * time.Millisecond, 200 * time.Millisecond} {
 		if got := l.reserveGlobal(); got != want {
-			t.Errorf("réservation %d : %v, attendu %v", i, got, want)
+			t.Errorf("reservation %d: %v, want %v", i, got, want)
 		}
 	}
 }
@@ -43,6 +43,6 @@ func TestWaitHonoursContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := l.Wait(ctx, 1); !errors.Is(err, context.Canceled) {
-		t.Errorf("err = %v, attendu context.Canceled", err)
+		t.Errorf("err = %v, want context.Canceled", err)
 	}
 }

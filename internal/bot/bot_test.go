@@ -156,7 +156,7 @@ func TestParseDuration(t *testing.T) {
 	}
 	for _, s := range []string{"jardin", "-1h", "xd", ""} {
 		if _, err := ParseDuration(s); err == nil {
-			t.Errorf("ParseDuration(%q) aurait dû échouer", s)
+			t.Errorf("ParseDuration(%q) should have failed", s)
 		}
 	}
 }
@@ -165,10 +165,10 @@ func TestPauseGlobalDefaultsToOneHour(t *testing.T) {
 	e := newEnv(t)
 	e.cmd("/pause", 1)
 	if !e.st.IsPaused(now.Add(59*time.Minute)) || e.st.IsPaused(now.Add(61*time.Minute)) {
-		t.Error("pause d'une heure attendue")
+		t.Error("want a one-hour pause")
 	}
 	if !strings.Contains(e.tg.last(), "until Sep 28 17:00") {
-		t.Errorf("réponse = %q", e.tg.last())
+		t.Errorf("reply = %q", e.tg.last())
 	}
 }
 
@@ -176,7 +176,7 @@ func TestPauseCameraWithDuration(t *testing.T) {
 	e := newEnv(t)
 	e.cmd("/pause jardin 2h", 1)
 	if !e.st.IsMuted("jardin", now.Add(time.Hour)) || e.st.IsPaused(now) {
-		t.Error("seule la caméra jardin doit être coupée")
+		t.Error("only the jardin camera must be muted")
 	}
 }
 
@@ -184,7 +184,7 @@ func TestPauseZeroIsForever(t *testing.T) {
 	e := newEnv(t)
 	e.cmd("/pause 0", 1)
 	if !e.st.IsPaused(now.AddDate(1, 0, 0)) || !strings.Contains(e.tg.last(), "/resume") {
-		t.Errorf("pause illimitée attendue, réponse %q", e.tg.last())
+		t.Errorf("want an unlimited pause, reply %q", e.tg.last())
 	}
 }
 
@@ -192,7 +192,7 @@ func TestPauseUnknownCamera(t *testing.T) {
 	e := newEnv(t)
 	e.cmd("/pause cuisine", 1)
 	if e.st.IsMuted("cuisine", now) || !strings.Contains(e.tg.last(), "Unknown camera") {
-		t.Errorf("réponse = %q", e.tg.last())
+		t.Errorf("reply = %q", e.tg.last())
 	}
 }
 
@@ -202,11 +202,11 @@ func TestResume(t *testing.T) {
 	e.cmd("/pause jardin", 1)
 	e.cmd("/resume jardin", 1)
 	if e.st.IsMuted("jardin", now) || !e.st.IsPaused(now) {
-		t.Error("/resume jardin ne doit lever que la caméra")
+		t.Error("/resume jardin must only unmute the camera")
 	}
 	e.cmd("/resume", 1)
 	if e.st.IsPaused(now) {
-		t.Error("/resume doit tout reprendre")
+		t.Error("/resume must resume everything")
 	}
 }
 
@@ -214,7 +214,7 @@ func TestUnauthorizedUserIgnored(t *testing.T) {
 	e := newEnv(t)
 	e.cmd("/pause", 999)
 	if e.st.IsPaused(now) || len(e.tg.messages) != 0 {
-		t.Error("un non-admin ne doit rien pouvoir faire")
+		t.Error("a non-admin must not be able to do anything")
 	}
 }
 
@@ -225,7 +225,7 @@ func TestStatus(t *testing.T) {
 	out := e.tg.last()
 	for _, want := range []string{"MQTT: ✅", "Notifications active", "🔇 jardin", "3 notification(s)"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("status sans %q :\n%s", want, out)
+			t.Errorf("status without %q:\n%s", want, out)
 		}
 	}
 }
@@ -242,7 +242,7 @@ func TestSnapshotCommands(t *testing.T) {
 	e := newEnv(t)
 	e.cmd("/snapshot", 1)
 	if e.tg.keyboards != 1 {
-		t.Error("un clavier de sélection est attendu sans argument")
+		t.Error("want a selection keyboard without an argument")
 	}
 	e.cmd("/snapshot jardin", 1)
 	if len(e.tg.photos) != 1 || !strings.Contains(e.tg.photos[0], "jardin") {
@@ -262,11 +262,11 @@ func TestCallbacks(t *testing.T) {
 	e := newEnv(t)
 	e.callback("m:jardin:3600", 1)
 	if !e.st.IsMuted("jardin", now.Add(30*time.Minute)) {
-		t.Error("bouton mute sans effet")
+		t.Error("mute button had no effect")
 	}
 	e.callback("p:1800", 1)
 	if !e.st.IsPaused(now.Add(20 * time.Minute)) {
-		t.Error("bouton pause sans effet")
+		t.Error("pause button had no effect")
 	}
 	e.callback("c:evt1", 1)
 	if len(e.notif.clips) != 1 || e.notif.clips[0] != "1/77/evt1" {
@@ -274,7 +274,7 @@ func TestCallbacks(t *testing.T) {
 	}
 	e.callback("s:garage", 1)
 	if len(e.tg.photos) != 1 {
-		t.Error("bouton snapshot sans effet")
+		t.Error("snapshot button had no effect")
 	}
 }
 
@@ -286,7 +286,7 @@ func TestCallbackUnauthorized(t *testing.T) {
 	}
 }
 
-// slowFR bloque Cameras jusqu'à la fermeture de release et compte les appels.
+// slowFR blocks Cameras until release is closed, and counts the calls.
 type slowFR struct {
 	fakeFR
 	release chan struct{}
@@ -299,8 +299,8 @@ func (f slowFR) Cameras(ctx context.Context) ([]string, error) {
 	return f.fakeFR.Cameras(ctx)
 }
 
-// Une commande qui attend Frigate ne doit pas bloquer la boucle de polling, et les
-// réponses doivent garder l'ordre des commandes.
+// A command waiting for Frigate must not block the polling loop, and the replies
+// must keep the order of the commands.
 func TestCommandsDoNotBlockPollingAndKeepOrder(t *testing.T) {
 	e := newEnv(t)
 	var calls int32
@@ -320,7 +320,7 @@ func TestCommandsDoNotBlockPollingAndKeepOrder(t *testing.T) {
 	select {
 	case <-returned:
 	case <-time.After(time.Second):
-		t.Fatal("HandleUpdate attend Frigate")
+		t.Fatal("HandleUpdate waits for Frigate")
 	}
 	close(fr.release)
 	e.b.Wait()
@@ -328,7 +328,7 @@ func TestCommandsDoNotBlockPollingAndKeepOrder(t *testing.T) {
 	e.tg.mu.Lock()
 	defer e.tg.mu.Unlock()
 	if len(e.tg.messages) != 2 || !strings.Contains(e.tg.messages[0], "Cameras") || !strings.Contains(e.tg.messages[1], "Commands") {
-		t.Errorf("réponses = %q, attendu /cameras puis /help", e.tg.messages)
+		t.Errorf("replies = %q, want /cameras then /help", e.tg.messages)
 	}
 }
 
@@ -344,12 +344,12 @@ func TestCameraListIsCached(t *testing.T) {
 	e.cmd("/cameras", 1)
 	e.cmd("/pause garage", 1)
 	if calls != 1 {
-		t.Errorf("appels à Frigate = %d, attendu 1 (cache)", calls)
+		t.Errorf("calls to Frigate = %d, want 1 (cache)", calls)
 	}
 	clock = clock.Add(camerasTTL + time.Second)
 	e.cmd("/cameras", 1)
 	if calls != 2 {
-		t.Errorf("appels à Frigate = %d, attendu 2 après expiration du cache", calls)
+		t.Errorf("calls to Frigate = %d, want 2 after the cache expired", calls)
 	}
 }
 
@@ -358,11 +358,11 @@ func TestFrenchReplies(t *testing.T) {
 	e.b.Config.Language = i18n.FR
 	e.cmd("/pause", 1)
 	if !strings.Contains(e.tg.last(), "Notifications en pause jusqu'à 28/09 17:00") {
-		t.Errorf("réponse = %q", e.tg.last())
+		t.Errorf("reply = %q", e.tg.last())
 	}
 	e.cmd("/pause cuisine", 1)
 	if !strings.Contains(e.tg.last(), "Caméra inconnue") {
-		t.Errorf("réponse = %q", e.tg.last())
+		t.Errorf("reply = %q", e.tg.last())
 	}
 	if c := commands(i18n.FR); c[0].Description != "Mettre en pause : /pause [durée] [caméra]" {
 		t.Errorf("menu = %+v", c[0])
@@ -383,7 +383,7 @@ func TestStatusShowsPresence(t *testing.T) {
 	}
 }
 
-// buttonsOf aplatit un clavier en « texte → données ».
+// buttonsOf flattens a keyboard into "text → data".
 func buttonsOf(m *telegram.InlineKeyboardMarkup) map[string]string {
 	out := map[string]string{}
 	for _, row := range m.InlineKeyboard {
@@ -403,7 +403,7 @@ func TestMenu(t *testing.T) {
 	btns := buttonsOf(e.tg.lastMarkup)
 	for _, want := range []string{"⏸ 30 min", "✅ garage", "✅ jardin", "🔄 Refresh"} {
 		if btns[want] == "" {
-			t.Fatalf("bouton %q absent : %v", want, btns)
+			t.Fatalf("button %q missing: %v", want, btns)
 		}
 	}
 	press := func(data string) {
@@ -415,32 +415,32 @@ func TestMenu(t *testing.T) {
 
 	press(btns["✅ garage"])
 	if !e.st.IsMuted("garage", now.Add(59*time.Minute)) {
-		t.Error("garage doit être coupée 1 h")
+		t.Error("garage must be muted for 1 h")
 	}
 	if len(e.tg.edits) != 1 || !strings.Contains(e.tg.edits[0], "🔇 garage") {
-		t.Fatalf("le menu doit être redessiné avec garage coupée : %q", e.tg.edits)
+		t.Fatalf("the menu must be redrawn with garage muted: %q", e.tg.edits)
 	}
 	btns = buttonsOf(e.tg.lastMarkup)
 	press(btns["🔇 garage"])
 	if e.st.IsMuted("garage", now) {
-		t.Error("garage doit être réactivée")
+		t.Error("garage must be back on")
 	}
 
 	press(btns["⏸ 1 h"])
 	if !e.st.IsPaused(now.Add(30 * time.Minute)) {
-		t.Error("pause 1 h attendue")
+		t.Error("want a 1 h pause")
 	}
 	btns = buttonsOf(e.tg.lastMarkup)
 	if btns["▶️ Resume"] == "" || btns["⏸ 30 min"] != "" {
-		t.Fatalf("en pause, le menu propose de reprendre : %v", btns)
+		t.Fatalf("when paused, the menu offers to resume: %v", btns)
 	}
 	press(btns["▶️ Resume"])
 	if e.st.IsPaused(now) {
-		t.Error("reprise attendue")
+		t.Error("want a resume")
 	}
 }
 
-// « 📷 Maintenant » sur une notification : l'image en direct, en réponse à celle-ci.
+// "📷 Now" on a notification: the live image, as a reply to it.
 func TestNowButtonRepliesWithLiveImage(t *testing.T) {
 	e := newEnv(t)
 	e.b.HandleUpdate(context.Background(), telegram.Update{CallbackQuery: &telegram.CallbackQuery{
@@ -453,7 +453,7 @@ func TestNowButtonRepliesWithLiveImage(t *testing.T) {
 		t.Errorf("photos = %q", e.tg.photos)
 	}
 	if e.tg.photoReplyTo != 42 {
-		t.Errorf("réponse à %d, attendu 42 (la notification)", e.tg.photoReplyTo)
+		t.Errorf("reply to %d, want 42 (the notification)", e.tg.photoReplyTo)
 	}
 }
 
@@ -468,14 +468,14 @@ func TestUnauthorizedPrivateUserLearnsTheirID(t *testing.T) {
 	alice := telegram.User{ID: 999, FirstName: "Alice", Username: "alice"}
 	e.cmdIn("/start", alice, telegram.Chat{ID: 999, Type: "private"})
 	if len(e.tg.messages) != 1 || !strings.Contains(e.tg.last(), "<code>999</code>") || !strings.Contains(e.tg.last(), "TELEGRAM_CHAT_ID") {
-		t.Fatalf("réponse = %q", e.tg.messages)
+		t.Fatalf("reply = %q", e.tg.messages)
 	}
 	e.cmdIn("/pause", alice, telegram.Chat{ID: 999, Type: "private"})
 	if e.st.IsPaused(now) {
-		t.Error("un non-admin ne doit rien pouvoir faire")
+		t.Error("a non-admin must not be able to do anything")
 	}
 	if len(e.tg.messages) != 1 {
-		t.Errorf("%d réponses, attendu 1 : une seule réponse par période", len(e.tg.messages))
+		t.Errorf("%d replies, want 1: a single reply per period", len(e.tg.messages))
 	}
 }
 
@@ -483,7 +483,7 @@ func TestUnauthorizedInGroupStaysSilent(t *testing.T) {
 	e := newEnv(t)
 	e.cmdIn("/status", telegram.User{ID: 999}, telegram.Chat{ID: -100, Type: "group"})
 	if len(e.tg.messages) != 0 {
-		t.Errorf("réponses = %q : pas de réponse dans un groupe", e.tg.messages)
+		t.Errorf("replies = %q: no reply in a group", e.tg.messages)
 	}
 }
 
@@ -497,15 +497,15 @@ func TestRefusedUsersAreListed(t *testing.T) {
 	e.callback("p:1800", 555)
 	got := e.b.Refused()
 	if len(got) != 2 {
-		t.Fatalf("Refused() = %+v, attendu 2 utilisateurs", got)
+		t.Fatalf("Refused() = %+v, want 2 users", got)
 	}
 	if got[0].ID != 555 || got[1].ID != 999 || got[1].Name != "Alice" || got[1].Username != "alice" || !got[1].At.Equal(now) {
-		t.Errorf("Refused() = %+v (le plus récent d'abord)", got)
+		t.Errorf("Refused() = %+v (most recent first)", got)
 	}
 	for i := range maxRefused + 5 {
 		e.callback("p:1800", int64(1000+i))
 	}
 	if n := len(e.b.Refused()); n != maxRefused {
-		t.Errorf("%d refusés gardés, attendu %d", n, maxRefused)
+		t.Errorf("%d refused users kept, want %d", n, maxRefused)
 	}
 }

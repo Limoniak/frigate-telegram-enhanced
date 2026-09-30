@@ -150,7 +150,7 @@ To update: `docker compose pull && docker compose up -d`.
 
 Instead of environment variables, everything can be set in a YAML file — useful to
 prepare per-camera settings in advance or to keep them under version control. Copy
-[`config.example.yml`](config.example.yml) (comments in French) to `config/config.yml`,
+[`config.example.yml`](config.example.yml) to `config/config.yml`,
 edit it, and add this volume to the service:
 
 ```yaml

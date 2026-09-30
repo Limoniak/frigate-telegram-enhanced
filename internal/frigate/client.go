@@ -23,13 +23,13 @@ import (
 	"frigate-telegram-enhanced/internal/i18n"
 )
 
-// ErrTooLarge signale un média plus gros que la limite demandée.
+// ErrTooLarge reports a media larger than the requested limit.
 var ErrTooLarge = errors.New("media too large")
 
-// ErrAuth signale des identifiants Frigate refusés.
+// ErrAuth reports Frigate credentials that were refused.
 var ErrAuth = errors.New("credentials refused by Frigate")
 
-// HTTPError est une réponse non-200 de Frigate.
+// HTTPError is a non-200 response from Frigate.
 type HTTPError struct {
 	Status int
 	Path   string
@@ -37,15 +37,15 @@ type HTTPError struct {
 
 func (e *HTTPError) Error() string { return fmt.Sprintf("frigate %s: HTTP %d", e.Path, e.Status) }
 
-// ErrIncomplete signale un téléchargement que Frigate a cessé d'alimenter avant la
-// fin : il envoie parfois presque tout un clip puis garde la connexion ouverte.
+// ErrIncomplete reports a download that Frigate stopped feeding before the end: it
+// sometimes sends almost all of a clip, then keeps the connection open.
 var ErrIncomplete = i18n.NewError("Frigate stopped sending the clip before the end")
 
-// stallTimeout est le silence au-delà duquel un téléchargement est tenu pour calé.
+// stallTimeout is the silence after which a download is considered stalled.
 const stallTimeout = 15 * time.Second
 
-// Retryable indique si réessayer a une chance d'aboutir (média pas encore prêt, serveur ou réseau en difficulté).
-// Un clip qui cale n'est pas retenté : Frigate cale au même endroit à chaque fois.
+// Retryable reports whether retrying may succeed (media not ready yet, server or network in trouble).
+// A stalled clip is not retried: Frigate stalls at the same place every time.
 func Retryable(err error) bool {
 	if errors.Is(err, ErrTooLarge) || errors.Is(err, ErrIncomplete) || errors.Is(err, context.Canceled) {
 		return false
@@ -57,13 +57,13 @@ func Retryable(err error) bool {
 	return true
 }
 
-// Client appelle l'API HTTP de Frigate, avec authentification optionnelle.
+// Client calls Frigate's HTTP API, with optional authentication.
 type Client struct {
 	base       string
 	user, pass string
 	http       *http.Client
 	loginMu    sync.Mutex
-	loggedIn   time.Time // dernière connexion réussie (sous loginMu)
+	loggedIn   time.Time // last successful login (under loginMu)
 
 	stallTimeout time.Duration
 }
@@ -99,7 +99,7 @@ func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
 	return c.http.Do(req)
 }
 
-// do exécute un GET ; sur 401 avec identifiants, se reconnecte puis réessaie une fois.
+// do runs a GET; on a 401 with credentials, logs in again then retries once.
 func (c *Client) do(ctx context.Context, path string) (*http.Response, error) {
 	sent := time.Now()
 	resp, err := c.get(ctx, path)
@@ -123,8 +123,8 @@ func (c *Client) do(ctx context.Context, path string) (*http.Response, error) {
 	return resp, nil
 }
 
-// login ouvre une session. Une connexion réussie après sent (l'envoi de la requête
-// refusée) suffit : plusieurs requêtes refusées en même temps n'en ouvrent qu'une.
+// login opens a session. A login that succeeded after sent (when the refused request
+// was sent) is enough: several requests refused at once only open one session.
 func (c *Client) login(ctx context.Context, sent time.Time) error {
 	c.loginMu.Lock()
 	defer c.loginMu.Unlock()
@@ -150,7 +150,7 @@ func (c *Client) login(ctx context.Context, sent time.Time) error {
 	return nil
 }
 
-// GetBytes télécharge une ressource en mémoire (images), en refusant au-delà de max octets.
+// GetBytes downloads a resource into memory (images), refusing more than max bytes.
 func (c *Client) GetBytes(ctx context.Context, path string, max int64) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -169,9 +169,9 @@ func (c *Client) GetBytes(ctx context.Context, path string, max int64) ([]byte, 
 	return b, nil
 }
 
-// DownloadToFile écrit une ressource dans un fichier temporaire (clips) et renvoie son chemin.
-// L'appelant doit supprimer le fichier. Si Frigate cesse d'envoyer avant la fin, elle
-// renvoie ErrIncomplete, avec le chemin de ce qui a été reçu s'il y en a.
+// DownloadToFile writes a resource to a temporary file (clips) and returns its path.
+// The caller must remove the file. If Frigate stops sending before the end, it
+// returns ErrIncomplete, with the path of what was received if anything was.
 func (c *Client) DownloadToFile(ctx context.Context, path string, max int64) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -212,7 +212,7 @@ func (c *Client) DownloadToFile(ctx context.Context, path string, max int64) (st
 	return f.Name(), nil
 }
 
-// idleReader relance le minuteur idle à chaque lecture qui apporte des données.
+// idleReader restarts the idle timer on every read that brings data.
 type idleReader struct {
 	r       io.Reader
 	idle    *time.Timer
@@ -238,16 +238,16 @@ func (c *Client) getJSON(ctx context.Context, path string, out any) error {
 	return json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(out)
 }
 
-// CameraInfo décrit une caméra telle que Frigate la déclare : ses zones et les
-// objets qu'elle suit, dont l'interface web se sert pour proposer des listes de
-// choix plutôt que de la saisie libre.
+// CameraInfo describes a camera as Frigate declares it: its zones and the objects
+// it tracks, which the web interface uses to offer lists of choices rather than
+// free input.
 type CameraInfo struct {
 	Name   string   `json:"name"`
 	Zones  []string `json:"zones"`
 	Labels []string `json:"labels"`
 }
 
-// apiConfig est la partie de /api/config que l'on exploite.
+// apiConfig is the part of /api/config the service uses.
 type apiConfig struct {
 	Cameras map[string]struct {
 		Zones   map[string]json.RawMessage `json:"zones"`
@@ -260,7 +260,7 @@ type apiConfig struct {
 	} `json:"objects"`
 }
 
-// Cameras renvoie les noms des caméras déclarées dans Frigate, triés.
+// Cameras returns the names of the cameras declared in Frigate, sorted.
 func (c *Client) Cameras(ctx context.Context) ([]string, error) {
 	var cfg apiConfig
 	if err := c.getJSON(ctx, "/api/config", &cfg); err != nil {
@@ -269,8 +269,8 @@ func (c *Client) Cameras(ctx context.Context) ([]string, error) {
 	return slices.Sorted(maps.Keys(cfg.Cameras)), nil
 }
 
-// CameraDetails renvoie, par caméra et triés, les zones et les objets suivis.
-// Une caméra qui ne redéfinit pas objects.track hérite de la liste globale.
+// CameraDetails returns, per camera and sorted, the zones and the tracked objects.
+// A camera that does not redefine objects.track inherits the global list.
 func (c *Client) CameraDetails(ctx context.Context) ([]CameraInfo, error) {
 	var cfg apiConfig
 	if err := c.getJSON(ctx, "/api/config", &cfg); err != nil {
@@ -292,26 +292,26 @@ func (c *Client) CameraDetails(ctx context.Context) ([]CameraInfo, error) {
 	return out, nil
 }
 
-// Events renvoie les derniers événements, éventuellement d'une seule caméra.
+// Events returns the latest events, optionally of a single camera.
 func (c *Client) Events(ctx context.Context, camera string, limit int) ([]APIEvent, error) {
 	q := url.Values{"limit": {strconv.Itoa(limit)}}
 	if camera != "" {
 		q.Set("cameras", camera) // Frigate ≥ 0.14
-		q.Set("camera", camera)  // versions antérieures
+		q.Set("camera", camera)  // earlier versions
 	}
 	var evs []APIEvent
 	err := c.getJSON(ctx, "/api/events?"+q.Encode(), &evs)
 	return evs, err
 }
 
-// Event renvoie un événement par son id.
+// Event returns an event by its id.
 func (c *Client) Event(ctx context.Context, id string) (APIEvent, error) {
 	var ev APIEvent
 	err := c.getJSON(ctx, "/api/events/"+url.PathEscape(id), &ev)
 	return ev, err
 }
 
-// EventsSince renvoie les événements commencés après after, du plus récent au plus ancien.
+// EventsSince returns the events that started after after, most recent first.
 func (c *Client) EventsSince(ctx context.Context, after time.Time, limit int) ([]APIEvent, error) {
 	q := url.Values{"after": {unixParam(after)}, "limit": {strconv.Itoa(limit)}, "include_thumbnails": {"0"}}
 	var evs []APIEvent
@@ -319,7 +319,7 @@ func (c *Client) EventsSince(ctx context.Context, after time.Time, limit int) ([
 	return evs, err
 }
 
-// ReviewsSince renvoie les éléments de revue commencés après after (Frigate ≥ 0.14).
+// ReviewsSince returns the review items that started after after (Frigate ≥ 0.14).
 func (c *Client) ReviewsSince(ctx context.Context, after time.Time, limit int) ([]Review, error) {
 	q := url.Values{"after": {unixParam(after)}, "limit": {strconv.Itoa(limit)}}
 	var rs []Review
@@ -327,20 +327,20 @@ func (c *Client) ReviewsSince(ctx context.Context, after time.Time, limit int) (
 	return rs, err
 }
 
-// unixParam formate une date comme les horodatages de Frigate (secondes).
+// unixParam formats a date like Frigate's timestamps (seconds).
 func unixParam(t time.Time) string {
 	return strconv.FormatFloat(float64(t.UnixMilli())/1000, 'f', 3, 64)
 }
 
-// Review renvoie un élément de revue par son id.
+// Review returns a review item by its id.
 func (c *Client) Review(ctx context.Context, id string) (Review, error) {
 	var r Review
 	err := c.getJSON(ctx, "/api/review/"+url.PathEscape(id), &r)
 	return r, err
 }
 
-// Version renvoie la version de Frigate (GET /api/version) ; sert à vérifier la
-// connexion et les identifiants.
+// Version returns Frigate's version (GET /api/version); used to check the
+// connection and the credentials.
 func (c *Client) Version(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -356,8 +356,8 @@ func (c *Client) Version(ctx context.Context) (string, error) {
 	return strings.Trim(strings.TrimSpace(string(b)), `"`), nil
 }
 
-// SubLabels renvoie les étiquettes connues de Frigate (classification, visages,
-// plaques nommées) : « clio 3 océane », « ohana »…
+// SubLabels returns the labels Frigate knows (classification, faces, named
+// plates): "clio 3 océane", "ohana"…
 func (c *Client) SubLabels(ctx context.Context) ([]string, error) {
 	var out []string
 	err := c.getJSON(ctx, "/api/sub_labels?split_joined=1", &out)

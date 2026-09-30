@@ -10,7 +10,7 @@ import (
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
-// handleReview traite frigate/reviews. Appelé sous n.mu.
+// handleReview handles frigate/reviews. Called under n.mu.
 func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) {
 	r := msg.After
 	t := n.tracked[r.ID]
@@ -24,7 +24,7 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 			t.clipPath = frigate.RecordingClipPath(r.Camera, r.StartTime, end)
 			t.eventIDs = r.Data.Detections
 			if t.pending != nil && !t.notified {
-				// Fin pendant l'attente de l'étiquette : on décide maintenant.
+				// End while waiting for the label: decide now.
 				in := *t.pending
 				in.SubLabels = slices.Clone(r.Data.SubLabels)
 				if len(in.SubLabels) < len(r.Data.Detections) {
@@ -66,17 +66,17 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 	}
 	t.zones = r.Data.Zones
 	if len(r.Data.Objects) > 0 {
-		t.label = r.Data.Objects[0] // pour l'historique ; notify le remplace par le label retenu
+		t.label = r.Data.Objects[0] // for the history; notify replaces it with the label kept
 	}
 	t.subLabel = strings.Join(r.Data.SubLabels, ", ")
 	t.snapshotPath = frigate.LatestPath(r.Camera)
 	if len(r.Data.Detections) > 0 {
 		t.snapshotPath = frigate.EventSnapshotPath(r.Data.Detections[0])
 	}
-	t.clipPath = frigate.RecordingClipPath(r.Camera, r.StartTime, float64(now.Unix())) // remplacé à la fin
+	t.clipPath = frigate.RecordingClipPath(r.Camera, r.StartTime, float64(now.Unix())) // replaced at the end
 	subs := slices.Clone(r.Data.SubLabels)
 	if len(subs) < len(r.Data.Detections) {
-		subs = append(subs, "") // des objets sans étiquette : peut-être des inconnus
+		subs = append(subs, "") // objects without a label: maybe unknown ones
 	}
 	n.decide(ctx, t, filter.Input{
 		Camera:    r.Camera,
@@ -87,7 +87,7 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 	}, now, false)
 }
 
-// handleUpdate ajoute la description GenAI aux messages déjà envoyés. Appelé sous n.mu.
+// handleUpdate adds the GenAI description to the messages already sent. Called under n.mu.
 func (n *Notifier) handleUpdate(ctx context.Context, u frigate.TrackedObjectUpdate) {
 	if u.Type != "description" || u.Description == "" {
 		return
@@ -102,7 +102,7 @@ func (n *Notifier) handleUpdate(ctx context.Context, u frigate.TrackedObjectUpda
 	}
 }
 
-// findByEventID retrouve un suivi par son id, ou par l'id d'un événement Frigate lié.
+// findByEventID finds a tracked item by its id, or by the id of a linked Frigate event.
 func (n *Notifier) findByEventID(id string) *tracked {
 	if t, ok := n.tracked[id]; ok {
 		return t

@@ -11,32 +11,32 @@ import (
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
-// historySize borne l'historique gardé pour l'interface web.
+// historySize bounds the history kept for the web interface.
 const historySize = 50
 
-// HistoryEntry décrit l'issue d'une détection : notifiée, ou ignorée et pourquoi.
+// HistoryEntry describes the outcome of a detection: notified, or ignored and why.
 type HistoryEntry struct {
 	ID       string    `json:"id"`
 	At       time.Time `json:"at"`
 	Camera   string    `json:"camera"`
 	Label    string    `json:"label"`
-	SubLabel string    `json:"sub_label,omitempty"` // étiquette de Frigate (« clio 3 océane »…)
+	SubLabel string    `json:"sub_label,omitempty"` // Frigate's label ("clio 3 océane"…)
 	Zones    []string  `json:"zones"`
 	Score    float64   `json:"score,omitempty"`
 	Sent     bool      `json:"sent"`
-	Grouped  bool      `json:"grouped,omitempty"` // ajoutée au message d'une notification précédente
-	Reason   string    `json:"reason,omitempty"`  // raison du filtrage (voir filter.Reason*)
-	Thumb    string    `json:"-"`                 // chemin Frigate de la miniature, vide si aucune
+	Grouped  bool      `json:"grouped,omitempty"` // added to the message of a previous notification
+	Reason   string    `json:"reason,omitempty"`  // reason for the filtering (see filter.Reason*)
+	Thumb    string    `json:"-"`                 // Frigate path of the thumbnail, empty if none
 }
 
-// storedEntry est une entrée telle qu'écrite dans HistoryFile : la miniature, que
-// l'interface ne voit pas, doit tout de même survivre au redémarrage.
+// storedEntry is an entry as written to HistoryFile: the thumbnail, which the
+// interface does not see, must still survive a restart.
 type storedEntry struct {
 	HistoryEntry
 	Thumb string `json:"thumb,omitempty"`
 }
 
-// record ajoute l'issue d'un suivi à l'historique. Appelé sous n.mu.
+// record adds the outcome of a tracked item to the history. Called under n.mu.
 func (n *Notifier) record(t *tracked, sent bool) {
 	e := HistoryEntry{
 		ID: t.id, At: t.start, Camera: t.camera, Label: t.label, SubLabel: t.subLabel,
@@ -62,7 +62,7 @@ func (n *Notifier) record(t *tracked, sent bool) {
 	n.histDirty = true
 }
 
-// updateHistory reporte dans l'historique l'étiquette arrivée après coup. Appelé sous n.mu.
+// updateHistory carries into the history the label that arrived afterwards. Called under n.mu.
 func (n *Notifier) updateHistory(t *tracked) {
 	for i := range n.history {
 		if n.history[i].ID == t.id {
@@ -72,7 +72,7 @@ func (n *Notifier) updateHistory(t *tracked) {
 	}
 }
 
-// History renvoie les dernières détections, de la plus récente à la plus ancienne.
+// History returns the latest detections, most recent first.
 func (n *Notifier) History() []HistoryEntry {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -81,9 +81,9 @@ func (n *Notifier) History() []HistoryEntry {
 	return out
 }
 
-// HistoryThumb renvoie le chemin Frigate de la miniature d'une entrée de
-// l'historique. Seuls les identifiants présents dans l'historique sont acceptés :
-// l'interface ne peut pas s'en servir pour lire n'importe quoi sur Frigate.
+// HistoryThumb returns the Frigate path of the thumbnail of a history entry. Only
+// the ids present in the history are accepted: the interface cannot use it to read
+// anything on Frigate.
 func (n *Notifier) HistoryThumb(id string) (string, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -95,8 +95,8 @@ func (n *Notifier) HistoryThumb(id string) (string, bool) {
 	return "", false
 }
 
-// loadHistory relit l'activité enregistrée par le démarrage précédent. Un fichier
-// absent laisse l'historique vide ; un fichier illisible est signalé puis ignoré.
+// loadHistory reads back the activity saved by the previous run. A missing file
+// leaves the history empty; an unreadable file is reported, then ignored.
 func (n *Notifier) loadHistory() {
 	if n.HistoryFile == "" {
 		return
@@ -122,8 +122,8 @@ func (n *Notifier) loadHistory() {
 	}
 }
 
-// FlushHistory écrit l'activité récente dans HistoryFile si elle a changé depuis
-// la dernière écriture.
+// FlushHistory writes the recent activity to HistoryFile if it changed since the
+// last write.
 func (n *Notifier) FlushHistory() error {
 	n.mu.Lock()
 	if n.HistoryFile == "" || !n.histDirty {
@@ -142,15 +142,15 @@ func (n *Notifier) FlushHistory() error {
 	}
 	if err != nil {
 		n.mu.Lock()
-		n.histDirty = true // nouvel essai à la prochaine écriture
+		n.histDirty = true // try again on the next write
 		n.mu.Unlock()
 		return fmt.Errorf("writing the activity: %w", err)
 	}
 	return nil
 }
 
-// writeAtomic écrit b dans path via un fichier temporaire : une écriture
-// interrompue ne laisse jamais un fichier tronqué.
+// writeAtomic writes b to path through a temporary file: an interrupted write
+// never leaves a truncated file.
 func writeAtomic(path string, b []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

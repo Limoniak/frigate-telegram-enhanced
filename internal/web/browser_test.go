@@ -1,8 +1,8 @@
 //go:build browser
 
-// Test de fumée de l'interface dans un vrai navigateur (Chrome, piloté par
-// chromedp) : la page se charge sans erreur JavaScript, affiche caméras, état et
-// activité, et enregistre un réglage. Lancé à part : go test -tags browser ./internal/web/
+// Smoke test of the interface in a real browser (Chrome, driven by chromedp): the
+// page loads without JavaScript errors, shows cameras, status and activity, and
+// saves a setting. Run separately: go test -tags browser ./internal/web/
 package web
 
 import (
@@ -63,12 +63,12 @@ func TestBrowserSmoke(t *testing.T) {
 		chromedp.Text(`#activity`, &activity),
 		chromedp.WaitVisible(`#health-errors`),
 		chromedp.Text(`#health-errors`, &health2),
-		// Couper une caméra rend la page « modifiée », puis l'enregistrement écrit la surcharge.
+		// Muting a camera makes the page "modified", then saving writes the override.
 		chromedp.Click(`details.camera[data-name="salon"] label.toggle`),
 		chromedp.WaitEnabled(`#save`),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#status.saved`),
-		// Le sélecteur de langue vient des catalogues ; en français, la page se traduit.
+		// The language selector comes from the catalogs; in French, the page is translated.
 		chromedp.Click(`.lang button[data-lang="fr"]`),
 		chromedp.Text(`#save`, &saveLabel),
 	)
@@ -77,27 +77,27 @@ func TestBrowserSmoke(t *testing.T) {
 	}
 	for _, want := range []string{"garage", "salon"} {
 		if !strings.Contains(cameras, want) {
-			t.Errorf("caméras affichées = %q, %s manquante", cameras, want)
+			t.Errorf("cameras shown = %q, %s missing", cameras, want)
 		}
 	}
 	if activity == "" {
-		t.Error("activité récente vide")
+		t.Error("recent activity empty")
 	}
 	for _, want := range []string{"MQTT", "999"} {
 		if !strings.Contains(health2, want) {
-			t.Errorf("état affiché = %q, %s manquant", health2, want)
+			t.Errorf("status shown = %q, %s missing", health2, want)
 		}
 	}
 	if saveLabel != "Enregistrer" {
-		t.Errorf("bouton en français = %q, attendu Enregistrer", saveLabel)
+		t.Errorf("button in French = %q, want Enregistrer", saveLabel)
 	}
 	saved, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(saved), "salon") {
-		t.Errorf("surcharge enregistrée = %q, %v", saved, err)
+		t.Errorf("override saved = %q, %v", saved, err)
 	}
 	mu.Lock()
 	defer mu.Unlock()
 	if len(jsErrors) > 0 {
-		t.Errorf("erreurs JavaScript : %q", jsErrors)
+		t.Errorf("JavaScript errors: %q", jsErrors)
 	}
 }

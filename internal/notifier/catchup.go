@@ -11,17 +11,17 @@ import (
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
-// Rattrapage après une coupure MQTT. Au-delà de catchUpWindow, des alertes aussi
-// anciennes n'ont plus d'intérêt : en recevoir une rafale serait pire que rien.
+// Catching up after an MQTT outage. Beyond catchUpWindow, alerts that old are no
+// longer of interest: getting a burst of them would be worse than nothing.
 const (
 	catchUpWindow = time.Hour
-	catchUpMargin = 30 * time.Second // messages en vol au moment de la coupure
+	catchUpMargin = 30 * time.Second // messages in flight when the connection was lost
 	catchUpLimit  = 100
 )
 
-// CatchUp rattrape ce que Frigate a publié pendant une coupure du broker (lost :
-// heure de la perte de connexion). Les événements manqués passent par la file des
-// messages MQTT, comme s'ils venaient d'arriver : mêmes filtres, mêmes envois.
+// CatchUp catches up on what Frigate published during a broker outage (lost: time
+// the connection was lost). The missed events go through the queue of MQTT
+// messages, as if they had just arrived: same filters, same sends.
 func (n *Notifier) CatchUp(ctx context.Context, lost time.Time) {
 	n.catchUp(ctx, lost, func(topic string, payload []byte) {
 		select {
@@ -53,8 +53,8 @@ func (n *Notifier) catchUp(ctx context.Context, lost time.Time, deliver func(top
 	}
 }
 
-// openAndKnown renvoie les suivis pas encore terminés, et tous les identifiants
-// déjà traités (suivis en cours ou récents, historique) : ceux-là ne sont pas rejoués.
+// openAndKnown returns the tracked items not finished yet, and every id already
+// handled (tracked now or recently, history): those are not replayed.
 func (n *Notifier) openAndKnown() (open []string, known map[string]bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -72,8 +72,8 @@ func (n *Notifier) openAndKnown() (open []string, known map[string]bool) {
 	return open, known
 }
 
-// missedEvents : les fins manquées des suivis en cours, puis les événements
-// commencés pendant la coupure, du plus ancien au plus récent.
+// missedEvents: the missed ends of the tracked events, then the events that
+// started during the outage, oldest first.
 func (n *Notifier) missedEvents(ctx context.Context, since time.Time, open []string, known map[string]bool) ([]inMsg, error) {
 	var out []inMsg
 	push := func(typ string, ev frigate.APIEvent) {
@@ -98,7 +98,7 @@ func (n *Notifier) missedEvents(ctx context.Context, since time.Time, open []str
 	return out, err
 }
 
-// missedReviews : même principe que missedEvents, pour le mode reviews.
+// missedReviews: same as missedEvents, for the reviews mode.
 func (n *Notifier) missedReviews(ctx context.Context, since time.Time, open []string, known map[string]bool) ([]inMsg, error) {
 	var out []inMsg
 	push := func(typ string, r frigate.Review) {
@@ -124,7 +124,7 @@ func (n *Notifier) missedReviews(ctx context.Context, since time.Time, open []st
 	return out, err
 }
 
-// eventPayload reconstitue le message MQTT d'un événement lu sur l'API.
+// eventPayload rebuilds the MQTT message of an event read from the API.
 func eventPayload(typ string, ev frigate.APIEvent) []byte {
 	b, _ := json.Marshal(frigate.EventMessage{Type: typ, After: frigate.Event{
 		ID: ev.ID, Camera: ev.Camera, Label: ev.Label, SubLabel: ev.SubLabel,
