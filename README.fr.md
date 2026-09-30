@@ -28,6 +28,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - En **anglais** ou en **français** : messages Telegram (`LANGUAGE`) et interface web (sélecteur EN / FR)
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
 - **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
+- Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
 - État persistant, `/healthz`, métriques Prometheus, image distroless multi-arch (amd64 et arm64)
 
 ## L'interface web en images
@@ -76,7 +77,11 @@ score trop bas, déjà signalé il y a peu…), avec un lien direct vers la cam�
 
 2. **Un bot Telegram** : écrire à [@BotFather](https://t.me/BotFather), `/newbot`, puis noter le token.
 
-3. **Votre identifiant Telegram** : écrire un message à votre bot, puis ouvrir
+3. **Votre identifiant Telegram** : si vous ne le connaissez pas, démarrer le service avec
+   n'importe quel nombre dans `TELEGRAM_CHAT_ID`, puis envoyer `/start` à votre bot : il
+   répond avec votre identifiant, que l'interface web liste aussi dans *État*. Le reporter
+   dans `TELEGRAM_CHAT_ID` et redémarrer.
+   Avant que le service tourne, on peut aussi écrire un message à votre bot, ouvrir
    `https://api.telegram.org/bot<TOKEN>/getUpdates` et relever `message.from.id`.
    Pour un groupe : ajouter le bot au groupe, y écrire un message et relever `message.chat.id` (négatif).
 
@@ -210,7 +215,7 @@ Dès qu'un réglage change, une barre apparaît en bas de page avec **Enregistre
 accepté que s'il est valide — un réglage refusé laisse le service sur les précédents.
 
 Les réglages sont enregistrés dans le volume de données (`/data/notify.yml`), à côté de
-l'état (pauses, cooldowns) : ils survivent aux redémarrages et aux mises à jour. Avec un
+l'état (pauses, cooldowns) et de l'activité récente : ils survivent aux redémarrages et aux mises à jour. Avec un
 fichier de configuration, ils **remplacent ses sections `notify` et `cameras`** tant
 qu'ils existent ; le bouton *Revenir aux réglages de config.yml* les supprime.
 `config.yml` lui-même n'est jamais réécrit.

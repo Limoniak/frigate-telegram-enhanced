@@ -239,3 +239,65 @@ func TestEditMessageMedia(t *testing.T) {
 		t.Errorf("réutilisation du file_id : %v", got[1])
 	}
 }
+
+// dropAfterRead lit la requête puis coupe la connexion sans répondre : Telegram a
+// reçu l'envoi, mais la réponse s'est perdue.
+func dropAfterRead(calls *atomic.Int32) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		io.Copy(io.Discard, r.Body)
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err == nil {
+			conn.Close()
+		}
+	}
+}
+
+func TestSendNotRetriedWhenResponseLost(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(dropAfterRead(&calls))
+	defer srv.Close()
+	c := testClient(srv.URL)
+	if _, err := c.SendPhoto(context.Background(), 1, InputFile{Name: "a.jpg", Data: []byte("x")}, SendOptions{}); err == nil {
+		t.Fatal("erreur attendue")
+	}
+	if _, err := c.SendMessage(context.Background(), 1, "hi", SendOptions{}); err == nil {
+		t.Fatal("erreur attendue")
+	}
+	if n := calls.Load(); n != 2 {
+		t.Errorf("%d requêtes, attendu 2 (un seul essai par envoi : il a pu arriver)", n)
+	}
+}
+
+func TestEditRetriedWhenResponseLost(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(dropAfterRead(&calls))
+	defer srv.Close()
+	if err := testClient(srv.URL).EditMessageCaption(context.Background(), 1, 2, "c", nil); err == nil {
+		t.Fatal("erreur attendue")
+	}
+	if n := calls.Load(); n != 4 {
+		t.Errorf("%d requêtes, attendu 4 (une modification peut être rejouée sans doublon)", n)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestSendRetriedWhenNotDelivered(t *testing.T) {
+	var calls atomic.Int32
+	c := testClient("http://telegram.invalid")
+	c.http = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if calls.Add(1) == 1 {
+			return nil, errors.New("dial tcp: connection refused") // rien n'est parti
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"ok":true,"result":{"message_id":1,"chat":{"id":1}}}`))}, nil
+	})}
+	if _, err := c.SendMessage(context.Background(), 1, "hi", SendOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if n := calls.Load(); n != 2 {
+		t.Errorf("%d requêtes, attendu 2", n)
+	}
+}

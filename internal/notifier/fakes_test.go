@@ -28,6 +28,10 @@ type fakeFrigate struct {
 	calls    []string
 	events   []frigate.APIEvent
 	reviews  map[string]frigate.Review
+	// rattrapage : événements par id, revues récentes, et date demandée
+	byID       map[string]frigate.APIEvent
+	reviewList []frigate.Review
+	after      time.Time
 
 	downloadDelay time.Duration // pause simulée dans DownloadToFile, pour tester la concurrence
 	concurrent    int32         // téléchargements en cours (atomique)
@@ -103,6 +107,36 @@ func (f *fakeFrigate) Events(context.Context, string, int) ([]frigate.APIEvent, 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.events, nil
+}
+
+func (f *fakeFrigate) Event(_ context.Context, id string) (frigate.APIEvent, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ev, ok := f.byID[id]
+	if !ok {
+		return ev, &frigate.HTTPError{Status: 404, Path: "/api/events/" + id}
+	}
+	return ev, nil
+}
+
+func (f *fakeFrigate) EventsSince(_ context.Context, after time.Time, _ int) ([]frigate.APIEvent, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.after = after
+	var out []frigate.APIEvent
+	for _, ev := range f.events {
+		if !frigate.UnixTime(ev.StartTime).Before(after) {
+			out = append(out, ev)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeFrigate) ReviewsSince(_ context.Context, after time.Time, _ int) ([]frigate.Review, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.after = after
+	return f.reviewList, nil
 }
 
 func (f *fakeFrigate) countCalls(path string) int {

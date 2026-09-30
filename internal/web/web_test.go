@@ -16,8 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"frigate-telegram-enhanced/internal/bot"
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/i18n"
 	"frigate-telegram-enhanced/internal/notifier"
 	"frigate-telegram-enhanced/internal/state"
 )
@@ -650,5 +652,35 @@ func TestExternalURLIsSavedAndValidated(t *testing.T) {
 	}
 	if got := cfg.ExternalURL(); got != "http://192.168.1.10:5000" {
 		t.Errorf("adresse = %q", got)
+	}
+}
+
+type fakeRefusals []bot.Refused
+
+func (f fakeRefusals) Refused() []bot.Refused { return f }
+
+func TestHealthListsRefusedUsers(t *testing.T) {
+	health := func(context.Context, i18n.Lang) []Component {
+		return []Component{{Name: "MQTT", State: StateOK}}
+	}
+	at := time.Date(2026, 9, 28, 14, 0, 0, 0, time.UTC)
+	_, _, ts := setup(t, "", fakeCameras{}, WithHealth(health),
+		WithRefused(fakeRefusals{{ID: 999, Name: "Alice", Username: "alice", At: at}}))
+	var got struct {
+		Components []Component   `json:"components"`
+		Refused    []bot.Refused `json:"refused"`
+	}
+	if err := json.NewDecoder(do(t, ts, "GET", "/api/health", "").Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Components) != 1 || len(got.Refused) != 1 || got.Refused[0].ID != 999 || got.Refused[0].Username != "alice" {
+		t.Errorf("réponse = %+v", got)
+	}
+
+	_, _, ts = setup(t, "", fakeCameras{}, WithHealth(health))
+	var bare map[string]json.RawMessage
+	json.NewDecoder(do(t, ts, "GET", "/api/health", "").Body).Decode(&bare)
+	if string(bare["refused"]) != "[]" {
+		t.Errorf("refused sans source = %s, attendu []", bare["refused"])
 	}
 }

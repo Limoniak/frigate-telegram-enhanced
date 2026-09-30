@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"frigate-telegram-enhanced/internal/bot"
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/frigate"
 	"frigate-telegram-enhanced/internal/i18n"
@@ -73,6 +74,7 @@ const maxThumb = 1 << 20
 const (
 	StateOK      = "ok"
 	StatePending = "pending"
+	StateWarn    = "warn" // fonctionne, mais avec un problème à signaler
 	StateError   = "error"
 )
 
@@ -82,6 +84,11 @@ type Component struct {
 	State  string `json:"state"`
 	Detail string `json:"detail"`
 	Hint   string `json:"hint,omitempty"` // que corriger, en cas d'erreur
+}
+
+// Refusals donne les utilisateurs Telegram refusés récemment par le bot.
+type Refusals interface {
+	Refused() []bot.Refused
 }
 
 // HealthFunc diagnostique les connexions, avec des messages dans la langue l.
@@ -101,6 +108,7 @@ type Handler struct {
 	history History
 	media   Media      // nil : historique sans miniatures
 	health  HealthFunc // nil : pas d'état des connexions
+	refused Refusals   // nil : pas de liste des utilisateurs refusés
 	auth    *Auth      // mot de passe, commun à toutes les routes
 	now     func() time.Time
 
@@ -127,6 +135,10 @@ func WithHistory(h History, media Media) Option {
 
 // WithHealth active l'affichage de l'état des connexions.
 func WithHealth(f HealthFunc) Option { return func(h *Handler) { h.health = f } }
+
+// WithRefused joint à l'état des connexions les utilisateurs Telegram refusés
+// récemment, avec leur identifiant à ajouter à la configuration.
+func WithRefused(r Refusals) Option { return func(h *Handler) { h.refused = r } }
 
 // WithClock remplace l'horloge (tests).
 func WithClock(now func() time.Time) Option { return func(h *Handler) { h.now = now } }
@@ -482,7 +494,14 @@ func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	writeJSON(w, http.StatusOK, map[string][]Component{"components": h.health(ctx, h.lang(r))})
+	refused := []bot.Refused{}
+	if h.refused != nil {
+		refused = append(refused, h.refused.Refused()...)
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Components []Component   `json:"components"`
+		Refused    []bot.Refused `json:"refused"`
+	}{h.health(ctx, h.lang(r)), refused})
 }
 
 type historyView struct {

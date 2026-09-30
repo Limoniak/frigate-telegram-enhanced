@@ -333,7 +333,7 @@ button.icon { padding: 4px 9px; line-height: 1; }
 /* ---- pastilles d'état ---- */
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
-.dot.pending { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.dot.pending, .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
 .dot.error { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 .dot.paused { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
 .dot.pulse { animation: pulse 2.4s ease-in-out infinite; }
@@ -360,6 +360,10 @@ button.icon { padding: 4px 9px; line-height: 1; }
 .health-errors { display: flex; flex-direction: column; gap: 8px; padding: 0 var(--pad) 14px; background: var(--card-2); }
 .health-errors[hidden] { display: none; }
 .health-error { border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-left: 4px solid var(--danger); background: var(--danger-soft); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 14px; }
+.health-error.warn { border-color: color-mix(in srgb, var(--warn) 35%, transparent); border-left-color: var(--warn); background: var(--warn-soft); }
+.health-error .refused { margin: 6px 0 0; padding-left: 20px; }
+.health-error .refused code { user-select: all; font-weight: 600; }
+.health-error .refused .when { color: var(--muted); }
 .health-error .fix { color: var(--fg); margin-top: 4px; }
 
 /* ---- essai ---- */
@@ -1689,12 +1693,15 @@ function renderLive() {
 // ---- état des connexions ----------------------------------------------------------
 
 let health = null; // réponse de /api/health
+let refused = []; // utilisateurs Telegram refusés récemment par le bot
 
 async function loadHealth() {
   try {
     const resp = await api("api/health");
     if (!resp.ok) return;
-    health = (await resp.json()).components;
+    const body = await resp.json();
+    health = body.components;
+    refused = body.refused || [];
     renderHealth();
   } catch (e) { /* l'état est un plus : on n'interrompt rien */ }
 }
@@ -1715,15 +1722,33 @@ function renderHealth() {
   for (const c of health) {
     const comp = el("span", {class: "comp", title: c.detail || ""},
       el("span", {class: "dot " + c.state}), el("span", {class: "n", text: c.name}));
-    if (c.state !== "error" && c.detail) comp.append(el("span", {class: "d", text: c.detail}));
+    if (c.state !== "error" && c.state !== "warn" && c.detail) comp.append(el("span", {class: "d", text: c.detail}));
     line.append(comp);
-    if (c.state === "error") {
-      const box = el("div", {class: "health-error"}, el("b", {text: c.name + " — "}), document.createTextNode(c.detail));
+    if (c.state === "error" || c.state === "warn") {
+      const box = el("div", {class: "health-error " + c.state}, el("b", {text: c.name + " — "}), document.createTextNode(c.detail));
       if (c.hint) box.append(el("div", {class: "fix", text: "👉 " + c.hint}));
       errors.append(box);
     }
   }
+  if (refused.length) errors.append(refusedBox());
   errors.hidden = !errors.children.length;
+}
+
+// refusedBox liste les utilisateurs que le bot a refusés, avec l'identifiant à
+// ajouter à la configuration : c'est ainsi qu'on trouve le sien à l'installation.
+function refusedBox() {
+  const box = el("div", {class: "health-error warn"},
+    el("b", {text: T("Telegram — users refused by the bot", "Telegram — utilisateurs refusés par le bot")}));
+  const list = el("ul", {class: "refused"});
+  for (const u of refused) {
+    const who = [u.name, u.username && "@" + u.username].filter(Boolean).join(" ") || T("unknown", "inconnu");
+    list.append(el("li", null, document.createTextNode(who + " · " + T("ID ", "identifiant ")),
+      el("code", {text: String(u.id)}), el("span", {class: "when", text: " · " + whenText(u.at)})));
+  }
+  box.append(list, el("div", {class: "fix", text: "👉 " + T(
+    "To allow someone, add their ID to TELEGRAM_CHAT_ID (and to TELEGRAM_ADMINS if you set it), then restart the container.",
+    "Pour autoriser quelqu'un, ajoutez son identifiant à TELEGRAM_CHAT_ID (et à TELEGRAM_ADMINS si vous l'avez défini), puis redémarrez le conteneur.")}));
+  return box;
 }
 
 // ---- activité récente ---------------------------------------------------------

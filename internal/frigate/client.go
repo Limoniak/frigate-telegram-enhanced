@@ -64,6 +64,7 @@ type Client struct {
 	user, pass string
 	http       *http.Client
 	loginMu    sync.Mutex
+	loggedIn   time.Time // dernière connexion réussie (sous loginMu)
 
 	stallTimeout time.Duration
 }
@@ -101,13 +102,14 @@ func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
 
 // do exécute un GET ; sur 401 avec identifiants, se reconnecte puis réessaie une fois.
 func (c *Client) do(ctx context.Context, path string) (*http.Response, error) {
+	sent := time.Now()
 	resp, err := c.get(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode == http.StatusUnauthorized && c.user != "" {
 		resp.Body.Close()
-		if err := c.login(ctx); err != nil {
+		if err := c.login(ctx, sent); err != nil {
 			return nil, err
 		}
 		if resp, err = c.get(ctx, path); err != nil {
@@ -122,9 +124,14 @@ func (c *Client) do(ctx context.Context, path string) (*http.Response, error) {
 	return resp, nil
 }
 
-func (c *Client) login(ctx context.Context) error {
+// login ouvre une session. Une connexion réussie après sent (l'envoi de la requête
+// refusée) suffit : plusieurs requêtes refusées en même temps n'en ouvrent qu'une.
+func (c *Client) login(ctx context.Context, sent time.Time) error {
 	c.loginMu.Lock()
 	defer c.loginMu.Unlock()
+	if c.loggedIn.After(sent) {
+		return nil
+	}
 	body, _ := json.Marshal(map[string]string{"user": c.user, "password": c.pass})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/api/login", bytes.NewReader(body))
 	if err != nil {
@@ -140,6 +147,7 @@ func (c *Client) login(ctx context.Context) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w: HTTP %d", ErrAuth, resp.StatusCode)
 	}
+	c.loggedIn = time.Now()
 	return nil
 }
 
@@ -295,6 +303,34 @@ func (c *Client) Events(ctx context.Context, camera string, limit int) ([]APIEve
 	var evs []APIEvent
 	err := c.getJSON(ctx, "/api/events?"+q.Encode(), &evs)
 	return evs, err
+}
+
+// Event renvoie un événement par son id.
+func (c *Client) Event(ctx context.Context, id string) (APIEvent, error) {
+	var ev APIEvent
+	err := c.getJSON(ctx, "/api/events/"+url.PathEscape(id), &ev)
+	return ev, err
+}
+
+// EventsSince renvoie les événements commencés après after, du plus récent au plus ancien.
+func (c *Client) EventsSince(ctx context.Context, after time.Time, limit int) ([]APIEvent, error) {
+	q := url.Values{"after": {unixParam(after)}, "limit": {strconv.Itoa(limit)}, "include_thumbnails": {"0"}}
+	var evs []APIEvent
+	err := c.getJSON(ctx, "/api/events?"+q.Encode(), &evs)
+	return evs, err
+}
+
+// ReviewsSince renvoie les éléments de revue commencés après after (Frigate ≥ 0.14).
+func (c *Client) ReviewsSince(ctx context.Context, after time.Time, limit int) ([]Review, error) {
+	q := url.Values{"after": {unixParam(after)}, "limit": {strconv.Itoa(limit)}}
+	var rs []Review
+	err := c.getJSON(ctx, "/api/review?"+q.Encode(), &rs)
+	return rs, err
+}
+
+// unixParam formate une date comme les horodatages de Frigate (secondes).
+func unixParam(t time.Time) string {
+	return strconv.FormatFloat(float64(t.UnixMilli())/1000, 'f', 3, 64)
 }
 
 // Review renvoie un élément de revue par son id.

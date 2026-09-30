@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"frigate-telegram-enhanced/internal/config"
@@ -30,6 +31,10 @@ type Frigate interface {
 	DownloadToFile(ctx context.Context, path string, max int64) (string, error)
 	Review(ctx context.Context, id string) (frigate.Review, error)
 	Events(ctx context.Context, camera string, limit int) ([]frigate.APIEvent, error)
+	// Rattrapage après une coupure MQTT (voir CatchUp).
+	Event(ctx context.Context, id string) (frigate.APIEvent, error)
+	EventsSince(ctx context.Context, after time.Time, limit int) ([]frigate.APIEvent, error)
+	ReviewsSince(ctx context.Context, after time.Time, limit int) ([]frigate.Review, error)
 }
 
 type Telegram interface {
@@ -56,6 +61,7 @@ type Deps struct {
 	ClipRetryDelays    []time.Duration  // défaut : 5 s, 10 s, 20 s
 	SnapshotRetryDelay time.Duration    // défaut : 1 s
 	MediaWorkers       int              // défaut : 4 (téléchargements clip/GIF concurrents)
+	HistoryFile        string           // activité récente conservée entre deux démarrages ; vide : en mémoire seulement
 }
 
 type Notifier struct {
@@ -66,11 +72,14 @@ type Notifier struct {
 	cancelSends context.CancelFunc
 	wg          sync.WaitGroup
 	media       chan struct{} // sémaphore : limite les téléchargements clip/GIF concurrents
+	dropped     atomic.Int64  // messages écartés, file pleine, depuis le démarrage
+	lastDrop    atomic.Int64  // heure du dernier (UnixNano), 0 si aucun
 
 	mu      sync.Mutex // protège tracked, sent et les champs des *tracked (sauf messages)
 	tracked map[string]*tracked
 	sent    []time.Time
 	history []HistoryEntry
+	histDirty bool // history a changé depuis la dernière écriture de HistoryFile
 	groups  map[string]*group // regroupement en cours, par destinataire
 }
 
@@ -155,7 +164,7 @@ func New(d Deps) *Notifier {
 	}
 	p := d.Config.MQTT.TopicPrefix
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Notifier{
+	n := &Notifier{
 		Deps:        d,
 		inbox:       make(chan inMsg, inboxSize),
 		topics:      topics{events: p + "/events", reviews: p + "/reviews", updates: p + "/tracked_object_update"},
@@ -165,6 +174,8 @@ func New(d Deps) *Notifier {
 		groups:      map[string]*group{},
 		media:       make(chan struct{}, d.MediaWorkers),
 	}
+	n.loadHistory()
+	return n
 }
 
 // Topics renvoie les topics MQTT à écouter selon le mode.
@@ -181,9 +192,21 @@ func (n *Notifier) Handle(topic string, payload []byte) {
 	select {
 	case n.inbox <- inMsg{topic: topic, payload: payload}:
 	default:
+		n.dropped.Add(1)
+		n.lastDrop.Store(n.Now().UnixNano())
 		n.Metrics.EventsDropped.Inc()
 		n.Log.Warn("event queue full, message dropped", "topic", topic)
 	}
+}
+
+// Dropped renvoie le nombre de messages MQTT écartés faute de place dans la file
+// depuis le démarrage, et l'heure du dernier (zéro si aucun).
+func (n *Notifier) Dropped() (int, time.Time) {
+	last := n.lastDrop.Load()
+	if last == 0 {
+		return 0, time.Time{}
+	}
+	return int(n.dropped.Load()), time.Unix(0, last)
 }
 
 // Run consomme la file jusqu'à l'annulation de ctx. Les envois utilisent un contexte

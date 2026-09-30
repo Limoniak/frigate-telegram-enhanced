@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -16,10 +17,19 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "/config/config.yml", "chemin du fichier de configuration")
-	healthcheck := flag.Bool("healthcheck", false, "interroge /healthz et sort avec 0 si le service est sain")
-	healthURL := flag.String("healthcheck-url", "", "URL utilisée par -healthcheck (défaut : déduite du port configuré)")
-	flag.Parse()
+	os.Exit(run(os.Args[1:], os.Stderr))
+}
+
+// run exécute la commande avec les arguments args et renvoie son code de sortie.
+func run(args []string, stderr io.Writer) int {
+	flags := flag.NewFlagSet("frigate-telegram-enhanced", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	configPath := flags.String("config", "/config/config.yml", "chemin du fichier de configuration")
+	healthcheck := flags.Bool("healthcheck", false, "interroge /healthz et sort avec 0 si le service est sain")
+	healthURL := flags.String("healthcheck-url", "", "URL utilisée par -healthcheck (défaut : déduite du port configuré)")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
 
 	if *healthcheck {
 		url := *healthURL
@@ -27,17 +37,18 @@ func main() {
 			url = healthURLFor(*configPath)
 		}
 		if err := server.Check(url); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			fmt.Fprintln(stderr, err)
+			return 1
 		}
-		return
+		return 0
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := app.Run(ctx, *configPath); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		fmt.Fprintln(stderr, "error:", err)
+		return 1
 	}
+	return 0
 }
 
 // healthURLFor déduit l'URL de /healthz du port configuré (http_listen ou

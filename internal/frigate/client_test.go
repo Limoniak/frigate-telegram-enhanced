@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -125,6 +126,43 @@ func TestLoginOnUnauthorized(t *testing.T) {
 	}
 }
 
+// Plusieurs requêtes refusées en même temps (session expirée) ne doivent déclencher
+// qu'une connexion : les suivantes profitent de celle qui vient de réussir.
+func TestConcurrentUnauthorizedLogInOnce(t *testing.T) {
+	const n = 8
+	var logins atomic.Int32
+	var arrived sync.WaitGroup
+	arrived.Add(n)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/login" {
+			logins.Add(1)
+			http.SetCookie(w, &http.Cookie{Name: "frigate_token", Value: "tok", Path: "/"})
+			return
+		}
+		if _, err := r.Cookie("frigate_token"); err != nil {
+			arrived.Done()
+			arrived.Wait() // toutes les requêtes sont refusées avant la première connexion
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv.URL, "admin", "secret")
+	var wg sync.WaitGroup
+	for range n {
+		wg.Go(func() {
+			if b, err := c.GetBytes(context.Background(), "/api/x", 10); err != nil || string(b) != "ok" {
+				t.Errorf("GetBytes : %q, %v", b, err)
+			}
+		})
+	}
+	wg.Wait()
+	if got := logins.Load(); got != 1 {
+		t.Errorf("logins = %d, attendu 1", got)
+	}
+}
+
 func TestDownloadToFile(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("mp4data"))
@@ -209,5 +247,50 @@ func TestCamerasEventsReview(t *testing.T) {
 	rv, err := c.Review(ctx, "r1")
 	if err != nil || rv.Camera != "jardin" || rv.EndTime == nil || *rv.EndTime != 20.0 {
 		t.Errorf("Review = %+v, %v", rv, err)
+	}
+}
+
+func TestCatchUpQueries(t *testing.T) {
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Path+"?"+r.URL.RawQuery)
+		switch r.URL.Path {
+		case "/api/events/ev 1":
+			w.Write([]byte(`{"id":"ev 1","camera":"garage","end_time":1790604030.5,"false_positive":true}`))
+		case "/api/events":
+			w.Write([]byte(`[{"id":"a"},{"id":"b"}]`))
+		case "/api/review":
+			w.Write([]byte(`[{"id":"r1","severity":"alert"}]`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv.URL, "", "")
+	ctx := context.Background()
+	after := time.Unix(1790604000, 250_000_000)
+
+	ev, err := c.Event(ctx, "ev 1")
+	if err != nil || ev.EndTime == nil || !ev.FalsePositive {
+		t.Errorf("Event = %+v, %v", ev, err)
+	}
+	if evs, err := c.EventsSince(ctx, after, 50); err != nil || len(evs) != 2 {
+		t.Errorf("EventsSince = %+v, %v", evs, err)
+	}
+	if rs, err := c.ReviewsSince(ctx, after, 50); err != nil || len(rs) != 1 || rs[0].Severity != "alert" {
+		t.Errorf("ReviewsSince = %+v, %v", rs, err)
+	}
+	want := []string{
+		"/api/events/ev 1?",
+		"/api/events?after=1790604000.250&include_thumbnails=0&limit=50",
+		"/api/review?after=1790604000.250&limit=50",
+	}
+	if len(queries) != len(want) {
+		t.Fatalf("requêtes = %q", queries)
+	}
+	for i := range want {
+		if queries[i] != want[i] {
+			t.Errorf("requête %d = %q, attendu %q", i, queries[i], want[i])
+		}
 	}
 }

@@ -104,8 +104,10 @@ type APIEvent struct {
 	Zones       []string `json:"zones"`
 	HasClip     bool     `json:"has_clip"`
 	HasSnapshot bool     `json:"has_snapshot"`
-	TopScore    *float64 `json:"top_score"`
-	Data        struct {
+	// FalsePositive : présent dans les versions de Frigate qui le renseignent.
+	FalsePositive bool     `json:"false_positive"`
+	TopScore      *float64 `json:"top_score"`
+	Data          struct {
 		TopScore float64 `json:"top_score"`
 	} `json:"data"`
 }

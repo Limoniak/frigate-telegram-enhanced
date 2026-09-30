@@ -28,6 +28,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - In **English** or **French**: Telegram messages (`LANGUAGE`) and the web interface (EN / FR switch)
 - **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
 - **Per-recipient settings**: e.g. you get everything, the family only people at night
+- After an MQTT outage, detections missed during the last hour are caught up from Frigate
 - Persistent state, `/healthz`, Prometheus metrics, multi-arch distroless image (amd64 and arm64)
 
 ## A tour of the web interface
@@ -76,7 +77,10 @@ the camera to adjust.
 
 2. **A Telegram bot**: message [@BotFather](https://t.me/BotFather), send `/newbot`, and note the token.
 
-3. **Your Telegram ID**: send a message to your bot, then open
+3. **Your Telegram ID**: if you don't know it, start the service with any number in
+   `TELEGRAM_CHAT_ID`, then send `/start` to your bot: it answers with your ID, which the
+   web interface also lists under *Status*. Put it in `TELEGRAM_CHAT_ID` and restart.
+   Before the service runs, you can also send a message to your bot, open
    `https://api.telegram.org/bot<TOKEN>/getUpdates` and note `message.from.id`.
    For a group: add the bot to the group, post a message there and note `message.chat.id` (negative).
 
@@ -210,7 +214,7 @@ and **Cancel**. Saving takes effect **immediately**, without a restart, and is o
 accepted if valid — a rejected change leaves the service on the previous settings.
 
 Settings are saved in the data volume (`/data/notify.yml`), next to the state (pauses,
-cooldowns), so they survive restarts and updates. With a configuration file, they
+cooldowns) and the recent activity, so they survive restarts and updates. With a configuration file, they
 **replace its `notify` and `cameras` sections** as long as they exist; the
 *Back to the config.yml settings* button deletes them.
 `config.yml` itself is never rewritten.

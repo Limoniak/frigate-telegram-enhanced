@@ -254,6 +254,16 @@ func TestHandleDropsWhenInboxFull(t *testing.T) {
 	if got := testutil.ToFloat64(h.m.EventsDropped); got != 1 {
 		t.Errorf("dropped = %v, attendu 1", got)
 	}
+	if n, last := h.n.Dropped(); n != 1 || !last.Equal(h.clock.Now()) {
+		t.Errorf("Dropped() = %d, %v ; attendu 1 à %v", n, last, h.clock.Now())
+	}
+}
+
+func TestDroppedNoneYet(t *testing.T) {
+	h := newHarness(t, "events")
+	if n, last := h.n.Dropped(); n != 0 || !last.IsZero() {
+		t.Errorf("Dropped() = %d, %v", n, last)
+	}
 }
 
 func TestCount24hExpires(t *testing.T) {

@@ -62,6 +62,10 @@ type Bot struct {
 	camMu    sync.Mutex
 	camList  []string
 	camUntil time.Time
+
+	refMu   sync.Mutex
+	refused []Refused           // derniers utilisateurs refusés, du plus ancien au plus récent
+	replied map[int64]time.Time // dernière réponse « votre identifiant » par utilisateur
 }
 
 func New(d Deps) *Bot {

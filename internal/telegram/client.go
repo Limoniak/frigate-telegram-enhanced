@@ -10,11 +10,13 @@ import (
 	"maps"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -71,7 +73,17 @@ type request struct {
 	file    *fileParam
 	timeout time.Duration
 	noRetry bool
+	// unique : rejouer la requête créerait un second message (send*). Elle n'est alors
+	// retentée que si elle n'a pas été entièrement transmise à Telegram.
+	unique bool
 }
+
+// sentError est une erreur réseau survenue après la transmission complète de la
+// requête : Telegram a pu la traiter, seule la réponse s'est perdue.
+type sentError struct{ err error }
+
+func (e *sentError) Error() string { return e.err.Error() }
+func (e *sentError) Unwrap() error { return e.err }
 
 type fileParam struct {
 	field string
@@ -92,7 +104,7 @@ func (c *Client) call(ctx context.Context, r request, out any) error {
 		if err = c.once(ctx, r, out); err == nil {
 			return nil
 		}
-		delay, retry := c.retryDelay(ctx, err, attempt)
+		delay, retry := c.retryDelay(ctx, r, err, attempt)
 		if !retry || r.noRetry || attempt >= c.retries {
 			break
 		}
@@ -111,9 +123,13 @@ func (c *Client) call(ctx context.Context, r request, out any) error {
 	return err
 }
 
-func (c *Client) retryDelay(ctx context.Context, err error, attempt int) (time.Duration, bool) {
+func (c *Client) retryDelay(ctx context.Context, r request, err error, attempt int) (time.Duration, bool) {
 	if ctx.Err() != nil {
 		return 0, false
+	}
+	var se *sentError
+	if r.unique && errors.As(err, &se) {
+		return 0, false // un doublon de notification plutôt qu'une perte : non
 	}
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
@@ -157,15 +173,23 @@ func (c *Client) once(ctx context.Context, r request, out any) error {
 	}
 	req.ContentLength = size
 	req.Header.Set("Content-Type", contentType)
+	var wrote atomic.Bool // écrit depuis la goroutine d'écriture du transport
+	req = req.WithContext(httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		WroteRequest: func(i httptrace.WroteRequestInfo) { wrote.Store(i.Err == nil) },
+	}))
 	resp, err := c.http.Do(req)
 	if err != nil {
 		// L'erreur contient l'URL, donc le token : on le masque.
-		return fmt.Errorf("telegram %s: %s", r.method, c.redact(err.Error()))
+		err = fmt.Errorf("telegram %s: %s", r.method, c.redact(err.Error()))
+		if wrote.Load() {
+			return &sentError{err}
+		}
+		return err
 	}
 	defer resp.Body.Close()
 	var ar apiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ar); err != nil {
-		return &APIError{Method: r.method, Code: resp.StatusCode, Description: "réponse illisible"}
+		return &APIError{Method: r.method, Code: resp.StatusCode, Description: "unreadable response"}
 	}
 	if !ar.OK {
 		e := &APIError{Method: r.method, Code: ar.ErrorCode, Description: ar.Description}
@@ -269,7 +293,7 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, o S
 	o.Caption = ""
 	o.apply(p)
 	var m Message
-	err := c.call(ctx, request{method: "sendMessage", chatID: chatID, params: p}, &m)
+	err := c.call(ctx, request{method: "sendMessage", chatID: chatID, params: p, unique: true}, &m)
 	return m, err
 }
 
@@ -294,7 +318,7 @@ func (c *Client) sendMedia(ctx context.Context, method, field string, chatID int
 		timeout = 5 * time.Minute // upload jusqu'à 50 Mo
 	}
 	var m Message
-	err := c.call(ctx, request{method: method, chatID: chatID, params: p, file: &fileParam{field: field, file: f}, timeout: timeout}, &m)
+	err := c.call(ctx, request{method: method, chatID: chatID, params: p, file: &fileParam{field: field, file: f}, timeout: timeout, unique: true}, &m)
 	return m, err
 }
 

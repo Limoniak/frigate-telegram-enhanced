@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -71,6 +72,7 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	notif := notifier.New(notifier.Deps{
 		Config: cfg, Engine: filter.New(cfg, st), State: st,
 		Frigate: fr, Telegram: tg, Metrics: m, Log: log,
+		HistoryFile: filepath.Join(filepath.Dir(cfg.StateFile), "history.json"),
 	})
 	topics, handle := notif.Topics(), notif.Handle
 	if cfg.Presence.Enabled() {
@@ -78,11 +80,18 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 		handle = presenceRouter(cfg.Presence, st, log, notif.Handle)
 		log.Info("presence tracked", "topics", cfg.Presence.Topics)
 	}
+	// lostAt : début de la coupure MQTT en cours (UnixNano), 0 si connecté. À la
+	// reconnexion, le notifier rattrape auprès de Frigate ce qui a été manqué.
+	var lostAt atomic.Int64
 	sub := mqttsub.New(cfg.MQTT, topics, handle, log, func(up bool) {
 		if up {
 			m.MQTTConnected.Set(1)
+			if lost := lostAt.Swap(0); lost != 0 {
+				go notif.CatchUp(ctx, time.Unix(0, lost))
+			}
 		} else {
 			m.MQTTConnected.Set(0)
+			lostAt.CompareAndSwap(0, time.Now().UnixNano())
 		}
 	})
 	b := bot.New(bot.Deps{
@@ -93,9 +102,9 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	var mount []func(*http.ServeMux)
 	var protect func(http.Handler) http.Handler // mot de passe de l'interface, décompte d'échecs commun
 	if cfg.Web.Enabled {
-		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg}
+		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg, drops: notif}
 		ui := web.New(cfg, overlayPath, fr, log, web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr),
-			web.WithHealth(chk.check))
+			web.WithHealth(chk.check), web.WithRefused(b))
 		mount = append(mount, ui.Mount)
 		protect = ui.Protect
 	}
@@ -152,6 +161,9 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 			if err := st.FlushIfDirty(); err != nil {
 				log.Warn("saving the state failed", "err", err)
 			}
+			if err := notif.FlushHistory(); err != nil {
+				log.Warn("saving the recent activity failed", "err", err)
+			}
 		}
 	}
 
@@ -167,6 +179,9 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	<-botDone
 	if err := st.Save(); err != nil {
 		log.Warn("saving the state failed", "err", err)
+	}
+	if err := notif.FlushHistory(); err != nil {
+		log.Warn("saving the recent activity failed", "err", err)
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

@@ -73,11 +73,7 @@ func ParseDuration(s string) (time.Duration, error) {
 
 func (b *Bot) handleCommand(ctx context.Context, m telegram.Message) {
 	if m.From == nil || !b.Config.IsAdmin(m.From.ID) {
-		from := int64(0)
-		if m.From != nil {
-			from = m.From.ID
-		}
-		b.Log.Warn("command refused: user not allowed", "user", from, "text", m.Text)
+		b.refuseCommand(ctx, m)
 		return
 	}
 	name, args := parseCommand(m.Text)
@@ -255,7 +251,8 @@ func (b *Bot) sendLiveSnapshot(ctx context.Context, chat int64, replyTo int, cam
 func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 	if !b.Config.IsAdmin(q.From.ID) {
 		b.Log.Warn("button refused: user not allowed", "user", q.From.ID)
-		b.answer(ctx, q.ID, b.Config.Language.T("⛔ Not allowed", "⛔ Non autorisé"))
+		b.refuse(q.From)
+		b.answer(ctx, q.ID, b.Config.Language.Tf("⛔ Not allowed (your ID: %d)", "⛔ Non autorisé (votre identifiant : %d)", q.From.ID))
 		return
 	}
 	l := b.Config.Language

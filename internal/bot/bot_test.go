@@ -281,7 +281,7 @@ func TestCallbacks(t *testing.T) {
 func TestCallbackUnauthorized(t *testing.T) {
 	e := newEnv(t)
 	e.callback("p:1800", 999)
-	if e.st.IsPaused(now) || len(e.tg.answers) != 1 || !strings.Contains(e.tg.answers[0], "Not allowed") {
+	if e.st.IsPaused(now) || len(e.tg.answers) != 1 || !strings.Contains(e.tg.answers[0], "Not allowed") || !strings.Contains(e.tg.answers[0], "999") {
 		t.Errorf("answers = %v", e.tg.answers)
 	}
 }
@@ -454,5 +454,58 @@ func TestNowButtonRepliesWithLiveImage(t *testing.T) {
 	}
 	if e.tg.photoReplyTo != 42 {
 		t.Errorf("réponse à %d, attendu 42 (la notification)", e.tg.photoReplyTo)
+	}
+}
+
+func (e env) cmdIn(text string, from telegram.User, chat telegram.Chat) {
+	e.b.HandleUpdate(context.Background(), telegram.Update{Message: &telegram.Message{
+		MessageID: 10, From: &from, Chat: chat, Text: text}})
+	e.b.Wait()
+}
+
+func TestUnauthorizedPrivateUserLearnsTheirID(t *testing.T) {
+	e := newEnv(t)
+	alice := telegram.User{ID: 999, FirstName: "Alice", Username: "alice"}
+	e.cmdIn("/start", alice, telegram.Chat{ID: 999, Type: "private"})
+	if len(e.tg.messages) != 1 || !strings.Contains(e.tg.last(), "<code>999</code>") || !strings.Contains(e.tg.last(), "TELEGRAM_CHAT_ID") {
+		t.Fatalf("réponse = %q", e.tg.messages)
+	}
+	e.cmdIn("/pause", alice, telegram.Chat{ID: 999, Type: "private"})
+	if e.st.IsPaused(now) {
+		t.Error("un non-admin ne doit rien pouvoir faire")
+	}
+	if len(e.tg.messages) != 1 {
+		t.Errorf("%d réponses, attendu 1 : une seule réponse par période", len(e.tg.messages))
+	}
+}
+
+func TestUnauthorizedInGroupStaysSilent(t *testing.T) {
+	e := newEnv(t)
+	e.cmdIn("/status", telegram.User{ID: 999}, telegram.Chat{ID: -100, Type: "group"})
+	if len(e.tg.messages) != 0 {
+		t.Errorf("réponses = %q : pas de réponse dans un groupe", e.tg.messages)
+	}
+}
+
+func TestRefusedUsersAreListed(t *testing.T) {
+	e := newEnv(t)
+	if got := e.b.Refused(); len(got) != 0 {
+		t.Fatalf("Refused() = %+v", got)
+	}
+	e.cmdIn("/start", telegram.User{ID: 999, FirstName: "Alice", Username: "alice"}, telegram.Chat{ID: 999, Type: "private"})
+	e.cmdIn("/menu", telegram.User{ID: 999, FirstName: "Alice", Username: "alice"}, telegram.Chat{ID: 999, Type: "private"})
+	e.callback("p:1800", 555)
+	got := e.b.Refused()
+	if len(got) != 2 {
+		t.Fatalf("Refused() = %+v, attendu 2 utilisateurs", got)
+	}
+	if got[0].ID != 555 || got[1].ID != 999 || got[1].Name != "Alice" || got[1].Username != "alice" || !got[1].At.Equal(now) {
+		t.Errorf("Refused() = %+v (le plus récent d'abord)", got)
+	}
+	for i := range maxRefused + 5 {
+		e.callback("p:1800", int64(1000+i))
+	}
+	if n := len(e.b.Refused()); n != maxRefused {
+		t.Errorf("%d refusés gardés, attendu %d", n, maxRefused)
 	}
 }

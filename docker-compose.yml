@@ -36,7 +36,7 @@ services:
       # PRESENCE_TOPICS: "homeassistant/person/+/state"  # pause when someone is home (see README)
       # LOG_LEVEL: "info"
     volumes:
-      - frigate-telegram-enhanced-data:/data            # web interface settings and state (pauses, cooldowns)
+      - frigate-telegram-enhanced-data:/data            # web interface settings and state (pauses, cooldowns, recent activity)
     tmpfs:
       - /tmp:size=256m                         # temporary clips (50 MB max each)
     ports:

@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"frigate-telegram-enhanced/internal/bot"
@@ -30,6 +31,8 @@ type checker struct {
 	sub *mqttsub.Subscriber
 	bot *bot.Bot
 	tg  *telegram.Client
+	// drops : messages MQTT écartés, file pleine (le notifier) ; nil pour ne pas les signaler.
+	drops interface{ Dropped() (int, time.Time) }
 
 	mu       sync.Mutex
 	probeErr error
@@ -45,7 +48,38 @@ func (c *checker) check(ctx context.Context, l i18n.Lang) []web.Component {
 	go func() { defer wg.Done(); out[1] = c.mqtt(l) }()
 	go func() { defer wg.Done(); out[2] = c.telegram(ctx, l) }()
 	wg.Wait()
+	if e, ok := c.dropped(l); ok {
+		out = append(out, e)
+	}
 	return out
+}
+
+// dropWindow : au-delà, une perte ancienne n'est plus signalée.
+const dropWindow = 24 * time.Hour
+
+// dropped signale les messages MQTT écartés récemment, faute de place dans la file
+// d'attente : des détections ont pu être perdues sans autre trace que les métriques.
+func (c *checker) dropped(l i18n.Lang) (web.Component, bool) {
+	if c.drops == nil {
+		return web.Component{}, false
+	}
+	n, last := c.drops.Dropped()
+	if n == 0 || time.Since(last) > dropWindow {
+		return web.Component{}, false
+	}
+	loc := c.cfg.Location
+	if loc == nil {
+		loc = time.Local
+	}
+	return web.Component{
+		Name:  l.T("Events", "Événements"),
+		State: web.StateWarn,
+		Detail: l.Tf("%d messages from Frigate ignored since startup, queue full (latest at %s).",
+			"%d messages de Frigate ignorés depuis le démarrage, file d'attente pleine (le dernier à %s).",
+			n, last.In(loc).Format("15:04")),
+		Hint: l.T("Detections may have been missed. Frigate sends more messages than the service can handle: check the machine's load, or reduce the number of tracked objects.",
+			"Des détections ont pu être manquées. Frigate envoie plus de messages que le service n'en traite : vérifiez la charge de la machine, ou réduisez le nombre d'objets suivis."),
+	}, true
 }
 
 func (c *checker) frigate(ctx context.Context, l i18n.Lang) web.Component {
@@ -165,18 +199,21 @@ func (c *checker) name(ctx context.Context) (string, error) {
 	return c.botName, nil
 }
 
-// netCause résume une erreur réseau en quelques mots.
+// netCause résume une erreur réseau en quelques mots. Les erreurs système sont
+// reconnues par leur code, le texte variant d'un système à l'autre (Windows écrit
+// « actively refused »), puis par leur texte quand une bibliothèque les a aplaties.
 func netCause(err error, l i18n.Lang) string {
 	var dnsErr *net.DNSError
 	msg := strings.ToLower(err.Error())
 	switch {
 	case errors.As(err, &dnsErr) || strings.Contains(msg, "no such host"):
 		return l.T("unknown host name", "nom d'hôte inconnu")
-	case strings.Contains(msg, "connection refused"):
+	case errors.Is(err, syscall.ECONNREFUSED) || strings.Contains(msg, "connection refused") || strings.Contains(msg, "actively refused"):
 		return l.T("connection refused", "connexion refusée")
 	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(msg, "timeout") || strings.Contains(msg, "timed out"):
 		return l.T("no answer", "pas de réponse")
-	case strings.Contains(msg, "no route to host") || strings.Contains(msg, "network is unreachable"):
+	case errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) ||
+		strings.Contains(msg, "no route to host") || strings.Contains(msg, "network is unreachable"):
 		return l.T("no route to this address", "adresse inaccessible")
 	}
 	return err.Error()

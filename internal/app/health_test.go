@@ -76,6 +76,34 @@ func TestHealthExplainsFailures(t *testing.T) {
 	}
 }
 
+type fakeDrops struct {
+	n    int
+	last time.Time
+}
+
+func (f fakeDrops) Dropped() (int, time.Time) { return f.n, f.last }
+
+func TestHealthReportsDroppedEvents(t *testing.T) {
+	c := newChecker(t, http.StatusOK, `{"ok":true,"result":{"id":1,"username":"mon_bot"}}`)
+	if got := c.check(context.Background(), i18n.EN); len(got) != 3 {
+		t.Fatalf("sans perte : %d composants, attendu 3", len(got))
+	}
+
+	c.drops = fakeDrops{n: 12, last: time.Now().Add(-time.Hour)}
+	got := c.check(context.Background(), i18n.FR)
+	if len(got) != 4 {
+		t.Fatalf("%d composants, attendu 4", len(got))
+	}
+	if e := got[3]; e.State != web.StateWarn || !strings.Contains(e.Detail, "12") || e.Hint == "" {
+		t.Errorf("événements = %+v", e)
+	}
+
+	c.drops = fakeDrops{n: 12, last: time.Now().Add(-25 * time.Hour)}
+	if got := c.check(context.Background(), i18n.EN); len(got) != 3 {
+		t.Errorf("perte ancienne (> 24 h) : %d composants, attendu 3", len(got))
+	}
+}
+
 func TestPresenceRouter(t *testing.T) {
 	st, _ := state.Load(t.TempDir()+"/s.json", time.Now())
 	var forwarded []string
