@@ -303,5 +303,9 @@ Only the users listed in `telegram.admins` can use the commands and buttons.
 
 ```bash
 go test ./...
+go test -tags browser ./internal/web/   # web interface smoke test, needs Chrome
 go build ./cmd/frigate-telegram-enhanced
 ```
+
+The web interface is `internal/web/ui.html`, `ui.css` and `ui.js`, embedded in the
+binary as is: no build step.

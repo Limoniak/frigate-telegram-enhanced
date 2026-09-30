@@ -304,5 +304,9 @@ Seuls les utilisateurs listés dans `telegram.admins` peuvent utiliser les comma
 
 ```bash
 go test ./...
+go test -tags browser ./internal/web/   # test de fumée de l'interface web, avec Chrome
 go build ./cmd/frigate-telegram-enhanced
 ```
+
+L'interface web se compose de `internal/web/ui.html`, `ui.css` et `ui.js`, intégrés tels
+quels au binaire : aucune étape de build.

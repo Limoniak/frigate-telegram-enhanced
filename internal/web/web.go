@@ -26,7 +26,9 @@ import (
 	"frigate-telegram-enhanced/internal/state"
 )
 
-//go:embed ui.html
+// L'interface : la page, sa feuille de style et son script, sans étape de build.
+//
+//go:embed ui.html ui.css ui.js
 var assets embed.FS
 
 // maxBody borne la taille d'un enregistrement : la surcharge d'une installation
@@ -160,7 +162,9 @@ func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.Wrap(n
 // configuration en définit un. /healthz et /metrics restent en dehors : la sonde du
 // conteneur et le scrape Prometheus ne s'authentifient pas (voir web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
-	mux.Handle("GET /{$}", h.guard(http.HandlerFunc(h.page)))
+	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
+	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
+	mux.Handle("GET /ui.js", h.guard(asset("ui.js", "text/javascript; charset=utf-8")))
 	mux.Handle("GET /api/settings", h.guard(http.HandlerFunc(h.get)))
 	mux.Handle("PUT /api/settings", h.guard(sameOrigin(http.HandlerFunc(h.put))))
 	mux.Handle("POST /api/settings/reset", h.guard(sameOrigin(http.HandlerFunc(h.reset))))
@@ -230,15 +234,19 @@ func sameOrigin(next http.Handler) http.Handler {
 	})
 }
 
-func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
-	body, err := assets.ReadFile("ui.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Write(body)
+// asset sert un fichier de l'interface. no-store : après une mise à jour du
+// service, le navigateur ne doit pas garder l'ancien script avec la nouvelle page.
+func asset(name, contentType string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := assets.ReadFile(name)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(body)
+	})
 }
 
 // settings est la vue que l'interface charge au démarrage.

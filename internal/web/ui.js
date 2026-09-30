@@ -1,0 +1,1415 @@
+"use strict";
+
+const DUR = /^(\d+(\.\d+)?(ns|us|ms|s|m|h))+$/;
+
+// En-tête exigé par le serveur sur les écritures. Ce n'est pas un secret : un en-tête
+// non standard force le navigateur à un contrôle préalable CORS, qu'un site tiers ne
+// peut pas franchir — il ne peut donc pas faire écrire l'interface à notre place.
+const TOKEN = "frigate-telegram-enhanced";
+
+// ---- langue -------------------------------------------------------------------
+//
+// L'anglais par défaut ; le français si le navigateur le préfère. Le choix fait avec
+// le sélecteur EN / FR est retenu dans ce navigateur. Chaque texte est écrit
+// T("anglais", "français") ; les textes fixes de la page portent data-t="en|fr".
+
+const LANG_KEY = "frigate-telegram-enhanced-lang";
+
+function initialLang() {
+  try {
+    const saved = localStorage.getItem(LANG_KEY);
+    if (saved === "en" || saved === "fr") return saved;
+  } catch (e) { /* stockage indisponible : on suit le navigateur */ }
+  const nav = ((navigator.languages && navigator.languages[0]) || navigator.language || "").toLowerCase();
+  return nav.startsWith("fr") ? "fr" : "en";
+}
+
+let lang = initialLang();
+const T = (en, fr) => (lang === "fr" ? fr : en);
+const locale = () => (lang === "fr" ? "fr-FR" : "en-GB");
+
+function applyStatic() {
+  document.documentElement.lang = lang;
+  document.title = T("frigate-telegram-enhanced — notifications", "frigate-telegram-enhanced — notifications");
+  for (const n of document.querySelectorAll("[data-t]")) {
+    const [en, fr] = n.dataset.t.split("|");
+    n.textContent = T(en, fr);
+  }
+  for (const b of document.querySelectorAll(".lang button")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
+}
+
+function setLang(l) {
+  lang = l;
+  try { localStorage.setItem(LANG_KEY, l); } catch (e) { /* choix non retenu, sans gravité */ }
+  applyStatic();
+  if (!data) return;
+  $("mode").textContent = T("mode ", "mode ") + data.mode;
+  render();
+  renderLive();
+  renderHistory();
+  renderHealth();
+  if (data.can_health) loadHealth(); // messages du serveur : redemandés dans la nouvelle langue
+  touched();
+}
+
+// api est fetch avec la langue de la page : le serveur répond ses erreurs dans la même.
+function api(path, opts) {
+  opts = Object.assign({}, opts);
+  opts.headers = Object.assign({"X-Lang": lang}, opts.headers || {});
+  return fetch(path, opts);
+}
+
+// ---- modèles et questions simples ------------------------------------------
+//
+// Chaque choix est un petit patch de réglages. Il est « actif » quand les réglages
+// effectifs lui correspondent ; si aucun ne correspond, la question affiche
+// « Personnalisé » et renvoie aux réglages avancés.
+
+// inPlace : la vidéo (ou le GIF) remplace l'image dans le message de la notification.
+const inPlace = () => !overlay || overlay.notify.media_in_place !== false;
+
+const STYLES = () => [
+  {id: "clip", label: T("Photo + video", "Photo + vidéo"), tag: T("Recommended", "Recommandé"),
+   desc: inPlace()
+     ? T("The image right away, then the video takes its place in the same message.", "L'image tout de suite, puis la vidéo prend sa place dans le même message.")
+     : T("The image right away, then the video clip as a reply when the event ends.", "L'image tout de suite, puis le clip vidéo en réponse à la fin de l'événement."),
+   patch: {snapshot: true, clip: true, gif: false}},
+  {id: "photo", label: T("Photo only", "Photo seule"),
+   desc: T("Light. The clip stays one tap away with the 🎬 button.", "Léger. Le clip reste à portée du bouton 🎬."),
+   patch: {snapshot: true, clip: false, gif: false}},
+  {id: "gif", label: T("Photo + GIF", "Photo + GIF"),
+   desc: inPlace()
+     ? T("The image, then a short animated preview in its place.", "L'image, puis un court aperçu animé à sa place.")
+     : T("A short animated preview instead of the video.", "Un court aperçu animé au lieu de la vidéo."),
+   patch: {snapshot: true, clip: false, gif: true}},
+  {id: "text", label: T("Text only", "Texte seul"),
+   desc: T("The most discreet: just the message and the buttons.", "Le plus discret : juste le message et les boutons."),
+   patch: {snapshot: false, clip: false, gif: false}},
+];
+
+const NIGHT = [{from: "22:00", to: "07:00"}];
+
+const QUESTIONS = () => [
+  {title: T("What should be reported?", "Quoi signaler ?"), options: [
+    {label: T("🚶 People", "🚶 Personnes"), patch: {labels: ["person"]}},
+    {label: T("🚶🚗 People and cars", "🚶🚗 Personnes et voitures"), patch: {labels: ["car", "person"]}},
+    {label: T("Everything Frigate detects", "Tout ce que Frigate détecte"), patch: {labels: []}},
+  ]},
+  {title: T("Which reviews?", "Quelles revues ?"), mode: "reviews", options: [
+    {label: T("Alerts only", "Alertes seulement"), patch: {severity: ["alert"]}},
+    {label: T("Alerts and detections", "Alertes et détections"), patch: {severity: ["alert", "detection"]}},
+  ]},
+  {title: T("How often, at most?", "À quelle fréquence, au plus ?"),
+   hint: T("Per camera and per object type: further detections are ignored during this delay.",
+     "Par caméra et par type d'objet : les détections suivantes sont ignorées pendant ce délai."),
+   options: [
+    {label: T("Every detection", "À chaque détection"), patch: {cooldown: "0s"}},
+    {label: T("1 per minute", "1 par minute"), patch: {cooldown: "1m"}},
+    {label: T("1 every 10 min", "1 toutes les 10 min"), patch: {cooldown: "10m"}},
+  ]},
+  {title: T("Bursts", "Rafales"),
+   hint: T("Detections close in time are added to the first message (edited, no new sound) instead of sending new ones.",
+     "Les détections rapprochées s'ajoutent au premier message (modifié, sans nouvelle sonnerie) au lieu d'en envoyer d'autres."),
+   options: [
+    {label: T("One message per detection", "Un message par détection"), patch: {group: "0s"}},
+    {label: T("📦 Group over 2 min", "📦 Regrouper sur 2 min"), patch: {group: "2m"}},
+    {label: T("📦 Group over 5 min", "📦 Regrouper sur 5 min"), patch: {group: "5m"}},
+  ]},
+  {title: T("When someone is home", "Quand quelqu'un est à la maison"), presence: true,
+   hint: T("Someone is home as soon as one of the presence topics says so (Home Assistant, sensor…).",
+     "Quelqu'un est à la maison dès qu'un des topics de présence l'indique (Home Assistant, capteur…)."),
+   options: [
+    {label: T("🔔 Notify as usual", "🔔 Notifier normalement"), patch: {when_home: "notify"}},
+    {label: T("🔕 Silent", "🔕 Sans son"), patch: {when_home: "silent"}},
+    {label: T("🏠 Nothing", "🏠 Rien"), patch: {when_home: "skip"}},
+  ]},
+  {title: T("At night (10 pm – 7 am)", "La nuit (22 h – 7 h)"), options: [
+    {label: T("Same as daytime", "Comme le jour"), patch: {quiet_hours: [], off_hours: []}},
+    {label: T("🔕 Silent", "🔕 Sans son"), patch: {quiet_hours: NIGHT, off_hours: []}},
+    {label: T("🌙 No notifications", "🌙 Aucune notification"), patch: {quiet_hours: [], off_hours: NIGHT}},
+  ]},
+];
+
+// Chaque réglage détaillé est décrit une fois et rendu deux fois : dans les réglages
+// avancés globaux, et dans chaque caméra où il devient une surcharge optionnelle.
+const FIELDS = () => [
+  {key: "enabled", type: "bool", name: T("Notifications enabled", "Notifications activées"),
+   hint: T("Unchecked: no notifications at all (or none for this camera).", "Décoché, plus aucune notification (ou plus rien pour cette caméra).")},
+  {key: "chats", type: "chips", name: T("Recipients", "Destinataires"), source: "chats",
+   hint: T("Chats declared in TELEGRAM_CHAT_ID (or telegram.chats).", "Chats déclarés dans TELEGRAM_CHAT_ID (ou telegram.chats).")},
+  {key: "labels", type: "chips", name: T("Objects", "Objets"), source: "labels", free: true,
+   hint: T("No object selected = every object is reported.", "Aucun objet sélectionné = tous les objets sont notifiés.")},
+  {key: "zones", type: "chips", name: T("Zones", "Zones"), source: "zones", free: true,
+   hint: T("No zone selected = no constraint. Otherwise the object must have entered one of the zones.",
+     "Aucune zone sélectionnée = pas de contrainte. Sinon l'objet doit être entré dans une des zones.")},
+  {key: "min_score", type: "score", name: T("Minimum score", "Score minimal"), source: "labels"},
+  {key: "cooldown", type: "duration", name: T("Delay between two notifications", "Délai entre deux notifications"),
+   hint: T("Per camera and per object. E.g. 60s, 5m, 1h30m.", "Par caméra et par objet. Ex. 60s, 5m, 1h30m.")},
+  {key: "ignore_sub_labels", type: "chips", source: "sub_labels", free: true,
+   name: T("Don't notify for these labels", "Ne pas prévenir pour ces étiquettes"),
+   hint: T("Frigate's labels (custom classification, faces, plates), e.g. your own car or cat.",
+     "Les étiquettes de Frigate (classification personnalisée, visages, plaques), par exemple ta voiture ou ton chat.")},
+  {key: "ignore_known", type: "bool", name: T("Only unknown objects", "Seulement les inconnus"),
+   hint: T("Every object Frigate recognizes (with a label) is ignored.", "Tout objet que Frigate reconnaît (avec une étiquette) est ignoré.")},
+  {key: "sub_label_wait", type: "duration", name: T("Wait for the label", "Attente de l'étiquette"),
+   hint: T("With a label filter, how long a notification waits for Frigate to recognize the object (e.g. 5s). Without a label by then, the object is unknown.",
+     "Avec un filtre d'étiquettes, combien de temps la notification attend que Frigate reconnaisse l'objet (ex. 5s). Sans étiquette d'ici là, l'objet est inconnu.")},
+  {key: "ignore_stationary", type: "bool", name: T("Ignore stationary objects", "Ignorer les objets immobiles"),
+   hint: T("Parked cars, garden furniture…", "Voitures garées, mobilier de jardin…")},
+  {key: "severity", type: "chips", name: T("Severity", "Sévérité"), source: "severity", mode: "reviews",
+   hint: T("Which Frigate reviews trigger a notification.", "Quelles revues Frigate déclenchent une notification.")},
+  {key: "snapshot", type: "bool", name: T("Send the image", "Envoyer l'image")},
+  {key: "crop", type: "bool", name: T("Crop the image on the object", "Recadrer l'image sur l'objet"),
+   hint: T("Much more readable on a phone. Applies to event snapshots.", "Bien plus lisible sur un téléphone. S'applique aux snapshots d'événements.")},
+  {key: "clip", type: "bool", name: T("Send the video clip", "Envoyer le clip vidéo")},
+  {key: "media_in_place", type: "bool", name: T("Video in the same message", "Vidéo dans le même message"),
+   hint: T("The clip (or GIF) replaces the image in the notification, instead of arriving as a new message.",
+     "Le clip (ou le GIF) remplace l'image dans la notification, au lieu d'arriver dans un nouveau message.")},
+  {key: "gif", type: "bool", name: T("Send an animated GIF", "Envoyer un GIF animé")},
+  {key: "genai_description", type: "bool", name: T("Add the GenAI description", "Ajouter la description GenAI"),
+   hint: T("When Frigate publishes it, it is added to the notification's caption.", "Quand Frigate la publie, elle est ajoutée à la légende de la notification.")},
+  {key: "group", type: "duration", globalOnly: true, name: T("Group bursts over", "Regrouper les rafales sur"),
+   hint: T("0s = one message per detection. Applies to every camera.", "0s = un message par détection. S'applique à toutes les caméras.")},
+  {key: "clip_delay", type: "duration", name: T("Wait before fetching the clip", "Attente avant récupération du clip"),
+   hint: T("Gives Frigate time to finish the recording.", "Laisse à Frigate le temps de finaliser l'enregistrement.")},
+  {key: "when_home", type: "choice", name: T("When someone is home", "Quand quelqu'un est à la maison"), presence: true,
+   choices: () => [["notify", T("Notify as usual", "Notifier normalement")], ["silent", T("Silent", "Sans son")], ["skip", T("Nothing", "Rien")]]},
+  {key: "quiet_hours", type: "ranges", name: T("Quiet hours", "Heures calmes"),
+   hint: T("Notifications sent without sound.", "Notifications envoyées sans son.")},
+  {key: "off_hours", type: "ranges", name: T("Off hours", "Heures coupées"),
+   hint: T("No notifications during these ranges.", "Aucune notification pendant ces plages.")},
+];
+const TYPES = Object.fromEntries(FIELDS().map((f) => [f.key, f.type]));
+
+// Les réglages détaillés, rangés par thème ; `extra` ajoute ce qui n'est pas un
+// réglage de notification (le lien vers Frigate, global seulement).
+const GROUPS = () => [
+  {title: T("Recipients and filtering", "Destinataires et filtrage"),
+   keys: ["enabled", "chats", "labels", "zones", "min_score", "ignore_stationary", "severity"]},
+  {title: T("Labels", "Étiquettes"), keys: ["ignore_sub_labels", "ignore_known", "sub_label_wait"]},
+  {title: T("Media", "Médias"),
+   keys: ["snapshot", "crop", "clip", "media_in_place", "gif", "clip_delay", "genai_description"]},
+  {title: T("Pace", "Rythme"), keys: ["cooldown", "group"]},
+  {title: T("Schedule and presence", "Horaires et présence"), keys: ["when_home", "quiet_hours", "off_hours"]},
+  {title: T("Links", "Liens"), keys: [], extra: () => externalURLField(), globalOnly: true},
+];
+
+let data = null;      // réponse de /api/settings
+let overlay = null;   // ce que l'on enregistrera
+let saved = null;     // sérialisation du dernier état enregistré, pour détecter les changements
+
+const $ = (id) => document.getElementById(id);
+
+function clone(v) { return JSON.parse(JSON.stringify(v)); }
+
+function dirty() { return JSON.stringify(overlay) !== saved; }
+
+function touched() {
+  $("save").disabled = !dirty();
+  $("save2").disabled = !dirty();
+  $("savebar").hidden = !dirty();
+  document.body.classList.toggle("has-savebar", dirty());
+  const s = $("status");
+  if (dirty()) { s.textContent = T("Unsaved changes", "Modifications non enregistrées"); s.className = "status dirty"; }
+  else { s.textContent = ""; s.className = "status"; }
+}
+
+function changed() { touched(); render(); }
+
+function message(text, kind) {
+  const box = $("messages");
+  box.innerHTML = "";
+  if (!text) return;
+  const d = document.createElement("div");
+  d.className = "notice " + kind;
+  d.textContent = text;
+  box.appendChild(d);
+}
+
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined) n.setAttribute(k, v);
+  }
+  for (const c of kids) if (c) n.append(c);
+  return n;
+}
+
+// ---- comparaison des réglages ---------------------------------------------
+
+// seconds convertit une durée Go ("1m0s", "90s", "1h30m") en secondes, pour que
+// "1m" et "1m0s" soient reconnus comme identiques.
+function seconds(d) {
+  const unit = {ns: 1e-9, us: 1e-6, ms: 1e-3, s: 1, m: 60, h: 3600};
+  let total = 0;
+  for (const [, n, u] of String(d || "0s").matchAll(/(\d+(?:\.\d+)?)(ns|us|ms|s|m|h)/g)) total += Number(n) * unit[u];
+  return Math.round(total * 1000) / 1000;
+}
+
+function norm(key, v) {
+  switch (TYPES[key]) {
+    case "duration": return seconds(v);
+    case "chips": return (v || []).slice().sort();
+    case "ranges": return v || [];
+    case "bool": return !!v;
+    default: return v;
+  }
+}
+
+function same(key, a, b) { return JSON.stringify(norm(key, a)) === JSON.stringify(norm(key, b)); }
+
+// effective renvoie les réglages effectifs du global, ou d'une caméra.
+function effective(camera) {
+  return camera ? Object.assign({}, overlay.notify, overlay.cameras[camera]) : overlay.notify;
+}
+
+function matches(patch, values) {
+  return Object.entries(patch).every(([k, v]) => same(k, v, values[k]));
+}
+
+// apply pose un choix. Pour une caméra, un choix identique au global efface la
+// surcharge plutôt que de la dupliquer : la caméra suit alors le global.
+function apply(patch, camera) {
+  if (!camera) {
+    Object.assign(overlay.notify, clone(patch));
+    return;
+  }
+  const cam = overlay.cameras[camera];
+  if (matches(patch, overlay.notify)) for (const k of Object.keys(patch)) delete cam[k];
+  else Object.assign(cam, clone(patch));
+}
+
+function inheritsAll(patch, camera) {
+  return Object.keys(patch).every((k) => !(k in overlay.cameras[camera]));
+}
+
+// ---- aperçus façon Telegram -------------------------------------------------
+
+function sampleCamera() {
+  const cams = data.cameras || [];
+  return cams.length ? cams[0].name : T("front door", "entrée");
+}
+
+function preview(style) {
+  const cam = sampleCamera();
+  const p = style.patch;
+  const tg = el("div", {class: "tg", "aria-hidden": "true"});
+
+  const caption = el("div", {class: "cap"},
+    el("b", {text: T("🚶 Person", "🚶 Personne")}), document.createTextNode(" — " + cam),
+    el("br"), document.createTextNode(T("📍 driveway · 87%", "📍 allée · 87 %")),
+    el("br"), document.createTextNode("🕑 14:32:05"),
+    el("br"), el("span", {class: "link", text: T("🔗 Open in Frigate", "🔗 Ouvrir dans Frigate")}));
+  const kb = el("div", {class: "kb"}, el("span", {text: T("📷 Now", "📷 Maintenant")}), el("span", {text: "🎬 Clip"}));
+  const kb2 = el("div", {class: "kb"}, el("span", {text: "🔇 1 h"}), el("span", {text: "⏸️ 30 min"}));
+
+  // La vidéo (ou le GIF) prend la place de l'image : un seul message, montré à la fin.
+  const replaced = p.snapshot && (p.clip || p.gif) && inPlace();
+  const first = el("div", {class: "bubble"});
+  if (p.snapshot) {
+    const zoom = overlay && overlay.notify.crop;
+    const photo = el("div", {class: "photo" + (zoom ? " zoom" : "")}, el("div", {class: "bbox"}), el("div", {class: "who", text: "🚶"}));
+    if (replaced && p.clip) photo.append(el("div", {class: "play", text: "▶"}), el("div", {class: "dur", text: "0:14"}));
+    else if (replaced) photo.append(el("div", {class: "gif", text: "GIF"}));
+    first.append(photo);
+  }
+  first.append(caption, kb, kb2);
+  tg.append(first);
+
+  if ((p.clip || p.gif) && !replaced) {
+    const media = el("div", {class: "photo small"});
+    if (p.clip) media.append(el("div", {class: "play", text: "▶"}), el("div", {class: "dur", text: "0:14"}));
+    else media.append(el("div", {class: "who", text: "🚶"}), el("div", {class: "gif", text: "GIF"}));
+    tg.append(el("div", {class: "bubble"}, el("div", {class: "quote", text: T("🚶 Person — ", "🚶 Personne — ") + cam}), el("div", {style: "height:4px"}), media));
+  }
+  return tg;
+}
+
+// ---- notification d'essai ----------------------------------------------------
+
+// Le test part avec les réglages enregistrés côté serveur : tant que la page a des
+// modifications en attente, on invite à enregistrer d'abord.
+function testButton(camera, label) {
+  const wrap = el("span", {class: "try-one"});
+  const result = el("span", {class: "result"});
+  const btn = el("button", {type: "button", text: label || T("📨 Send me a sample", "📨 M'envoyer un exemple")});
+  btn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const cam = typeof camera === "function" ? camera() : camera;
+    btn.disabled = true;
+    result.className = "result"; result.textContent = T("Sending…", "Envoi…");
+    try {
+      const resp = await api("api/test", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "X-Requested-With": TOKEN},
+        body: JSON.stringify({camera: cam}),
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(body.error || "HTTP " + resp.status);
+      result.className = "result ok"; result.textContent = T("Sent ✓ — check Telegram", "Envoyé ✓ — regardez Telegram");
+    } catch (err) {
+      result.className = "result err"; result.textContent = T("Failed: ", "Échec : ") + err.message;
+    } finally {
+      setTimeout(() => { btn.disabled = dirty(); }, 3000);
+    }
+  });
+  btn.disabled = dirty();
+  if (dirty()) { result.textContent = T("Save first to try these settings.", "Enregistrez d'abord pour essayer ces réglages."); }
+  wrap.append(btn, result);
+  return el("span", {class: "row"}, wrap);
+}
+
+function enabledCameras() {
+  return (data.cameras || []).map((c) => c.name).filter((n) => effective(n).enabled !== false);
+}
+
+function renderTry() {
+  const box = $("try");
+  box.innerHTML = "";
+  if (!data.can_test) return;
+  const cams = enabledCameras();
+  if (!cams.length) return;
+  let pick = () => cams[0];
+  if (cams.length > 1) {
+    const sel = el("select", {"aria-label": T("Camera for the sample", "Caméra de l'exemple")});
+    for (const c of cams) sel.append(el("option", {value: c, text: c}));
+    pick = () => sel.value;
+    box.append(testButton(() => pick()), el("span", {class: "hint", text: T("from", "depuis")}), sel);
+  } else {
+    box.append(testButton(pick));
+  }
+}
+
+// ---- rendu des choix simples ----------------------------------------------
+
+function renderStyles() {
+  const box = $("styles");
+  box.innerHTML = "";
+  const eff = effective(null);
+  for (const st of STYLES()) {
+    const active = matches(st.patch, eff);
+    box.append(el("button", {
+      type: "button", class: "style-card", "aria-pressed": String(active),
+      onclick: () => { apply(st.patch, null); changed(); },
+    },
+      preview(st),
+      el("div", {class: "meta"},
+        el("div", {class: "title"}, el("span", {text: st.label}),
+          st.tag ? el("span", {class: "tag", text: st.tag}) : null,
+          el("span", {class: "check", text: "✓"})),
+        el("div", {class: "desc", text: st.desc}))));
+  }
+  if (!STYLES().some((st) => matches(st.patch, eff))) {
+    box.append(el("p", {class: "hint", text: T("Current setting is custom (see Advanced settings).", "Réglage actuel personnalisé (voir Réglages avancés).")}));
+  }
+}
+
+// externalURLField : l'adresse de Frigate utilisée par le lien « Ouvrir dans Frigate »
+// des notifications. Vide, c'est celle par laquelle le service joint Frigate (FRIGATE_URL).
+function externalURLField() {
+  const valid = (u) => u === "" || /^https?:\/\/[^\s/]+/i.test(u);
+  const input = el("input", {type: "url", class: "url", placeholder: data.frigate_url || "https://frigate.example.com",
+    "aria-label": T("Frigate address for links", "Adresse de Frigate pour les liens")});
+  input.value = overlay.external_url || "";
+  const test = el("a", {class: "test", target: "_blank", rel: "noopener", text: T("Test ↗", "Tester ↗")});
+  const sync = () => {
+    const u = input.value.trim() || data.frigate_url || "";
+    test.hidden = !u || !valid(u);
+    test.href = u || "#";
+  };
+  sync();
+  input.addEventListener("input", sync);
+  input.addEventListener("change", () => {
+    const u = input.value.trim().replace(/\/+$/, "");
+    if (!valid(u)) { input.setCustomValidity(T("Expected an address like https://frigate.example.com", "Adresse attendue du type https://frigate.example.com")); input.reportValidity(); return; }
+    input.setCustomValidity("");
+    overlay.external_url = u;
+    changed();
+  });
+  return el("div", {class: "field"},
+    el("div", {class: "field-head"}, el("span", {class: "name", text: T("“Open in Frigate” link", "Lien « Ouvrir dans Frigate »")})),
+    el("div", {class: "control"}, input, test),
+    el("p", {class: "hint", text: T("Empty: Frigate's address (FRIGATE_URL). Set another one to open Frigate from outside.",
+      "Vide : l'adresse de Frigate (FRIGATE_URL). Mettez-en une autre pour ouvrir Frigate depuis l'extérieur.")}));
+}
+
+// renderFraming : cadrage de l'image et place de la vidéo, pour les modèles concernés.
+function renderFraming() {
+  const box = $("framing");
+  box.innerHTML = "";
+  const n = overlay.notify;
+  if (n.snapshot) {
+    box.append(el("div", {class: "row"}, el("span", {class: "hint", text: T("Framing:", "Cadrage :")}),
+      pills([
+        {label: T("🖼 Wide shot", "🖼 Plan large"), patch: {crop: false}},
+        {label: T("🔍 Zoom on the object", "🔍 Zoom sur l'objet"), patch: {crop: true}},
+      ], null)));
+  }
+  if (n.snapshot && (n.clip || n.gif)) {
+    box.append(el("div", {class: "row"}, el("span", {class: "hint", text: T("Video:", "Vidéo :")}),
+      pills([
+        {label: T("🔁 In the same message", "🔁 Dans le même message"), patch: {media_in_place: true}},
+        {label: T("↩️ As a reply", "↩️ En réponse"), patch: {media_in_place: false}},
+      ], null)));
+  }
+}
+
+// pills rend un groupe de choix exclusifs. Pour une caméra, « Par défaut » en
+// tête retire la surcharge.
+function pills(options, camera) {
+  const eff = effective(camera);
+  const wrap = el("div", {class: "pills"});
+  let any = false;
+  if (camera) {
+    const keys = Object.assign({}, ...options.map((o) => o.patch));
+    const inherit = inheritsAll(keys, camera);
+    any = inherit;
+    wrap.append(el("button", {
+      type: "button", class: "pill", "aria-pressed": String(inherit), text: T("Default", "Par défaut"),
+      onclick: () => { for (const k of Object.keys(keys)) delete overlay.cameras[camera][k]; changed(); },
+    }));
+  }
+  for (const o of options) {
+    const active = !any && matches(o.patch, eff);
+    any = any || active;
+    wrap.append(el("button", {
+      type: "button", class: "pill", "aria-pressed": String(active), text: o.label,
+      onclick: () => { apply(o.patch, camera); changed(); },
+    }));
+  }
+  if (!any) wrap.append(el("span", {class: "pill custom", "aria-pressed": "true", text: T("Custom", "Personnalisé")}));
+  return wrap;
+}
+
+// zonePills : « Partout » ou une sélection de zones de la caméra (choix multiple).
+function zonePills(camera, zones) {
+  const cam = overlay.cameras[camera];
+  const current = effective(camera).zones || [];
+  const set = (next) => {
+    if (same("zones", next, overlay.notify.zones)) delete cam.zones;
+    else cam.zones = next;
+    changed();
+  };
+  const wrap = el("div", {class: "pills"});
+  wrap.append(el("button", {type: "button", class: "pill", "aria-pressed": String(!current.length),
+    text: T("Everywhere", "Partout"), onclick: () => set([])}));
+  for (const z of zones) {
+    const on = current.includes(z);
+    wrap.append(el("button", {type: "button", class: "pill", "aria-pressed": String(on), text: "📍 " + z,
+      onclick: () => set(on ? current.filter((x) => x !== z) : current.concat([z]))}));
+  }
+  for (const z of current) if (!zones.includes(z)) {
+    wrap.append(el("button", {type: "button", class: "pill", "aria-pressed": "true", text: "📍 " + z + T(" (unknown)", " (inconnue)"),
+      title: T("Zone missing from Frigate: click to remove it", "Zone absente de Frigate : cliquer pour la retirer"),
+      onclick: () => set(current.filter((x) => x !== z))}));
+  }
+  return wrap;
+}
+
+function question(title, hint, content) {
+  const q = el("div", {class: "question"}, el("div", {class: "q", text: title}), content);
+  if (hint) q.append(el("p", {class: "hint", text: hint}));
+  return q;
+}
+
+// ---- sensibilité ----------------------------------------------------------------
+
+// scoredHistory : les détections récentes qui ont un score (mode events).
+function scoredHistory() {
+  return (history || []).filter((e) => e.score > 0);
+}
+
+// sensitivityEffect décrit, sur l'activité récente, l'effet d'un score minimal.
+function sensitivityEffect(threshold) {
+  const scored = scoredHistory();
+  if (!scored.length) {
+    return T("Recent activity will show the effect of this setting once there are detections.",
+      "L'activité récente montrera l'effet de ce réglage dès qu'il y aura des détections.");
+  }
+  const dropped = scored.filter((e) => e.score < threshold);
+  const lost = dropped.filter((e) => e.sent).length;
+  if (!dropped.length) {
+    return T(`None of the last ${scored.length} detections would be ignored for a low score.`,
+      `Aucune des ${scored.length} dernières détections ne serait ignorée pour un score trop bas.`);
+  }
+  return T(
+    `Out of the last ${scored.length} detections, ${dropped.length} would be ignored for a low score` +
+      (lost ? `, including ${lost} that were sent.` : "."),
+    `Sur les ${scored.length} dernières détections, ${dropped.length} seraient ignorées pour score trop bas` +
+      (lost ? `, dont ${lost} qui ont été envoyées.` : "."));
+}
+
+function sensitivity() {
+  const ms = overlay.notify.min_score || {default: 0};
+  if (ms.by_label && Object.keys(ms.by_label).length) {
+    return el("p", {class: "hint", text: T("Set per object in Advanced settings.", "Réglé objet par objet dans les réglages avancés.")});
+  }
+  const pct = (v) => Math.round(v * 100) + T("%", " %");
+  const range = el("input", {type: "range", min: "0", max: "0.95", step: "0.05",
+    "aria-label": T("Minimum score", "Score minimal")});
+  range.value = ms.default || 0;
+  const val = el("span", {class: "val", text: pct(Number(range.value))});
+  const effect = el("p", {class: "hint sens-effect", text: sensitivityEffect(Number(range.value))});
+  // Pendant le glissement, on ne met à jour que le texte : redessiner la page ferait
+  // perdre le curseur à l'utilisateur. La valeur est retenue au relâchement.
+  range.addEventListener("input", () => {
+    val.textContent = pct(Number(range.value));
+    effect.textContent = sensitivityEffect(Number(range.value));
+  });
+  range.addEventListener("change", () => { overlay.notify.min_score = {default: clampScore(range.value)}; changed(); });
+  return el("div", {},
+    el("div", {class: "sens"}, range, val),
+    el("div", {class: "sens-ends"},
+      el("span", {text: T("◀ more notifications", "◀ plus de notifications")}),
+      el("span", {text: T("fewer false alarms ▶", "moins de fausses alertes ▶")})),
+    effect);
+}
+
+function renderQuestions() {
+  const box = $("questions");
+  box.innerHTML = "";
+  if ((data.chats || []).length > 1) {
+    box.append(question(T("Who receives the notifications?", "Qui reçoit les notifications ?"), null,
+      CONTROLS.chips(FIELDS()[1], overlay.notify.chats, (v) => { overlay.notify.chats = v; changed(); },
+        {disabled: false, options: data.chats})));
+  }
+  for (const q of QUESTIONS()) {
+    if (q.mode && q.mode !== data.mode) continue;
+    if (q.presence && !data.presence) continue;
+    box.append(question(q.title, q.hint, pills(q.options, null)));
+  }
+  // Étiquettes connues de Frigate (« clio 3 océane », « ohana »…) : les ignorer, ou
+  // ne garder que les inconnus.
+  const subs = data.sub_labels || [];
+  if (subs.length || (overlay.notify.ignore_sub_labels || []).length || overlay.notify.ignore_known) {
+    const known = !!overlay.notify.ignore_known;
+    const content = el("div", {},
+      pills([
+        {label: T("Report everything", "Tout signaler"), patch: {ignore_known: false}},
+        {label: T("🏷 Only unknown objects", "🏷 Seulement les inconnus"), patch: {ignore_known: true}},
+      ], null));
+    if (!known) {
+      content.append(el("div", {class: "hint", text: T("Don't notify for:", "Ne pas prévenir pour :")}),
+        CONTROLS.chips(FIELDS().find((f) => f.key === "ignore_sub_labels"), overlay.notify.ignore_sub_labels,
+          (v) => { overlay.notify.ignore_sub_labels = v; changed(); }, {disabled: false, options: subs.slice().sort()}));
+    }
+    box.append(question(T("Known labels", "Étiquettes connues"),
+      T("Frigate takes a few seconds to recognize an object: with a label filter, notifications wait up to 5 s for it.",
+        "Frigate met quelques secondes à reconnaître un objet : avec un filtre d'étiquettes, les notifications l'attendent jusqu'à 5 s."),
+      content));
+  }
+  // Le score n'existe qu'en mode events : Frigate n'en donne pas pour une revue.
+  if (data.mode !== "reviews") {
+    box.append(question(T("Sensitivity", "Sensibilité"),
+      T("Frigate's confidence that the object is real. Higher = fewer false alarms, but more risk of missing something.",
+        "La confiance de Frigate dans la détection. Plus haut = moins de fausses alertes, mais plus de risque d'en manquer une."),
+      sensitivity()));
+  }
+}
+
+// ---- destinataires ------------------------------------------------------------
+//
+// Chaque destinataire peut restreindre ce qu'il reçoit : certains objets, certains
+// moments. Vide, il reçoit tout ce que les caméras lui envoient.
+
+const DAY = [{from: "07:00", to: "22:00"}];
+
+const RECIPIENT_OBJECTS = () => [
+  {label: T("Everything", "Tout"), patch: {labels: []}},
+  {label: T("🚶 People", "🚶 Personnes"), patch: {labels: ["person"]}},
+  {label: T("🚶🚗 People and cars", "🚶🚗 Personnes et voitures"), patch: {labels: ["car", "person"]}},
+];
+
+const RECIPIENT_WHEN = () => [
+  {label: T("All the time", "Tout le temps"), patch: {quiet_hours: [], off_hours: []}},
+  {label: T("🌙 Only at night", "🌙 Seulement la nuit"), patch: {quiet_hours: [], off_hours: DAY}},
+  {label: T("☀️ Only during the day", "☀️ Seulement le jour"), patch: {quiet_hours: [], off_hours: NIGHT}},
+  {label: T("🔕 Silent at night", "🔕 Sans son la nuit"), patch: {quiet_hours: NIGHT, off_hours: []}},
+];
+
+function recipientValues(chat) {
+  const r = overlay.recipients[chat] || {};
+  return {labels: r.labels || [], quiet_hours: r.quiet_hours || [], off_hours: r.off_hours || []};
+}
+
+function setRecipient(chat, patch) {
+  const r = Object.assign(recipientValues(chat), clone(patch));
+  for (const k of Object.keys(r)) if (!r[k].length) delete r[k];
+  if (Object.keys(r).length) overlay.recipients[chat] = r;
+  else delete overlay.recipients[chat];
+  changed();
+}
+
+function recipientPills(chat, options) {
+  const eff = recipientValues(chat);
+  const wrap = el("div", {class: "pills"});
+  let any = false;
+  for (const o of options) {
+    const active = !any && matches(o.patch, eff);
+    any = any || active;
+    wrap.append(el("button", {type: "button", class: "pill", "aria-pressed": String(active), text: o.label,
+      onclick: () => setRecipient(chat, o.patch)}));
+  }
+  if (!any) wrap.append(el("span", {class: "pill custom", "aria-pressed": "true", text: T("Custom", "Personnalisé")}));
+  return wrap;
+}
+
+function renderRecipients() {
+  const chats = data.chats || [];
+  $("recipients-box").hidden = chats.length < 2;
+  const box = $("recipients");
+  box.innerHTML = "";
+  if (chats.length < 2) return;
+  for (const chat of chats) {
+    box.append(el("div", {class: "recipient"},
+      el("div", {class: "who", text: "👤 " + chat}),
+      el("div", {class: "sub-q", text: T("Receives", "Reçoit")}), recipientPills(chat, RECIPIENT_OBJECTS()),
+      el("div", {class: "sub-q", text: T("When", "Quand")}), recipientPills(chat, RECIPIENT_WHEN())));
+  }
+}
+
+// ---- caméras ----------------------------------------------------------------
+
+function cameraSummary(name) {
+  const eff = effective(name);
+  if (eff.enabled === false) return T("disabled", "désactivée");
+  const n = Object.keys(overlay.cameras[name]).length;
+  const st = STYLES().find((s) => matches(s.patch, eff));
+  const bits = [st ? st.label : T("custom style", "modèle personnalisé")];
+  const labels = eff.labels || [];
+  bits.push(labels.length ? labels.join(", ") : T("all objects", "tous les objets"));
+  if ((eff.zones || []).length) bits.push("📍 " + eff.zones.join(", "));
+  if (!n) bits.push(T("default", "par défaut"));
+  if (untracked(name).length) bits.unshift(T("⚠️ object not tracked by Frigate", "⚠️ objet non suivi par Frigate"));
+  const mute = live && live.mutes.find((m) => m.camera === name);
+  if (mute) bits.unshift(T("🔇 muted ", "🔇 coupée ") + untilText(mute.until));
+  return bits.join(" · ");
+}
+
+// untracked liste les objets demandés que Frigate ne suit pas sur la caméra. Vide
+// si Frigate n'a pas donné sa liste (injoignable) : on ne sait pas, on ne dit rien.
+function untracked(name) {
+  const info = (data.cameras || []).find((c) => c.name === name);
+  if (!info || !info.labels || !info.labels.length) return [];
+  return (effective(name).labels || []).filter((l) => !info.labels.includes(l));
+}
+
+function renderCameras() {
+  const box = $("cameras");
+  const open = new Set([...box.querySelectorAll("details[open]")].map((d) => d.dataset.name));
+  const openMore = new Set([...box.querySelectorAll("details.more[open]")].map((d) => d.dataset.name));
+  box.innerHTML = "";
+  const names = (data.cameras || []).map((c) => c.name);
+  for (const name of Object.keys(overlay.cameras)) if (!names.includes(name)) names.push(name);
+  if (!names.length) {
+    box.append(el("div", {class: "body"}, el("p", {class: "hint", text: T("No known camera.", "Aucune caméra connue.")})));
+    return;
+  }
+  for (const name of names.sort()) {
+    if (!overlay.cameras[name]) overlay.cameras[name] = {};
+    const eff = effective(name);
+    const on = eff.enabled !== false;
+
+    const input = el("input", {type: "checkbox", "aria-label": T("Notifications for ", "Notifications de ") + name});
+    input.checked = on;
+    input.addEventListener("click", (e) => e.stopPropagation()); // ne pas ouvrir/fermer la caméra
+    input.addEventListener("change", () => { apply({enabled: input.checked}, name); changed(); });
+    const toggle = el("label", {class: "toggle", onclick: (e) => e.stopPropagation()}, input, el("span"));
+
+    const d = el("details", {class: "camera" + (on ? "" : " off"), "data-name": name});
+    if (open.has(name)) d.open = true;
+    d.append(el("summary", {}, toggle, el("span", {class: "cam-name", text: name}),
+      el("span", {class: "cam-state", text: cameraSummary(name)})));
+
+    const body = el("div", {class: "body"});
+    body.append(question(T("Notification style", "Modèle de notification"), null,
+      pills(STYLES().map((s) => ({label: s.label, patch: s.patch})), name)));
+    const q = question(T("What should be reported?", "Quoi signaler ?"), null, pills(QUESTIONS()[0].options, name));
+    const missing = untracked(name);
+    if (missing.length) {
+      const list = missing.map((l) => T("“" + l + "”", "« " + l + " »")).join(", ");
+      q.append(el("p", {class: "warn-line", text: T(
+        "⚠️ Frigate doesn't track " + list + " on this camera: these objects will never be reported. Add them to objects.track in Frigate's configuration.",
+        "⚠️ Frigate ne suit pas " + list + " sur cette caméra : ces objets ne seront jamais signalés. Ajoutez-les à objects.track dans la configuration de Frigate.")}));
+    }
+    body.append(q);
+    if (data.presence) {
+      const hq = QUESTIONS().find((q) => q.presence);
+      body.append(question(hq.title, T("E.g. keep outdoor cameras on while you're home.",
+        "Par exemple, garder les caméras extérieures pendant que vous êtes là."), pills(hq.options, name)));
+    }
+    const zones = unionOf("zones", name);
+    if (zones.length) {
+      body.append(question(T("Where?", "Où ?"), T("Only when the object enters one of the chosen zones (defined in Frigate).",
+        "Seulement quand l'objet entre dans une des zones choisies (définies dans Frigate)."),
+        zonePills(name, zones)));
+    }
+    if (data.can_test && on) body.append(el("div", {class: "question"}, testButton(name, T("📨 Test this camera", "📨 Tester cette caméra"))));
+
+    const more = el("details", {class: "more", "data-name": name});
+    if (openMore.has(name)) more.open = true;
+    more.append(el("summary", {text: T("All settings for ", "Tous les réglages de ") + name}));
+    renderGrouped(more, name);
+    more.append(el("div", {class: "row"},
+      el("button", {type: "button", class: "link", text: T("Reset everything to default", "Tout remettre par défaut"),
+        onclick: () => { overlay.cameras[name] = {}; changed(); }})));
+    body.append(more);
+    d.append(body);
+    box.append(d);
+  }
+}
+
+// ---- éditeur détaillé (réglages avancés) -----------------------------------
+
+// Valeur vide par type. Elle sert quand le global n'a rien à hériter : envoyer null
+// reviendrait à ne rien surcharger du tout, le serveur traitant null comme « absent ».
+const EMPTY = {bool: false, chips: [], ranges: [], duration: "0s", score: {default: 0}, choice: "skip"};
+
+function defaultFor(field, inherited) {
+  return clone(inherited === undefined || inherited === null ? EMPTY[field.type] : inherited);
+}
+
+// Chaque constructeur renvoie un élément ; `on(v)` remonte la nouvelle valeur.
+const CONTROLS = {
+  choice(field, value, on, ctx) {
+    const sel = el("select", {onchange: () => on(sel.value)});
+    sel.disabled = ctx.disabled;
+    for (const [v, label] of field.choices()) {
+      const o = el("option", {value: v, text: label});
+      if (v === (value || "skip")) o.selected = true;
+      sel.append(o);
+    }
+    return sel;
+  },
+
+  bool(field, value, on, ctx) {
+    const input = el("input", {type: "checkbox"});
+    input.checked = !!value;
+    input.disabled = ctx.disabled;
+    input.setAttribute("aria-label", field.name);
+    input.addEventListener("change", () => on(input.checked));
+    return el("label", {class: "toggle"}, input, el("span"));
+  },
+
+  duration(field, value, on, ctx) {
+    const input = el("input", {type: "text", class: "dur", placeholder: "60s", pattern: DUR.source});
+    input.value = value || "0s";
+    input.disabled = ctx.disabled;
+    input.addEventListener("change", () => {
+      if (!DUR.test(input.value.trim())) { input.reportValidity(); return; }
+      on(input.value.trim());
+    });
+    return input;
+  },
+
+  chips(field, value, on, ctx) {
+    const selected = Array.isArray(value) ? value.slice() : [];
+    const known = ctx.options.slice();
+    for (const v of selected) if (!known.includes(v)) known.push(v);
+    const wrap = el("div", {class: "chips"});
+    for (const opt of known) {
+      const active = selected.includes(opt);
+      const b = el("button", {
+        type: "button", class: "chip", "aria-pressed": String(active), text: opt,
+        onclick: () => {
+          if (ctx.disabled) return;
+          const next = selected.includes(opt) ? selected.filter((x) => x !== opt) : selected.concat([opt]);
+          on(next);
+        },
+      });
+      if (ctx.disabled) b.disabled = true;
+      wrap.append(b);
+    }
+    if (field.free && !ctx.disabled) {
+      const add = el("input", {type: "text", placeholder: T("add…", "ajouter…"), size: "12"});
+      add.addEventListener("change", () => {
+        const v = add.value.trim();
+        if (v && !selected.includes(v)) on(selected.concat([v]));
+        add.value = "";
+      });
+      wrap.append(add);
+    }
+    if (!known.length && ctx.disabled) wrap.append(el("span", {class: "hint", text: T("none", "aucun")}));
+    return wrap;
+  },
+
+  score(field, value, on, ctx) {
+    const v = value && typeof value === "object" ? value : {default: 0};
+    const byLabel = v.by_label && Object.keys(v.by_label).length ? v.by_label : null;
+    const rows = el("div", {class: "rows"});
+
+    const sel = el("select", {onchange: () => {
+      on(sel.value === "global" ? {default: 0.7} : {default: 0, by_label: {[ctx.options[0] || "person"]: 0.7}});
+    }});
+    sel.disabled = ctx.disabled;
+    for (const [val, label] of [["global", T("One value for every object", "Une valeur pour tous les objets")], ["label", T("One value per object", "Une valeur par objet")]]) {
+      const o = el("option", {value: val, text: label});
+      if ((val === "label") === !!byLabel) o.selected = true;
+      sel.append(o);
+    }
+    rows.append(el("div", {class: "row"}, sel));
+
+    if (!byLabel) {
+      const n = el("input", {type: "number", min: "0", max: "1", step: "0.05"});
+      n.value = v.default ?? 0;
+      n.disabled = ctx.disabled;
+      n.addEventListener("change", () => on({default: clampScore(n.value)}));
+      rows.append(el("div", {class: "row"}, n, el("span", {class: "hint", text: T("0 = no filter, 1 = certainty", "0 = aucun filtre, 1 = certitude")})));
+    } else {
+      for (const [label, score] of Object.entries(byLabel)) {
+        const n = el("input", {type: "number", min: "0", max: "1", step: "0.05"});
+        n.value = score;
+        n.disabled = ctx.disabled;
+        n.addEventListener("change", () => {
+          const next = Object.assign({}, byLabel, {[label]: clampScore(n.value)});
+          on({default: 0, by_label: next});
+        });
+        const del = el("button", {type: "button", class: "icon", text: "✕", title: T("Remove", "Supprimer"),
+          onclick: () => {
+            const next = Object.assign({}, byLabel); delete next[label];
+            on(Object.keys(next).length ? {default: 0, by_label: next} : {default: 0.7});
+          }});
+        del.disabled = ctx.disabled;
+        rows.append(el("div", {class: "row"}, el("span", {class: "lbl", text: label}), n, del));
+      }
+      const remaining = ctx.options.filter((o) => !(o in byLabel));
+      if (remaining.length && !ctx.disabled) {
+        const sel2 = el("select", {onchange: () => {
+          if (!sel2.value) return;
+          on({default: 0, by_label: Object.assign({}, byLabel, {[sel2.value]: 0.7})});
+        }});
+        sel2.append(el("option", {value: "", text: T("Add an object…", "Ajouter un objet…")}));
+        for (const o of remaining) sel2.append(el("option", {value: o, text: o}));
+        rows.append(el("div", {class: "row"}, sel2));
+      }
+      rows.append(el("p", {class: "hint", text: T("An object missing from this list isn't filtered on score.", "Un objet absent de cette liste n'est pas filtré sur le score.")}));
+    }
+    return rows;
+  },
+
+  ranges(field, value, on, ctx) {
+    const list = Array.isArray(value) ? value : [];
+    const rows = el("div", {class: "rows"});
+    list.forEach((r, i) => {
+      const from = el("input", {type: "time"}); from.value = r.from; from.disabled = ctx.disabled;
+      const to = el("input", {type: "time"}); to.value = r.to; to.disabled = ctx.disabled;
+      const upd = () => {
+        const next = clone(list);
+        next[i] = {from: from.value, to: to.value};
+        on(next);
+      };
+      from.addEventListener("change", upd);
+      to.addEventListener("change", upd);
+      const del = el("button", {type: "button", class: "icon", text: "✕", title: T("Remove", "Supprimer"),
+        onclick: () => on(list.filter((_, j) => j !== i))});
+      del.disabled = ctx.disabled;
+      rows.append(el("div", {class: "row"}, el("span", {text: T("from", "de")}), from, el("span", {text: T("to", "à")}), to, del));
+    });
+    if (!ctx.disabled) {
+      rows.append(el("div", {class: "row"},
+        el("button", {type: "button", class: "link", text: T("+ Add a range", "+ Ajouter une plage"),
+          onclick: () => on(list.concat([{from: "22:00", to: "07:00"}]))})));
+    } else if (!list.length) {
+      rows.append(el("span", {class: "hint", text: T("none", "aucune")}));
+    }
+    return rows;
+  },
+};
+
+function clampScore(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return 0;
+  return Math.min(1, Math.max(0, Math.round(n * 100) / 100));
+}
+
+function optionsFor(field, camera) {
+  switch (field.source) {
+    case "chats": return data.chats || [];
+    case "severity": return ["alert", "detection"];
+    case "labels": return unionOf("labels", camera);
+    case "zones": return unionOf("zones", camera);
+    case "sub_labels": return (data.sub_labels || []).slice().sort();
+    default: return [];
+  }
+}
+
+// unionOf rassemble les valeurs proposées : celles de la caméra, ou celles de
+// toutes les caméras pour les réglages par défaut.
+function unionOf(kind, camera) {
+  const cams = camera ? (data.cameras || []).filter((c) => c.name === camera) : (data.cameras || []);
+  const out = [];
+  for (const c of cams) for (const v of c[kind] || []) if (!out.includes(v)) out.push(v);
+  return out.sort();
+}
+
+// renderField dessine un réglage. Sans `camera`, il porte sur les réglages par
+// défaut ; avec, il porte sur la surcharge de cette caméra et gagne une case
+// « personnaliser » qui la crée ou la retire.
+function renderField(field, camera) {
+  if (field.mode && field.mode !== data.mode) return null;
+  if (field.presence && !data.presence) return null;
+  if (field.globalOnly && camera) return null;
+
+  const patch = camera ? overlay.cameras[camera] : overlay.notify;
+  const inherited = camera ? overlay.notify[field.key] : undefined;
+  const custom = !camera || field.key in patch;
+  const value = custom ? patch[field.key] : inherited;
+
+  const head = el("div", {class: "field-head"}, el("span", {class: "name", text: field.name}));
+  if (camera) {
+    head.append(el("span", {class: "spacer"}));
+    const box = el("input", {type: "checkbox"});
+    box.checked = custom;
+    box.addEventListener("change", () => {
+      if (box.checked) patch[field.key] = defaultFor(field, inherited);
+      else delete patch[field.key];
+      changed();
+    });
+    head.append(el("label", {class: "override"}, box, el("span", {text: T("customize", "personnaliser")})));
+  }
+
+  const ctx = {disabled: !custom, options: optionsFor(field, camera)};
+  const control = CONTROLS[field.type](field, value, (v) => {
+    patch[field.key] = v;
+    changed();
+  }, ctx);
+
+  const wrap = el("div", {class: "field"}, head, el("div", {class: "control" + (custom ? "" : " off")}, control));
+  if (field.hint) wrap.append(el("p", {class: "hint", text: field.hint}));
+  return wrap;
+}
+
+// renderGrouped ajoute à `box` les réglages détaillés, groupe par groupe ; un groupe
+// sans aucun réglage à montrer (mode, présence, caméra) est omis.
+function renderGrouped(box, camera) {
+  const byKey = Object.fromEntries(FIELDS().map((f) => [f.key, f]));
+  for (const g of GROUPS()) {
+    if (g.globalOnly && camera) continue;
+    const nodes = [];
+    for (const k of g.keys) {
+      if (camera && k === "enabled") continue; // déjà l'interrupteur de la caméra
+      const node = renderField(byKey[k], camera);
+      if (node) nodes.push(node);
+    }
+    if (g.extra) nodes.push(g.extra());
+    if (nodes.length) box.append(el("div", {class: "fgroup"}, el("h3", {text: g.title}), ...nodes));
+  }
+}
+
+function renderAdvanced() {
+  const g = $("global");
+  g.innerHTML = "";
+  renderGrouped(g, null);
+}
+
+// ---- sommaire -------------------------------------------------------------------
+
+function syncToc() {
+  for (const a of document.querySelectorAll(".toc a")) {
+    const target = $(a.dataset.target);
+    a.parentElement.hidden = !target || target.hidden;
+  }
+}
+
+// tocClicked : le lien choisi dans le sommaire. Une section du bas ne peut pas
+// remonter sous l'en-tête (la page s'arrête avant) : on la garde surlignée
+// jusqu'à ce que l'utilisateur fasse défiler lui-même.
+let tocClicked = null;
+
+// La section « en cours » est la dernière dont le haut est passé sous l'en-tête ;
+// en bas de page, la dernière visible.
+function currentSection() {
+  const links = [...document.querySelectorAll(".toc li:not([hidden]) a")];
+  let current = links[0];
+  for (const a of links) if ($(a.dataset.target).getBoundingClientRect().top <= 120) current = a;
+  if (tocClicked && links.includes(tocClicked)) {
+    current = tocClicked;
+  } else if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+    current = links[links.length - 1];
+  }
+  for (const a of links) a.setAttribute("aria-current", String(a === current));
+}
+
+for (const a of document.querySelectorAll(".toc a")) {
+  a.addEventListener("click", () => {
+    if (a.dataset.target === "advanced") $("advanced").open = true;
+    tocClicked = a;
+    currentSection();
+  });
+}
+for (const ev of ["wheel", "touchmove", "keydown"]) {
+  window.addEventListener(ev, () => { tocClicked = null; }, {passive: true});
+}
+window.addEventListener("scroll", currentSection, {passive: true});
+
+function render() {
+  renderStyles();
+  renderFraming();
+  renderTry();
+  renderQuestions();
+  renderRecipients();
+  renderCameras();
+  renderAdvanced();
+  syncToc();
+  currentSection();
+}
+
+// ---- pause et reprise ---------------------------------------------------------
+
+let live = null; // réponse de /api/state
+
+// presenceName : "homeassistant/person/alice/state" → "alice".
+function presenceName(topic) {
+  const p = topic.split("/");
+  return p.length >= 2 && p[p.length - 1] === "state" ? p[p.length - 2] : p[p.length - 1];
+}
+
+function untilText(iso) {
+  if (!iso) return T("until resumed", "jusqu'à reprise");
+  const d = new Date(iso);
+  const opts = {timeZone: data.timezone, hour: "2-digit", minute: "2-digit"};
+  const day = (x) => x.toLocaleDateString(locale(), {timeZone: data.timezone});
+  if (day(d) !== day(new Date())) Object.assign(opts, {weekday: "long", day: "numeric", month: "long"});
+  return T("until ", "jusqu'à ") + d.toLocaleString(locale(), opts);
+}
+
+async function stateCall(path, body) {
+  try {
+    const resp = await api(path, {
+      method: body ? "POST" : "GET",
+      headers: body ? {"Content-Type": "application/json", "X-Requested-With": TOKEN} : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const v = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(v.error || "HTTP " + resp.status);
+    // Les résumés des caméras affichent les coupures : on ne les redessine que si
+    // elles ont changé, pour ne pas perturber une saisie en cours.
+    const mutesChanged = JSON.stringify(live && live.mutes) !== JSON.stringify(v.mutes);
+    live = v;
+    renderLive();
+    if (mutesChanged && overlay) renderCameras();
+  } catch (e) {
+    if (body) message(T("Action failed:\n", "Action impossible :\n") + e.message, "err");
+  }
+}
+
+function renderLive() {
+  const box = $("live");
+  $("live").hidden = !live;
+  stateBox();
+  if (!live) return;
+  box.innerHTML = "";
+  box.className = "live" + (live.paused ? " paused" : "");
+  if (live.paused) {
+    box.append(el("span", {class: "state"}, el("span", {class: "dot paused"}),
+        el("span", {text: T("Notifications paused ", "Notifications en pause ") + untilText(live.paused_until)})),
+      el("button", {type: "button", class: "primary", text: T("▶ Resume", "▶ Reprendre"),
+        onclick: () => stateCall("api/resume", {})}));
+  } else {
+    const seg = el("span", {class: "seg", role: "group", "aria-label": T("Pause", "Pause")},
+      el("span", {class: "hint", text: T("Pause:", "Pause :")}));
+    for (const [label, minutes] of [["30 min", 30], ["1 h", 60], ["8 h", 480], [T("until resumed", "jusqu'à reprise"), 0]]) {
+      seg.append(el("button", {type: "button", text: label,
+        onclick: () => stateCall("api/pause", {minutes})}));
+    }
+    box.append(el("span", {class: "state"}, el("span", {class: "dot ok pulse"}),
+      el("span", {text: T("Notifications active", "Notifications actives")})), seg);
+  }
+  const sub = el("div", {class: "sub"});
+  if (data && data.presence) {
+    const home = (live.home || []).map(presenceName);
+    sub.append(el("div", {class: "row"}, el("span", {text: home.length
+      ? T("🏠 At home: ", "🏠 À la maison : ") + home.join(", ")
+      : T("🚪 Nobody at home", "🚪 Personne à la maison")})));
+  }
+  if (live.mutes.length) {
+    for (const m of live.mutes) {
+      sub.append(el("div", {class: "row"},
+        el("span", {text: "🔇 " + m.camera + T(" muted ", " coupée ") + untilText(m.until)}),
+        el("button", {type: "button", class: "link", text: T("Re-enable", "Réactiver"),
+          onclick: () => stateCall("api/resume", {camera: m.camera})})));
+    }
+  }
+  if (sub.children.length) box.append(sub);
+}
+
+// ---- état des connexions ----------------------------------------------------------
+
+let health = null; // réponse de /api/health
+let refused = []; // utilisateurs Telegram refusés récemment par le bot
+
+async function loadHealth() {
+  try {
+    const resp = await api("api/health");
+    if (!resp.ok) return;
+    const body = await resp.json();
+    health = body.components;
+    refused = body.refused || [];
+    renderHealth();
+  } catch (e) { /* l'état est un plus : on n'interrompt rien */ }
+}
+
+// stateBox montre la carte d'état dès qu'une de ses parties a quelque chose à dire.
+function stateBox() {
+  $("state-box").hidden = !live && !health;
+  syncToc();
+}
+
+function renderHealth() {
+  $("health").hidden = !health;
+  stateBox();
+  if (!health) return;
+  const line = $("health"), errors = $("health-errors");
+  line.innerHTML = ""; errors.innerHTML = "";
+  line.append(el("span", {class: "lbl", text: T("Connections", "Connexions")}));
+  for (const c of health) {
+    const comp = el("span", {class: "comp", title: c.detail || ""},
+      el("span", {class: "dot " + c.state}), el("span", {class: "n", text: c.name}));
+    if (c.state !== "error" && c.state !== "warn" && c.detail) comp.append(el("span", {class: "d", text: c.detail}));
+    line.append(comp);
+    if (c.state === "error" || c.state === "warn") {
+      const box = el("div", {class: "health-error " + c.state}, el("b", {text: c.name + " — "}), document.createTextNode(c.detail));
+      if (c.hint) box.append(el("div", {class: "fix", text: "👉 " + c.hint}));
+      errors.append(box);
+    }
+  }
+  if (refused.length) errors.append(refusedBox());
+  errors.hidden = !errors.children.length;
+}
+
+// refusedBox liste les utilisateurs que le bot a refusés, avec l'identifiant à
+// ajouter à la configuration : c'est ainsi qu'on trouve le sien à l'installation.
+function refusedBox() {
+  const box = el("div", {class: "health-error warn"},
+    el("b", {text: T("Telegram — users refused by the bot", "Telegram — utilisateurs refusés par le bot")}));
+  const list = el("ul", {class: "refused"});
+  for (const u of refused) {
+    const who = [u.name, u.username && "@" + u.username].filter(Boolean).join(" ") || T("unknown", "inconnu");
+    list.append(el("li", null, document.createTextNode(who + " · " + T("ID ", "identifiant ")),
+      el("code", {text: String(u.id)}), el("span", {class: "when", text: " · " + whenText(u.at)})));
+  }
+  box.append(list, el("div", {class: "fix", text: "👉 " + T(
+    "To allow someone, add their ID to TELEGRAM_CHAT_ID (and to TELEGRAM_ADMINS if you set it), then restart the container.",
+    "Pour autoriser quelqu'un, ajoutez son identifiant à TELEGRAM_CHAT_ID (et à TELEGRAM_ADMINS si vous l'avez défini), puis redémarrez le conteneur.")}));
+  return box;
+}
+
+// ---- activité récente ---------------------------------------------------------
+
+const LABELS = {
+  person: ["🚶", "Person", "Personne"], car: ["🚗", "Car", "Voiture"], dog: ["🐕", "Dog", "Chien"],
+  cat: ["🐈", "Cat", "Chat"], bicycle: ["🚲", "Bicycle", "Vélo"], motorcycle: ["🏍️", "Motorcycle", "Moto"],
+  bird: ["🐦", "Bird", "Oiseau"], package: ["📦", "Package", "Colis"],
+};
+
+function labelText(l) {
+  const x = LABELS[l];
+  return x ? x[0] + " " + T(x[1], x[2]) : "🔔 " + (l || T("Detection", "Détection"));
+}
+
+// Raison d'un filtrage en clair ; `fix` indique si un réglage de la caméra y peut quelque chose.
+const REASONS = () => ({
+  camera_disabled: {text: T("camera disabled", "caméra désactivée"), fix: true},
+  false_positive: {text: T("false positive according to Frigate", "faux positif selon Frigate")},
+  stationary: {text: T("stationary object", "objet immobile"), fix: true},
+  severity: {text: T("severity not selected", "sévérité non retenue"), fix: true},
+  label: {text: T("object type not selected", "type d'objet non suivi"), fix: true},
+  score: {text: T("score too low", "score trop bas"), fix: true},
+  zone: {text: T("outside the chosen zones", "hors des zones choisies"), fix: true},
+  paused: {text: T("notifications paused", "notifications en pause")},
+  muted: {text: T("camera muted", "caméra coupée")},
+  home: {text: T("someone was home", "quelqu'un était à la maison"), fix: true},
+  recipients: {text: T("no recipient for this object or at this time", "aucun destinataire pour cet objet ou à cette heure")},
+  sub_label: {text: T("ignored label", "étiquette ignorée"), fix: true},
+  off_hours: {text: T("during off hours", "pendant les heures coupées"), fix: true},
+  cooldown: {text: T("already reported a moment ago", "déjà signalé il y a peu"), fix: true},
+});
+
+let history = null;
+let historyAll = false;
+
+function whenText(iso) {
+  const d = new Date(iso);
+  const tz = {timeZone: data.timezone};
+  const day = (x) => x.toLocaleDateString(locale(), tz);
+  const time = d.toLocaleTimeString(locale(), Object.assign({hour: "2-digit", minute: "2-digit"}, tz));
+  if (day(d) === day(new Date())) return time;
+  const yesterday = new Date(Date.now() - 86400000);
+  if (day(d) === day(yesterday)) return T("yesterday ", "hier ") + time;
+  return d.toLocaleDateString(locale(), Object.assign({day: "numeric", month: "short"}, tz)) + " " + time;
+}
+
+// openCamera déplie une caméra et y amène la page.
+function openCamera(name) {
+  const d = document.querySelector('details.camera[data-name="' + CSS.escape(name) + '"]');
+  if (!d) return;
+  d.open = true;
+  d.scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+async function loadHistory() {
+  try {
+    const resp = await api("api/history");
+    if (!resp.ok) return;
+    const first = history === null;
+    history = (await resp.json()).entries;
+    renderHistory();
+    if (first && overlay) renderQuestions(); // l'effet du curseur de sensibilité dépend de l'historique
+  } catch (e) { /* l'activité est un plus : on n'interrompt rien */ }
+}
+
+function renderHistory() {
+  $("activity-box").hidden = !history;
+  syncToc();
+  if (!history) return;
+  const list = $("activity");
+  list.innerHTML = "";
+  const shown = historyAll ? history : history.slice(0, 8);
+  if (!history.length) {
+    list.append(el("li", {}, el("span", {class: "hint", text: T("No detection since the service started.", "Aucune détection depuis le démarrage du service.")})));
+  }
+  for (const e of shown) {
+    let thumb;
+    if (e.has_thumb) {
+      thumb = el("img", {class: "thumb", loading: "lazy", alt: "", src: "api/history/" + encodeURIComponent(e.id) + "/thumb"});
+      thumb.addEventListener("error", () => thumb.replaceWith(el("span", {class: "thumb", text: (LABELS[e.label] || ["🔔"])[0]})));
+    } else {
+      thumb = el("span", {class: "thumb", text: (LABELS[e.label] || ["🔔"])[0]});
+    }
+    const details = [e.camera];
+    if (e.zones && e.zones.length) details.push("📍 " + e.zones.join(", "));
+    if (e.score) details.push(Math.round(e.score * 100) + T("%", " %"));
+    details.push(whenText(e.at));
+
+    const out = el("div", {class: "out"});
+    if (e.sent) {
+      out.append(el("span", {class: "ok", text: e.grouped ? T("📦 Grouped", "📦 Regroupée") : T("✅ Sent", "✅ Envoyée")}));
+    } else {
+      const r = REASONS()[e.reason] || {text: e.reason || T("ignored", "ignorée")};
+      out.append(el("span", {class: "no", text: "⛔ " + r.text}));
+      if (r.fix && overlay && overlay.cameras[e.camera]) {
+        out.append(el("br"), el("button", {type: "button", class: "link", text: T("Adjust ", "Régler ") + e.camera,
+          onclick: () => openCamera(e.camera)}));
+      }
+    }
+    list.append(el("li", {}, thumb,
+      el("div", {class: "what"}, el("div", {class: "t", text: labelText(e.label) + (e.sub_label ? " · 🏷 " + e.sub_label : "")}), el("div", {class: "d", text: details.join(" · ")})),
+      out));
+  }
+  const foot = $("activity-foot");
+  foot.innerHTML = "";
+  if (history.length) {
+    const sent = history.filter((e) => e.sent).length;
+    const ignored = history.length - sent;
+    foot.append(el("span", {text: T(
+      `Out of the last ${history.length} detections: ${sent} sent, ${ignored} ignored.`,
+      `Sur les ${history.length} dernières détections : ${sent} envoyée${sent > 1 ? "s" : ""}, ${ignored} ignorée${ignored > 1 ? "s" : ""}.`)}));
+    if (history.length > 8) {
+      foot.append(el("button", {type: "button", class: "link", text: historyAll ? T("Show less", "Afficher moins") : T("Show all", "Tout afficher"),
+        onclick: () => { historyAll = !historyAll; renderHistory(); }}));
+    }
+  }
+}
+
+// ---- chargement et enregistrement -------------------------------------------
+
+// toSend retire les caméras sans aucune surcharge : elles suivent les réglages
+// par défaut et n'ont rien à faire dans le fichier enregistré.
+function toSend() {
+  const cameras = {};
+  for (const [name, patch] of Object.entries(overlay.cameras)) {
+    if (Object.keys(patch).length) cameras[name] = patch;
+  }
+  return {notify: overlay.notify, cameras, recipients: overlay.recipients, external_url: overlay.external_url};
+}
+
+async function load() {
+  const resp = await api("api/settings", {headers: {"Accept": "application/json"}});
+  if (!resp.ok) throw new Error("HTTP " + resp.status + " : " + (await resp.text()));
+  data = await resp.json();
+  overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}, recipients: data.overlay.recipients || {},
+    external_url: data.overlay.external_url || ""};
+  // Chaque caméra connue a une entrée (vide = suit le global) avant la mémorisation
+  // de l'état enregistré, sinon la page se croirait modifiée dès l'ouverture.
+  for (const c of data.cameras || []) if (!overlay.cameras[c.name]) overlay.cameras[c.name] = {};
+  $("mode").textContent = T("mode ", "mode ") + data.mode;
+  $("tz").textContent = data.timezone;
+  $("reset").hidden = !data.custom;
+  message(data.warning || "", "warn");
+  saved = JSON.stringify(overlay);
+  if (data.can_pause) await stateCall("api/state");
+  if (data.can_history) await loadHistory();
+  if (data.can_health) loadHealth(); // peut prendre quelques secondes (essai MQTT) : sans attendre
+  render();
+  touched();
+}
+
+// discard revient au dernier état enregistré.
+function discard() {
+  overlay = JSON.parse(saved);
+  message("", "");
+  render();
+  touched();
+}
+
+async function save() {
+  const btns = [$("save"), $("save2")];
+  for (const b of btns) b.disabled = true;
+  try {
+    const resp = await api("api/settings", {
+      method: "PUT",
+      headers: {"Content-Type": "application/json", "X-Requested-With": TOKEN},
+      body: JSON.stringify(toSend()),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.error || "HTTP " + resp.status);
+    saved = JSON.stringify(overlay);
+    message("", "");
+    $("savebar").hidden = true;
+    document.body.classList.remove("has-savebar");
+    data.custom = true;
+    $("reset").hidden = false;
+    render(); // réactive les boutons d'essai
+    $("status").textContent = T("Saved ✓ — applied immediately", "Enregistré ✓ — appliqué immédiatement");
+    $("status").className = "status saved";
+    setTimeout(touched, 3000);
+  } catch (e) {
+    message(T("Save refused:\n", "Enregistrement refusé :\n") + e.message, "err");
+    for (const b of btns) b.disabled = false;
+  }
+}
+
+async function reset() {
+  if (!confirm(T("Delete the settings saved here and go back to the config.yml ones?",
+    "Supprimer les réglages enregistrés ici et revenir à ceux de config.yml ?"))) return;
+  try {
+    const resp = await api("api/settings/reset", {method: "POST", headers: {"X-Requested-With": TOKEN}});
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.error || "HTTP " + resp.status);
+    }
+    await load();
+  } catch (e) {
+    message(T("Could not go back to config.yml:\n", "Retour à config.yml impossible :\n") + e.message, "err");
+  }
+}
+
+$("save").addEventListener("click", save);
+$("save2").addEventListener("click", save);
+$("discard").addEventListener("click", discard);
+$("reset").addEventListener("click", reset);
+window.addEventListener("beforeunload", (e) => { if (dirty()) e.preventDefault(); });
+
+for (const b of document.querySelectorAll(".lang button")) b.addEventListener("click", () => setLang(b.dataset.lang));
+applyStatic();
+load().catch((e) => message(T("Loading failed:\n", "Chargement impossible :\n") + e.message, "err"));
+// La pause peut aussi changer depuis Telegram : on rafraîchit le bandeau.
+setInterval(() => {
+  if (!data || document.hidden) return;
+  if (data.can_pause) stateCall("api/state");
+  if (data.can_history) loadHistory();
+  if (data.can_health) loadHealth();
+}, 30000);
