@@ -253,7 +253,8 @@ func TestPageIsServed(t *testing.T) {
 			t.Errorf("la page ne charge pas %s", ref)
 		}
 	}
-	for path, want := range map[string]string{"/ui.css": "text/css; charset=utf-8", "/ui.js": "text/javascript; charset=utf-8"} {
+	for path, want := range map[string]string{"/ui.css": "text/css; charset=utf-8", "/ui.js": "text/javascript; charset=utf-8",
+		"/i18n.js": "text/javascript; charset=utf-8"} {
 		resp := do(t, ts, "GET", path, "")
 		if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != want {
 			t.Errorf("%s : statut %d, type %q", path, resp.StatusCode, resp.Header.Get("Content-Type"))
@@ -262,6 +263,12 @@ func TestPageIsServed(t *testing.T) {
 	js, _ := io.ReadAll(do(t, ts, "GET", "/ui.js", "").Body)
 	if !strings.Contains(string(js), "api/settings") {
 		t.Error("le script ne référence pas l'API")
+	}
+	cat, _ := io.ReadAll(do(t, ts, "GET", "/i18n.js", "").Body)
+	for _, want := range []string{`const LANGUAGES = [{"code":"en","name":"English"},{"code":"fr","name":"Français"}]`, `"Help":"Aide"`} {
+		if !strings.Contains(string(cat), want) {
+			t.Errorf("i18n.js ne contient pas %s", want)
+		}
 	}
 	if resp := do(t, ts, "GET", "/web.go", ""); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("/web.go : statut %d, attendu 404", resp.StatusCode)

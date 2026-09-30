@@ -14,30 +14,31 @@ import (
 
 const maxCaption = 1024
 
-var labelNames = map[string]struct{ emoji, en, fr string }{
-	"person":     {"🚶", "Person", "Personne"},
-	"car":        {"🚗", "Car", "Voiture"},
-	"dog":        {"🐕", "Dog", "Chien"},
-	"cat":        {"🐈", "Cat", "Chat"},
-	"bicycle":    {"🚲", "Bicycle", "Vélo"},
-	"motorcycle": {"🏍️", "Motorcycle", "Moto"},
-	"bird":       {"🐦", "Bird", "Oiseau"},
-	"package":    {"📦", "Package", "Colis"},
+// labelNames : emoji et nom (anglais, traduit par le catalogue) des objets courants.
+var labelNames = map[string]struct{ emoji, name string }{
+	"person":     {"🚶", "Person"},
+	"car":        {"🚗", "Car"},
+	"dog":        {"🐕", "Dog"},
+	"cat":        {"🐈", "Cat"},
+	"bicycle":    {"🚲", "Bicycle"},
+	"motorcycle": {"🏍️", "Motorcycle"},
+	"bird":       {"🐦", "Bird"},
+	"package":    {"📦", "Package"},
 }
 
 func labelText(label string, lang i18n.Lang) string {
 	if l, ok := labelNames[label]; ok {
-		return l.emoji + " " + lang.T(l.en, l.fr)
+		return l.emoji + " " + lang.T(l.name)
 	}
 	if label == "" {
-		return "🔔 " + lang.T("Detection", "Détection")
+		return "🔔 " + lang.T("Detection")
 	}
 	return "🔔 " + label
 }
 
 // openInFrigate est le lien « ouvrir dans Frigate » d'une légende.
 func openInFrigate(link string, lang i18n.Lang) string {
-	return "\n🔗 <a href=\"" + html.EscapeString(link) + "\">" + lang.T("Open in Frigate", "Ouvrir dans Frigate") + "</a>"
+	return "\n🔗 <a href=\"" + html.EscapeString(link) + "\">" + lang.T("Open in Frigate") + "</a>"
 }
 
 type captionData struct {
@@ -65,7 +66,7 @@ func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 		details = append(details, "📍 "+esc(strings.Join(d.Zones, ", ")))
 	}
 	if d.HasScore && d.Score > 0 {
-		details = append(details, lang.Tf("%d%%", "%d %%", int(math.Round(d.Score*100))))
+		details = append(details, lang.Tf("%d%%", int(math.Round(d.Score*100))))
 	}
 	if len(details) > 0 {
 		b.WriteString("\n" + strings.Join(details, " · "))
@@ -111,7 +112,7 @@ func buttons(camera, id string, lang i18n.Lang) *telegram.InlineKeyboardMarkup {
 			rows = append(rows, r)
 		}
 	}
-	row([2]string{lang.T("📷 Now", "📷 Maintenant"), actions.Snapshot(camera)}, [2]string{"🎬 Clip", actions.Clip(id)})
+	row([2]string{lang.T("📷 Now"), actions.Snapshot(camera)}, [2]string{"🎬 Clip", actions.Clip(id)})
 	row([2]string{"🔇 1 h", actions.Mute(camera, time.Hour)}, [2]string{"⏸ 30 min", actions.Pause(30 * time.Minute)})
 	return &telegram.InlineKeyboardMarkup{InlineKeyboard: rows}
 }

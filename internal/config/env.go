@@ -34,7 +34,7 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 		}
 		b, err := strconv.ParseBool(v)
 		if err != nil {
-			errs = append(errs, l.Errorf("%s=%q is invalid (true or false)", "%s=%q invalide (true ou false)", name, v))
+			errs = append(errs, l.Errorf("%s=%q is invalid (true or false)", name, v))
 		}
 		return b
 	}
@@ -53,9 +53,7 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 	broker := required("MQTT_BROKER")
 	if len(missing) > 0 {
 		return nil, l.Errorf("missing required environment variables: %s "+
-			"(see docker-compose.yml, or provide a /config/config.yml file)",
-			"variables d'environnement obligatoires manquantes : %s "+
-				"(voir docker-compose.yml, ou fournir un fichier /config/config.yml)", strings.Join(missing, ", "))
+			"(see docker-compose.yml, or provide a /config/config.yml file)", strings.Join(missing, ", "))
 	}
 
 	chats, err := parseChats(chatsRaw, l)
@@ -133,16 +131,15 @@ func parseChats(s string, l i18n.Lang) (map[string]int64, error) {
 		name, idText = strings.TrimSpace(name), strings.TrimSpace(idText)
 		id, err := strconv.ParseInt(idText, 10, 64)
 		if err != nil || id == 0 || name == "" {
-			return nil, l.Errorf("TELEGRAM_CHAT_ID: %q is invalid (expected 123456789, or name=123456789)",
-				"TELEGRAM_CHAT_ID : %q invalide (attendu : 123456789, ou nom=123456789)", item)
+			return nil, l.Errorf("TELEGRAM_CHAT_ID: %q is invalid (expected 123456789, or name=123456789)", item)
 		}
 		if _, dup := chats[name]; dup {
-			return nil, l.Errorf("TELEGRAM_CHAT_ID: duplicate name %q", "TELEGRAM_CHAT_ID : nom %q en double", name)
+			return nil, l.Errorf("TELEGRAM_CHAT_ID: duplicate name %q", name)
 		}
 		chats[name] = id
 	}
 	if len(chats) == 0 {
-		return nil, l.Errorf("TELEGRAM_CHAT_ID contains no ID", "TELEGRAM_CHAT_ID ne contient aucun identifiant")
+		return nil, l.Errorf("TELEGRAM_CHAT_ID contains no ID")
 	}
 	return chats, nil
 }
@@ -160,17 +157,15 @@ func parseAdmins(s string, chats map[string]int64, l i18n.Lang) ([]int64, error)
 		}
 		slices.Sort(admins)
 		if len(admins) == 0 {
-			return nil, l.Errorf("TELEGRAM_ADMINS is required when TELEGRAM_CHAT_ID only lists groups: "+
-				"give the IDs of the users allowed to control the bot",
-				"TELEGRAM_ADMINS est obligatoire quand TELEGRAM_CHAT_ID ne contient que des groupes : "+
-					"indiquer les identifiants des utilisateurs autorisés à piloter le bot")
+			return nil, l.Errorf("TELEGRAM_ADMINS is required when TELEGRAM_CHAT_ID only lists groups: " +
+				"give the IDs of the users allowed to control the bot")
 		}
 		return admins, nil
 	}
 	for _, item := range splitList(s) {
 		id, err := strconv.ParseInt(item, 10, 64)
 		if err != nil || id <= 0 {
-			return nil, l.Errorf("TELEGRAM_ADMINS: %q is invalid (a user ID, positive)", "TELEGRAM_ADMINS : %q invalide (identifiant d'utilisateur, positif)", item)
+			return nil, l.Errorf("TELEGRAM_ADMINS: %q is invalid (a user ID, positive)", item)
 		}
 		admins = append(admins, id)
 	}

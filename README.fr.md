@@ -25,7 +25,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Regroupement des rafales** : les détections rapprochées s'ajoutent au premier message au lieu d'en envoyer de nouveaux
 - **Image recadrée** : le snapshot zoomé sur l'objet détecté, bien plus lisible sur un téléphone
-- En **anglais** ou en **français** : messages Telegram (`LANGUAGE`) et interface web (sélecteur EN / FR)
+- En **anglais** ou en **français** : messages Telegram (`LANGUAGE`) et interface web (sélecteur EN / FR) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
 - **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
@@ -129,7 +129,7 @@ Pour mettre à jour : `docker compose pull && docker compose up -d`.
 | `FRIGATE_URL` | ✅ | API de Frigate, ex. `http://192.168.1.10:5000` (5000 sans auth, 8971 avec auth) |
 | `MQTT_BROKER` | ✅ | Broker MQTT utilisé par Frigate : `hôte`, `hôte:port`, ou `tcp://…` / `ssl://…` |
 | `TZ` | | Fuseau horaire, ex. `Europe/Paris` (défaut : `UTC`) |
-| `LANGUAGE` | | Langue des messages Telegram et des erreurs : `en` (défaut) ou `fr` — **mettre `fr` pour du français** (les journaux restent en anglais) |
+| `LANGUAGE` | | Langue des messages Telegram et des erreurs : `en` (défaut), `fr`, ou toute langue ajoutée dans `internal/i18n/locales/` — **mettre `fr` pour du français** (les journaux restent en anglais) |
 | `WEB_PASSWORD` | | Mot de passe de l'interface web (vide = aucun) |
 | `TELEGRAM_ADMINS` | | Utilisateurs autorisés à piloter le bot (défaut : les chats privés de `TELEGRAM_CHAT_ID` ; obligatoire s'il ne liste que des groupes) |
 | `FRIGATE_EXTERNAL_URL` | | Adresse de Frigate utilisée par les liens « Ouvrir dans Frigate » (défaut : `FRIGATE_URL` ; modifiable aussi dans l'interface web) — à renseigner pour ouvrir Frigate hors de chez vous |
@@ -310,3 +310,26 @@ go build ./cmd/frigate-telegram-enhanced
 
 L'interface web se compose de `internal/web/ui.html`, `ui.css` et `ui.js`, intégrés tels
 quels au binaire : aucune étape de build.
+
+### Traduire
+
+Les textes sont écrits en anglais dans le code. Chaque autre langue a un catalogue,
+`internal/i18n/locales/<code>.json`, qui associe à chaque texte anglais sa traduction —
+pour les messages Telegram, les erreurs et l'interface web :
+
+```json
+{
+  "name": "Deutsch",
+  "messages": {
+    "Help": "Hilfe",
+    "%s back on": "%s wieder an"
+  }
+}
+```
+
+Pour ajouter une langue, copier `fr.json` vers `<code>.json` (`de.json`, `es.json`…),
+changer `name` et traduire les valeurs, en gardant les `%s` et `%d` dans le même ordre. Un
+texte omis s'affiche en anglais. La nouvelle langue est alors acceptée par `LANGUAGE` et
+proposée par le sélecteur de langue de l'interface web. `go test ./internal/i18n/` vérifie
+les catalogues : `%s`/`%d` conservés, et catalogue français à jour avec le code (tout
+texte traduit, aucun en trop).

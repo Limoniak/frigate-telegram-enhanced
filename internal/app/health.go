@@ -72,13 +72,11 @@ func (c *checker) dropped(l i18n.Lang) (web.Component, bool) {
 		loc = time.Local
 	}
 	return web.Component{
-		Name:  l.T("Events", "Événements"),
+		Name:  l.T("Events"),
 		State: web.StateWarn,
 		Detail: l.Tf("%d messages from Frigate ignored since startup, queue full (latest at %s).",
-			"%d messages de Frigate ignorés depuis le démarrage, file d'attente pleine (le dernier à %s).",
 			n, last.In(loc).Format("15:04")),
-		Hint: l.T("Detections may have been missed. Frigate sends more messages than the service can handle: check the machine's load, or reduce the number of tracked objects.",
-			"Des détections ont pu être manquées. Frigate envoie plus de messages que le service n'en traite : vérifiez la charge de la machine, ou réduisez le nombre d'objets suivis."),
+		Hint: l.T("Detections may have been missed. Frigate sends more messages than the service can handle: check the machine's load, or reduce the number of tracked objects."),
 	}, true
 }
 
@@ -86,7 +84,7 @@ func (c *checker) frigate(ctx context.Context, l i18n.Lang) web.Component {
 	comp := web.Component{Name: "Frigate"}
 	v, err := c.fr.Version(ctx)
 	if err == nil {
-		comp.State, comp.Detail = web.StateOK, l.Tf("version %s · %s", "version %s · %s", v, c.cfg.Frigate.URL)
+		comp.State, comp.Detail = web.StateOK, l.Tf("version %s · %s", v, c.cfg.Frigate.URL)
 		return comp
 	}
 	comp.State = web.StateError
@@ -94,22 +92,19 @@ func (c *checker) frigate(ctx context.Context, l i18n.Lang) web.Component {
 	var ue x509.UnknownAuthorityError
 	switch {
 	case errors.Is(err, frigate.ErrAuth):
-		comp.Detail = l.T("Frigate refused the username or password.", "Frigate refuse l'identifiant ou le mot de passe.")
-		comp.Hint = l.T("Check FRIGATE_USERNAME and FRIGATE_PASSWORD.", "Vérifiez FRIGATE_USERNAME et FRIGATE_PASSWORD.")
+		comp.Detail = l.T("Frigate refused the username or password.")
+		comp.Hint = l.T("Check FRIGATE_USERNAME and FRIGATE_PASSWORD.")
 	case errors.As(err, &he) && he.Status == 401:
-		comp.Detail = l.T("Frigate requires authentication.", "Frigate demande une authentification.")
-		comp.Hint = l.T("Set FRIGATE_USERNAME and FRIGATE_PASSWORD, or use port 5000 (no authentication).",
-			"Renseignez FRIGATE_USERNAME et FRIGATE_PASSWORD, ou utilisez le port 5000 (sans authentification).")
+		comp.Detail = l.T("Frigate requires authentication.")
+		comp.Hint = l.T("Set FRIGATE_USERNAME and FRIGATE_PASSWORD, or use port 5000 (no authentication).")
 	case errors.As(err, &he):
-		comp.Detail = l.Tf("Frigate answers HTTP %d at %s.", "Frigate répond HTTP %d à l'adresse %s.", he.Status, c.cfg.Frigate.URL)
-		comp.Hint = l.T("Check FRIGATE_URL: it must point to Frigate's API (port 5000, or 8971 with authentication).",
-			"Vérifiez FRIGATE_URL : elle doit désigner l'API de Frigate (port 5000, ou 8971 avec authentification).")
+		comp.Detail = l.Tf("Frigate answers HTTP %d at %s.", he.Status, c.cfg.Frigate.URL)
+		comp.Hint = l.T("Check FRIGATE_URL: it must point to Frigate's API (port 5000, or 8971 with authentication).")
 	case errors.As(err, &ue) || strings.Contains(err.Error(), "x509"):
-		comp.Detail = l.T("Frigate's HTTPS certificate is not trusted.", "Le certificat HTTPS de Frigate n'est pas reconnu.")
-		comp.Hint = l.T("For a self-signed certificate, set FRIGATE_INSECURE_SKIP_VERIFY=true.",
-			"Pour un certificat auto-signé, mettez FRIGATE_INSECURE_SKIP_VERIFY=true.")
+		comp.Detail = l.T("Frigate's HTTPS certificate is not trusted.")
+		comp.Hint = l.T("For a self-signed certificate, set FRIGATE_INSECURE_SKIP_VERIFY=true.")
 	default:
-		comp.Detail = l.Tf("Frigate is unreachable at %s (%s).", "Frigate est injoignable à l'adresse %s (%s).", c.cfg.Frigate.URL, netCause(err, l))
+		comp.Detail = l.Tf("Frigate is unreachable at %s (%s).", c.cfg.Frigate.URL, netCause(err, l))
 		comp.Hint = unreachableHint("FRIGATE_URL", l)
 	}
 	return comp
@@ -131,21 +126,20 @@ func (c *checker) mqtt(l i18n.Lang) web.Component {
 	if err == nil {
 		// Le broker accepte une connexion : le client principal s'y reconnecte.
 		comp.State = web.StatePending
-		comp.Detail = l.T("The broker accepts the connection; reconnecting…", "Le broker accepte la connexion ; reconnexion en cours…")
+		comp.Detail = l.T("The broker accepts the connection; reconnecting…")
 		return comp
 	}
 	comp.State = web.StateError
 	msg := strings.ToLower(err.Error())
 	switch {
 	case strings.Contains(msg, "not authorized") || strings.Contains(msg, "bad user name or password"):
-		comp.Detail = l.T("The broker refused the username or password.", "Le broker refuse l'identifiant ou le mot de passe.")
-		comp.Hint = l.T("Check MQTT_USERNAME and MQTT_PASSWORD (the same as in Frigate's mqtt section).",
-			"Vérifiez MQTT_USERNAME et MQTT_PASSWORD (les mêmes que dans la section mqtt de Frigate).")
+		comp.Detail = l.T("The broker refused the username or password.")
+		comp.Hint = l.T("Check MQTT_USERNAME and MQTT_PASSWORD (the same as in Frigate's mqtt section).")
 	case strings.Contains(msg, "identifier rejected"):
-		comp.Detail = l.T("The broker rejected the client ID.", "Le broker refuse l'identifiant de client.")
-		comp.Hint = l.T("Set another MQTT_CLIENT_ID.", "Choisissez un autre MQTT_CLIENT_ID.")
+		comp.Detail = l.T("The broker rejected the client ID.")
+		comp.Hint = l.T("Set another MQTT_CLIENT_ID.")
 	default:
-		comp.Detail = l.Tf("The broker is unreachable at %s (%s).", "Le broker est injoignable à l'adresse %s (%s).", c.cfg.MQTT.Broker, netCause(err, l))
+		comp.Detail = l.Tf("The broker is unreachable at %s (%s).", c.cfg.MQTT.Broker, netCause(err, l))
 		comp.Hint = unreachableHint("MQTT_BROKER", l)
 	}
 	return comp
@@ -167,17 +161,14 @@ func (c *checker) telegram(ctx context.Context, l i18n.Lang) web.Component {
 	var ae *telegram.APIError
 	switch {
 	case errors.As(err, &ae) && (ae.Code == 401 || ae.Code == 404):
-		comp.Detail = l.T("Telegram refused the bot token.", "Telegram refuse le token du bot.")
-		comp.Hint = l.T("Check TELEGRAM_TOKEN: copy it again from @BotFather (/mybots → API Token).",
-			"Vérifiez TELEGRAM_TOKEN : recopiez-le depuis @BotFather (/mybots → API Token).")
+		comp.Detail = l.T("Telegram refused the bot token.")
+		comp.Hint = l.T("Check TELEGRAM_TOKEN: copy it again from @BotFather (/mybots → API Token).")
 	case errors.As(err, &ae) && ae.Code == 409:
-		comp.Detail = l.T("Another program is already using this bot.", "Un autre programme utilise déjà ce bot.")
-		comp.Hint = l.T("Stop the other instance (or remove its webhook): a bot can only be read by one program.",
-			"Arrêtez l'autre instance (ou supprimez son webhook) : un bot ne peut être lu que par un seul programme.")
+		comp.Detail = l.T("Another program is already using this bot.")
+		comp.Hint = l.T("Stop the other instance (or remove its webhook): a bot can only be read by one program.")
 	default:
-		comp.Detail = l.Tf("Telegram is unreachable (%s).", "Telegram est injoignable (%s).", netCause(err, l))
-		comp.Hint = l.T("Check that the container can reach the Internet (api.telegram.org).",
-			"Vérifiez que le conteneur a accès à Internet (api.telegram.org).")
+		comp.Detail = l.Tf("Telegram is unreachable (%s).", netCause(err, l))
+		comp.Hint = l.T("Check that the container can reach the Internet (api.telegram.org).")
 	}
 	return comp
 }
@@ -207,19 +198,18 @@ func netCause(err error, l i18n.Lang) string {
 	msg := strings.ToLower(err.Error())
 	switch {
 	case errors.As(err, &dnsErr) || strings.Contains(msg, "no such host"):
-		return l.T("unknown host name", "nom d'hôte inconnu")
+		return l.T("unknown host name")
 	case errors.Is(err, syscall.ECONNREFUSED) || strings.Contains(msg, "connection refused") || strings.Contains(msg, "actively refused"):
-		return l.T("connection refused", "connexion refusée")
+		return l.T("connection refused")
 	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(msg, "timeout") || strings.Contains(msg, "timed out"):
-		return l.T("no answer", "pas de réponse")
+		return l.T("no answer")
 	case errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) ||
 		strings.Contains(msg, "no route to host") || strings.Contains(msg, "network is unreachable"):
-		return l.T("no route to this address", "adresse inaccessible")
+		return l.T("no route to this address")
 	}
 	return err.Error()
 }
 
 func unreachableHint(variable string, l i18n.Lang) string {
-	return l.Tf("Check %s. In Docker, use the machine's IP address rather than localhost, which is the container itself.",
-		"Vérifiez %s. Dans Docker, utilisez l'adresse IP de la machine plutôt que localhost, qui désigne le conteneur lui-même.", variable)
+	return l.Tf("Check %s. In Docker, use the machine's IP address rather than localhost, which is the container itself.", variable)
 }

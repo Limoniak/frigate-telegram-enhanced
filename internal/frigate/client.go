@@ -39,8 +39,7 @@ func (e *HTTPError) Error() string { return fmt.Sprintf("frigate %s: HTTP %d", e
 
 // ErrIncomplete signale un téléchargement que Frigate a cessé d'alimenter avant la
 // fin : il envoie parfois presque tout un clip puis garde la connexion ouverte.
-var ErrIncomplete = i18n.NewError("Frigate stopped sending the clip before the end",
-	"Frigate a cessé d'envoyer le clip avant la fin")
+var ErrIncomplete = i18n.NewError("Frigate stopped sending the clip before the end")
 
 // stallTimeout est le silence au-delà duquel un téléchargement est tenu pour calé.
 const stallTimeout = 15 * time.Second

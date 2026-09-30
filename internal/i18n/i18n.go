@@ -1,11 +1,19 @@
-// Package i18n choisit la langue des textes présentés à l'utilisateur : messages
-// Telegram, erreurs de configuration et réponses de l'interface web. L'anglais est
-// la langue par défaut ; le français est l'autre langue prise en charge.
+// Package i18n translates the texts shown to users: Telegram messages,
+// configuration errors and the web interface.
+//
+// Texts are written in English in the code. Every other language has a catalog,
+// locales/<code>.json, mapping each English text to its translation; a text
+// missing from a catalog is shown in English. Adding a language means adding a
+// catalog: the service, the bot and the web interface all pick it up.
 package i18n
 
 import (
+	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"slices"
 	"strings"
 )
 
@@ -18,58 +26,123 @@ const (
 	Default = EN
 )
 
-// Parse lit une langue ("en", "fr", "fr-FR", "English"…) ; vide donne Default.
+// Catalog is the translation file of a language.
+type Catalog struct {
+	Name     string            `json:"name"`     // the language's own name, e.g. "Français"
+	Messages map[string]string `json:"messages"` // English text → translation
+}
+
+//go:embed locales/*.json
+var locales embed.FS
+
+var catalogs = mustLoad(locales)
+
+func mustLoad(fsys fs.FS) map[Lang]Catalog {
+	out := map[Lang]Catalog{EN: {Name: "English", Messages: map[string]string{}}}
+	files, err := fs.Glob(fsys, "locales/*.json")
+	if err != nil {
+		panic(err)
+	}
+	for _, f := range files {
+		raw, err := fs.ReadFile(fsys, f)
+		if err != nil {
+			panic(err)
+		}
+		var c Catalog
+		if err := json.Unmarshal(raw, &c); err != nil {
+			panic(fmt.Sprintf("i18n: %s: %v", f, err))
+		}
+		code := strings.TrimSuffix(strings.TrimPrefix(f, "locales/"), ".json")
+		out[Lang(code)] = c
+	}
+	return out
+}
+
+// Languages returns the supported languages: English, then the others by code.
+func Languages() []Lang {
+	var out []Lang
+	for l := range catalogs {
+		if l != EN {
+			out = append(out, l)
+		}
+	}
+	slices.Sort(out)
+	return append([]Lang{EN}, out...)
+}
+
+// Catalogs returns every catalog, by language. The result must not be modified.
+func Catalogs() map[Lang]Catalog { return catalogs }
+
+// Name returns the language's own name ("Français"), or its code if unknown.
+func (l Lang) Name() string {
+	if c, ok := catalogs[l]; ok && c.Name != "" {
+		return c.Name
+	}
+	return string(l)
+}
+
+// aliases are the language names accepted besides the codes.
+var aliases = map[string]Lang{"english": EN, "french": FR, "français": FR, "francais": FR}
+
+// Parse reads a language ("en", "fr", "fr-FR", "English"…); empty gives Default.
 func Parse(s string) (Lang, error) {
 	s = strings.ToLower(strings.TrimSpace(s))
-	switch {
-	case s == "":
+	if s == "" {
 		return Default, nil
-	case s == "en" || strings.HasPrefix(s, "en-") || strings.HasPrefix(s, "en_") || s == "english":
-		return EN, nil
-	case s == "fr" || strings.HasPrefix(s, "fr-") || strings.HasPrefix(s, "fr_") || s == "french" || s == "français" || s == "francais":
-		return FR, nil
 	}
-	return Default, fmt.Errorf("unsupported language %q (en or fr) / langue %q non prise en charge (en ou fr)", s, s)
-}
-
-// T renvoie le texte dans la langue l : en pour l'anglais (et toute langue
-// inconnue), fr pour le français.
-func (l Lang) T(en, fr string) string {
-	if l == FR {
-		return fr
+	if l, ok := aliases[s]; ok {
+		return l, nil
 	}
-	return en
+	code, _, _ := strings.Cut(strings.ReplaceAll(s, "_", "-"), "-")
+	if _, ok := catalogs[Lang(code)]; ok {
+		return Lang(code), nil
+	}
+	codes := make([]string, 0, len(catalogs))
+	for _, l := range Languages() {
+		codes = append(codes, string(l))
+	}
+	return Default, NewError("unsupported language %q (%s)", s, strings.Join(codes, ", "))
 }
 
-// Tf est T suivi de fmt.Sprintf.
-func (l Lang) Tf(en, fr string, a ...any) string { return fmt.Sprintf(l.T(en, fr), a...) }
-
-// Errorf est Tf renvoyé comme erreur.
-func (l Lang) Errorf(en, fr string, a ...any) error { return fmt.Errorf(l.T(en, fr), a...) }
-
-// DateTime est le format date + heure d'une notification.
-func (l Lang) DateTime() string { return l.T("Jan 2 15:04:05", "02/01 15:04:05") }
-
-// DateTimeShort est le format date + heure sans les secondes (échéances).
-func (l Lang) DateTimeShort() string { return l.T("Jan 2 15:04", "02/01 15:04") }
-
-// Error est une erreur disponible dans les deux langues. Error() renvoie l'anglais ;
-// Message choisit la langue au moment de l'afficher. Elle sert quand la langue n'est
-// pas connue là où l'erreur naît (décodage d'une durée, par exemple).
-type Error struct{ EN, FR string }
-
-func (e *Error) Error() string { return e.EN }
-
-// NewError construit une Error bilingue, avec les mêmes arguments pour les deux textes.
-func NewError(en, fr string, a ...any) error {
-	return &Error{EN: fmt.Sprintf(en, a...), FR: fmt.Sprintf(fr, a...)}
+// T returns the translation of the English text s in the language l, or s itself
+// when the catalog has none.
+func (l Lang) T(s string) string {
+	if t := catalogs[l].Messages[s]; t != "" {
+		return t
+	}
+	return s
 }
 
-// Message rend err dans la langue l si c'est une Error bilingue, tel quel sinon.
+// Tf is T followed by fmt.Sprintf.
+func (l Lang) Tf(format string, a ...any) string { return fmt.Sprintf(l.T(format), a...) }
+
+// Errorf is Tf returned as an error (%w is supported).
+func (l Lang) Errorf(format string, a ...any) error { return fmt.Errorf(l.T(format), a...) }
+
+// DateTime is the date and time layout of a notification.
+func (l Lang) DateTime() string { return l.T("Jan 2 15:04:05") }
+
+// DateTimeShort is the date and time layout without seconds (deadlines).
+func (l Lang) DateTimeShort() string { return l.T("Jan 2 15:04") }
+
+// Error is an error whose language is chosen when it is shown: Error() gives the
+// English text, Message the translation. It serves where the language is not
+// known when the error is created (decoding a duration, for example).
+type Error struct {
+	format string
+	args   []any
+}
+
+func (e *Error) Error() string { return fmt.Sprintf(e.format, e.args...) }
+
+// NewError builds an Error from an English format and its arguments.
+func NewError(format string, a ...any) error { return &Error{format: format, args: a} }
+
+// Message renders err in the language l if it is an Error, as is otherwise.
 func (l Lang) Message(err error) string {
 	var e *Error
 	if errors.As(err, &e) {
-		return l.T(e.EN, e.FR)
+		return fmt.Sprintf(l.T(e.format), e.args...)
 	}
 	return err.Error()
 }

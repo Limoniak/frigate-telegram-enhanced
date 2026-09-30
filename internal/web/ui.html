@@ -14,29 +14,28 @@
     <div class="brand">
       <span class="logo" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
       <div class="brand-text">
-        <h1 data-t="Frigate notifications|Notifications Frigate">Frigate notifications</h1>
+        <h1 data-t="Frigate notifications">Frigate notifications</h1>
         <span class="sub">frigate-telegram-enhanced</span>
       </div>
     </div>
     <span class="spacer"></span>
     <span class="status" id="status" role="status" aria-live="polite"></span>
     <span class="lang" role="group" aria-label="Language / Langue">
-      <button type="button" data-lang="en" aria-pressed="false">EN</button><button type="button" data-lang="fr" aria-pressed="false">FR</button>
     </span>
-    <button class="primary" id="save" disabled data-t="Save|Enregistrer">Save</button>
+    <button class="primary" id="save" disabled data-t="Save">Save</button>
   </div>
 </header>
 <div class="layout">
 <nav class="toc" id="toc" aria-label="Sections">
-  <p class="toc-title" data-t="On this page|Sur cette page"></p>
+  <p class="toc-title" data-t="On this page"></p>
   <ol>
-    <li><a href="#state-box" data-target="state-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg><span data-t="Status|État"></span></a></li>
-    <li><a href="#sec-style" data-target="sec-style"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span data-t="Notification style|Modèle de notification"></span></a></li>
-    <li><a href="#sec-when" data-target="sec-when"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-t="When|Quand"></span></a></li>
-    <li><a href="#recipients-box" data-target="recipients-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span data-t="Recipients|Destinataires"></span></a></li>
-    <li><a href="#sec-cameras" data-target="sec-cameras"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></svg><span data-t="Cameras|Caméras"></span></a></li>
-    <li><a href="#activity-box" data-target="activity-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span data-t="Recent activity|Activité récente"></span></a></li>
-    <li><a href="#advanced" data-target="advanced"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span data-t="Advanced settings|Réglages avancés"></span></a></li>
+    <li><a href="#state-box" data-target="state-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg><span data-t="Status"></span></a></li>
+    <li><a href="#sec-style" data-target="sec-style"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span data-t="Notification style"></span></a></li>
+    <li><a href="#sec-when" data-target="sec-when"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-t="When"></span></a></li>
+    <li><a href="#recipients-box" data-target="recipients-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span data-t="Recipients"></span></a></li>
+    <li><a href="#sec-cameras" data-target="sec-cameras"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></svg><span data-t="Cameras"></span></a></li>
+    <li><a href="#activity-box" data-target="activity-box"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span data-t="Recent activity"></span></a></li>
+    <li><a href="#advanced" data-target="advanced"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span data-t="Advanced settings"></span></a></li>
   </ol>
 </nav>
 <main>
@@ -52,8 +51,8 @@
     <div class="sec-head">
       <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
       <div>
-        <h2 data-t="What should your notifications look like?|À quoi ressemblent vos notifications ?"></h2>
-        <p class="lead" data-t="Pick a style: every camera uses it, except the ones you set differently below.|Choisissez un modèle : toutes les caméras l'utiliseront, sauf celles que vous réglez autrement plus bas."></p>
+        <h2 data-t="What should your notifications look like?"></h2>
+        <p class="lead" data-t="Pick a style: every camera uses it, except the ones you set differently below."></p>
       </div>
     </div>
     <div class="styles" id="styles"></div>
@@ -64,7 +63,7 @@
   <section id="sec-when">
     <div class="sec-head">
       <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-      <div><h2 data-t="When should you be notified?|Quand être prévenu ?"></h2></div>
+      <div><h2 data-t="When should you be notified?"></h2></div>
     </div>
     <div class="body" id="questions"></div>
   </section>
@@ -73,8 +72,8 @@
     <div class="sec-head">
       <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
       <div>
-        <h2 data-t="Recipients|Destinataires"></h2>
-        <p class="lead" data-t="What each person receives, on top of the camera settings.|Ce que reçoit chaque personne, en plus des réglages des caméras."></p>
+        <h2 data-t="Recipients"></h2>
+        <p class="lead" data-t="What each person receives, on top of the camera settings."></p>
       </div>
     </div>
     <div id="recipients"></div>
@@ -84,8 +83,8 @@
     <div class="sec-head">
       <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></svg></span>
       <div>
-        <h2 data-t="Cameras|Caméras"></h2>
-        <p class="lead" data-t="Turn a camera on or off, or open it to give it another style.|Activez ou coupez une caméra, ou ouvrez-la pour lui donner un autre modèle."></p>
+        <h2 data-t="Cameras"></h2>
+        <p class="lead" data-t="Turn a camera on or off, or open it to give it another style."></p>
       </div>
     </div>
     <div id="cameras"></div>
@@ -95,8 +94,8 @@
     <div class="sec-head">
       <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
       <div>
-        <h2 data-t="Recent activity|Activité récente"></h2>
-        <p class="lead" data-t="Frigate's latest detections and what happened to them — handy to understand why a notification didn't arrive.|Les dernières détections de Frigate et ce qu'il en est advenu — pratique pour comprendre pourquoi une notification n'est pas arrivée."></p>
+        <h2 data-t="Recent activity"></h2>
+        <p class="lead" data-t="Frigate's latest detections and what happened to them — handy to understand why a notification didn't arrive."></p>
       </div>
     </div>
     <ul class="activity" id="activity"></ul>
@@ -106,10 +105,10 @@
   <details class="advanced" id="advanced">
     <summary>
       <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span>
-      <span class="t" data-t="Advanced settings|Réglages avancés"></span>
+      <span class="t" data-t="Advanced settings"></span>
     </summary>
     <div class="body">
-      <p class="hint" data-t="Every setting, for what the choices above don't cover. They apply to every camera, unless it has its own.|Tous les réglages, pour les cas que les choix ci-dessus ne couvrent pas. Ils s'appliquent à toutes les caméras, sauf réglage propre."></p>
+      <p class="hint" data-t="Every setting, for what the choices above don't cover. They apply to every camera, unless it has its own."></p>
       <div id="global"></div>
     </div>
   </details>
@@ -117,17 +116,18 @@
   <footer>
     <span id="mode"></span><span>·</span><span id="tz"></span>
     <span class="spacer"></span>
-    <button class="link danger" id="reset" data-t="Back to the config.yml settings|Revenir aux réglages de config.yml"></button>
+    <button class="link danger" id="reset" data-t="Back to the config.yml settings"></button>
   </footer>
 </main>
 </div>
 
 <div class="savebar" id="savebar" role="region" aria-label="Save / Enregistrer" hidden>
-  <span class="txt"><span class="dot pending"></span><span data-t="Unsaved changes|Modifications non enregistrées"></span></span>
-  <button type="button" id="discard" data-t="Cancel|Annuler"></button>
-  <button type="button" class="primary" id="save2" data-t="Save|Enregistrer"></button>
+  <span class="txt"><span class="dot pending"></span><span data-t="Unsaved changes"></span></span>
+  <button type="button" id="discard" data-t="Cancel"></button>
+  <button type="button" class="primary" id="save2" data-t="Save"></button>
 </div>
 
+<script src="i18n.js"></script>
 <script src="ui.js"></script>
 </body>
 </html>

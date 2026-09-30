@@ -20,7 +20,7 @@ func (d Duration) String() string { return time.Duration(d).String() }
 func (d *Duration) parse(s string) error {
 	v, err := time.ParseDuration(s)
 	if err != nil {
-		return i18n.NewError("invalid duration %q (e.g. 60s, 1h30m)", "durée invalide %q (ex. 60s, 1h30m)", s)
+		return i18n.NewError("invalid duration %q (e.g. 60s, 1h30m)", s)
 	}
 	*d = Duration(v)
 	return nil
@@ -137,7 +137,7 @@ func (t TimeRange) MarshalJSON() ([]byte, error) { return json.Marshal(t.clock()
 func parseClock(s string) (int, error) {
 	tm, err := time.Parse("15:04", s)
 	if err != nil {
-		return 0, i18n.NewError("invalid time %q (HH:MM format)", "heure invalide %q (format HH:MM)", s)
+		return 0, i18n.NewError("invalid time %q (HH:MM format)", s)
 	}
 	return tm.Hour()*60 + tm.Minute(), nil
 }

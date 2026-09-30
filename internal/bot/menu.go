@@ -21,11 +21,11 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 	st := b.State.Status(now)
 
 	var sb strings.Builder
-	sb.WriteString(l.T("🎛 <b>Control</b>\n", "🎛 <b>Contrôle</b>\n"))
+	sb.WriteString(l.T("🎛 <b>Control</b>\n"))
 	if st.PausedUntil.IsZero() {
-		sb.WriteString(l.T("▶️ Notifications active", "▶️ Notifications actives"))
+		sb.WriteString(l.T("▶️ Notifications active"))
 	} else {
-		sb.WriteString(l.T("⏸ Everything paused ", "⏸ Pause globale ") + b.untilText(st.PausedUntil))
+		sb.WriteString(l.T("⏸ Everything paused ") + b.untilText(st.PausedUntil))
 	}
 	if b.Config.Presence.Enabled() {
 		if len(st.Home) > 0 {
@@ -33,9 +33,9 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 			for i, t := range st.Home {
 				names[i] = esc(PresenceName(t))
 			}
-			sb.WriteString(l.T("\n🏠 At home: ", "\n🏠 À la maison : ") + strings.Join(names, ", "))
+			sb.WriteString(l.T("\n🏠 At home: ") + strings.Join(names, ", "))
 		} else {
-			sb.WriteString(l.T("\n🚪 Nobody at home", "\n🚪 Personne à la maison"))
+			sb.WriteString(l.T("\n🚪 Nobody at home"))
 		}
 	}
 
@@ -50,7 +50,7 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 			btn("⏸ 8 h", actions.Pause(8*time.Hour)),
 		})
 	} else {
-		rows = append(rows, []telegram.InlineKeyboardButton{btn(l.T("▶️ Resume", "▶️ Reprendre"), actions.Resume())})
+		rows = append(rows, []telegram.InlineKeyboardButton{btn(l.T("▶️ Resume"), actions.Resume())})
 	}
 
 	cams, err := b.cameras(ctx)
@@ -65,8 +65,7 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 		slices.Sort(cams)
 	}
 	if len(cams) > 0 {
-		sb.WriteString(l.T("\n\nTap a camera to mute it for 1 h, or to turn it back on.",
-			"\n\nTouchez une caméra pour la couper 1 h, ou pour la réactiver."))
+		sb.WriteString(l.T("\n\nTap a camera to mute it for 1 h, or to turn it back on."))
 	}
 	var row []telegram.InlineKeyboardButton
 	for _, cam := range cams {
@@ -83,7 +82,7 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 	if len(row) > 0 {
 		rows = append(rows, row)
 	}
-	rows = append(rows, []telegram.InlineKeyboardButton{btn(l.T("🔄 Refresh", "🔄 Rafraîchir"), actions.Refresh())})
+	rows = append(rows, []telegram.InlineKeyboardButton{btn(l.T("🔄 Refresh"), actions.Refresh())})
 	// Un bouton dont callback_data dépasse la limite de Telegram serait refusé en bloc.
 	for i := range rows {
 		rows[i] = slices.DeleteFunc(rows[i], func(k telegram.InlineKeyboardButton) bool { return len(k.CallbackData) > 64 })

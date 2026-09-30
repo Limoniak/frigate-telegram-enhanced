@@ -165,6 +165,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
 	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
 	mux.Handle("GET /ui.js", h.guard(asset("ui.js", "text/javascript; charset=utf-8")))
+	mux.Handle("GET /i18n.js", h.guard(serve(i18nScript, "text/javascript; charset=utf-8")))
 	mux.Handle("GET /api/settings", h.guard(http.HandlerFunc(h.get)))
 	mux.Handle("PUT /api/settings", h.guard(sameOrigin(http.HandlerFunc(h.put))))
 	mux.Handle("POST /api/settings/reset", h.guard(sameOrigin(http.HandlerFunc(h.reset))))
@@ -195,8 +196,7 @@ func checkHost(allowed []string, def i18n.Lang, next http.Handler) http.Handler 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !hostAllowed(r.Host, allowed) {
 			http.Error(w, requestLang(r, def).T(
-				"host not allowed: add this name to WEB_ALLOWED_HOSTS (web.allowed_hosts), or set WEB_PASSWORD",
-				"hôte non autorisé : ajouter ce nom à WEB_ALLOWED_HOSTS (web.allowed_hosts), ou définir WEB_PASSWORD"), http.StatusForbidden)
+				"host not allowed: add this name to WEB_ALLOWED_HOSTS (web.allowed_hosts), or set WEB_PASSWORD"), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -226,8 +226,7 @@ const requestedWith = "frigate-telegram-enhanced"
 func sameOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Requested-With") != requestedWith {
-			http.Error(w, requestLang(r, i18n.Default).T("request refused: missing X-Requested-With header",
-				"requête refusée : en-tête X-Requested-With manquant"), http.StatusForbidden)
+			http.Error(w, requestLang(r, i18n.Default).T("request refused: missing X-Requested-With header"), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -237,17 +236,45 @@ func sameOrigin(next http.Handler) http.Handler {
 // asset sert un fichier de l'interface. no-store : après une mise à jour du
 // service, le navigateur ne doit pas garder l'ancien script avec la nouvelle page.
 func asset(name, contentType string) http.Handler {
+	body, err := assets.ReadFile(name)
+	if err != nil {
+		panic(err) // embarqué : absent seulement si le code est incohérent
+	}
+	return serve(body, contentType)
+}
+
+func serve(body []byte, contentType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := assets.ReadFile(name)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Cache-Control", "no-store")
 		w.Write(body)
 	})
 }
+
+// i18nScript is i18n.js: the languages and their catalogs, for the page's T().
+var i18nScript = func() []byte {
+	type language struct {
+		Code i18n.Lang `json:"code"`
+		Name string    `json:"name"`
+	}
+	var langs []language
+	catalogs := map[i18n.Lang]map[string]string{}
+	for _, l := range i18n.Languages() {
+		langs = append(langs, language{Code: l, Name: l.Name()})
+		if l != i18n.EN {
+			catalogs[l] = i18n.Catalogs()[l].Messages
+		}
+	}
+	lj, err := json.Marshal(langs)
+	if err != nil {
+		panic(err)
+	}
+	cj, err := json.Marshal(catalogs)
+	if err != nil {
+		panic(err)
+	}
+	return []byte("\"use strict\";\nconst LANGUAGES = " + string(lj) + ";\nconst CATALOGS = " + string(cj) + ";\n")
+}()
 
 // settings est la vue que l'interface charge au démarrage.
 type settings struct {
@@ -292,8 +319,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Frigate injoignable : on affiche au moins les caméras déjà réglées,
 		// pour que l'interface reste utilisable et n'efface rien.
-		s.Warning = h.lang(r).T("Frigate is unreachable: the list of cameras, zones and objects is incomplete.",
-			"Frigate est injoignable : la liste des caméras, zones et objets est incomplète.")
+		s.Warning = h.lang(r).T("Frigate is unreachable: the list of cameras, zones and objects is incomplete.")
 		for _, name := range h.cfg.CameraNames() {
 			cams = append(cams, frigate.CameraInfo{Name: name})
 		}
@@ -365,18 +391,18 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
 
 func (h *Handler) test(w http.ResponseWriter, r *http.Request) {
 	if h.tester == nil {
-		h.writeError(w, r, http.StatusNotFound, i18n.NewError("test notifications are unavailable", "envoi de test indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("test notifications are unavailable"))
 		return
 	}
 	var req struct {
 		Camera string `json:"camera"`
 	}
 	if err := decodeBody(w, r, &req); err != nil || req.Camera == "" {
-		h.writeError(w, r, http.StatusBadRequest, i18n.NewError("missing camera", "caméra manquante"))
+		h.writeError(w, r, http.StatusBadRequest, i18n.NewError("missing camera"))
 		return
 	}
 	if !h.allowTest() {
-		h.writeError(w, r, http.StatusTooManyRequests, i18n.NewError("a test was just sent, wait a few seconds", "un test vient d'être envoyé, patientez quelques secondes"))
+		h.writeError(w, r, http.StatusTooManyRequests, i18n.NewError("a test was just sent, wait a few seconds"))
 		return
 	}
 
@@ -439,7 +465,7 @@ func (h *Handler) writeState(w http.ResponseWriter) {
 
 func (h *Handler) getState(w http.ResponseWriter, r *http.Request) {
 	if h.state == nil {
-		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable", "état indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable"))
 		return
 	}
 	h.writeState(w)
@@ -447,14 +473,14 @@ func (h *Handler) getState(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) pause(w http.ResponseWriter, r *http.Request) {
 	if h.state == nil {
-		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable", "état indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable"))
 		return
 	}
 	var req struct {
 		Minutes int `json:"minutes"`
 	}
 	if err := decodeBody(w, r, &req); err != nil || req.Minutes < 0 || req.Minutes > 7*24*60 {
-		h.writeError(w, r, http.StatusBadRequest, i18n.NewError("invalid duration (0 = until resumed, 7 days at most)", "durée invalide (0 = jusqu'à reprise, 7 jours au plus)"))
+		h.writeError(w, r, http.StatusBadRequest, i18n.NewError("invalid duration (0 = until resumed, 7 days at most)"))
 		return
 	}
 	end := state.Forever
@@ -471,7 +497,7 @@ func (h *Handler) pause(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) resume(w http.ResponseWriter, r *http.Request) {
 	if h.state == nil {
-		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable", "état indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("state unavailable"))
 		return
 	}
 	var req struct {
@@ -497,7 +523,7 @@ func (h *Handler) resume(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
 	if h.health == nil {
-		h.writeError(w, r, http.StatusNotFound, i18n.NewError("health unavailable", "état indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("health unavailable"))
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
@@ -523,7 +549,7 @@ type historyEntryView struct {
 
 func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 	if h.history == nil {
-		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable", "historique indisponible"))
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable"))
 		return
 	}
 	v := historyView{Entries: []historyEntryView{}}
@@ -547,7 +573,7 @@ func (h *Handler) thumb(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	img, err := h.media.GetBytes(ctx, path, maxThumb)
 	if err != nil {
-		http.Error(w, h.lang(r).T("thumbnail unavailable", "miniature indisponible"), http.StatusBadGateway)
+		http.Error(w, h.lang(r).T("thumbnail unavailable"), http.StatusBadGateway)
 		return
 	}
 	w.Header().Set("Content-Type", "image/jpeg")

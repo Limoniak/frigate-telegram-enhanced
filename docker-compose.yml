@@ -20,7 +20,7 @@ services:
 
       # --- Recommended ---------------------------------------------------------
       TZ: "Europe/Paris"
-      LANGUAGE: "en"                           # Telegram messages: en or fr
+      LANGUAGE: "en"                           # Telegram messages: en or fr (see internal/i18n/locales)
       WEB_PASSWORD: ""                         # web interface password (empty = none)
 
       # --- Optional ------------------------------------------------------------

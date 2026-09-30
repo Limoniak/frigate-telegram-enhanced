@@ -416,7 +416,7 @@ func Load(path string) (*Config, error) {
 		return FromEnv(os.LookupEnv)
 	}
 	if err != nil {
-		return nil, envLang(os.LookupEnv).Errorf("reading the configuration: %w", "lecture de la config : %w", err)
+		return nil, envLang(os.LookupEnv).Errorf("reading the configuration: %w", err)
 	}
 	c, err := Parse(raw, os.LookupEnv)
 	if err != nil {
@@ -439,9 +439,9 @@ func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
 	dec.KnownFields(true)
 	if err := dec.Decode(&f); err != nil {
 		if errors.Is(err, io.EOF) {
-			return nil, lang.Errorf("the configuration is empty", "config vide")
+			return nil, lang.Errorf("the configuration is empty")
 		}
-		return nil, lang.Errorf("invalid configuration: %w", "config invalide : %w", err)
+		return nil, lang.Errorf("invalid configuration: %w", err)
 	}
 	if f.Language == "" {
 		f.Language, _ = lookup("LANGUAGE")
@@ -517,16 +517,16 @@ func expandEnv(raw []byte, lookup func(string) (string, bool), lang i18n.Lang) (
 	}
 	var root yaml.Node
 	if err := yaml.Unmarshal(raw, &root); err != nil {
-		return nil, lang.Errorf("invalid configuration: %w", "config invalide : %w", err)
+		return nil, lang.Errorf("invalid configuration: %w", err)
 	}
 	var missing []string
 	expandScalarNodes(&root, lookup, &missing)
 	if len(missing) > 0 {
-		return nil, lang.Errorf("missing environment variables: %s", "variables d'environnement manquantes : %s", strings.Join(missing, ", "))
+		return nil, lang.Errorf("missing environment variables: %s", strings.Join(missing, ", "))
 	}
 	out, err := yaml.Marshal(&root)
 	if err != nil {
-		return nil, lang.Errorf("invalid configuration: %w", "config invalide : %w", err)
+		return nil, lang.Errorf("invalid configuration: %w", err)
 	}
 	return out, nil
 }
@@ -556,39 +556,39 @@ func expandScalarNodes(n *yaml.Node, lookup func(string) (string, bool), missing
 func (c *Config) validate() error {
 	var errs []error
 	l := c.Language
-	add := func(en, fr string, a ...any) { errs = append(errs, l.Errorf(en, fr, a...)) }
+	add := func(format string, a ...any) { errs = append(errs, l.Errorf(format, a...)) }
 
 	loc, err := time.LoadLocation(c.Timezone)
 	if err != nil {
-		add("invalid timezone %q: %v", "timezone %q invalide : %v", c.Timezone, err)
+		add("invalid timezone %q: %v", c.Timezone, err)
 	} else {
 		c.Location = loc
 	}
 	if c.Mode != ModeEvents && c.Mode != ModeReviews {
-		add("invalid mode %q (events or reviews)", "mode %q invalide (events ou reviews)", c.Mode)
+		add("invalid mode %q (events or reviews)", c.Mode)
 	}
 	if c.Frigate.URL == "" {
-		add("frigate.url is required", "frigate.url est obligatoire")
+		add("frigate.url is required")
 	}
 	if c.MQTT.Broker == "" {
-		add("mqtt.broker is required", "mqtt.broker est obligatoire")
+		add("mqtt.broker is required")
 	}
 	if c.Telegram.Token == "" {
-		add("telegram.token is required", "telegram.token est obligatoire")
+		add("telegram.token is required")
 	}
 	if len(c.Telegram.Chats) == 0 {
-		add("telegram.chats must list at least one chat", "telegram.chats doit contenir au moins un chat")
+		add("telegram.chats must list at least one chat")
 	}
 	if len(c.Telegram.Admins) == 0 {
-		add("telegram.admins must list at least one user", "telegram.admins doit contenir au moins un utilisateur")
+		add("telegram.admins must list at least one user")
 	}
 	if c.Web.ProtectMetrics && c.Web.Password == "" {
-		add("web.protect_metrics requires web.password", "web.protect_metrics exige web.password")
+		add("web.protect_metrics requires web.password")
 	}
 	switch c.LogLevel {
 	case "debug", "info", "warn", "error":
 	default:
-		add("invalid log_level %q (debug, info, warn, error)", "log_level %q invalide (debug, info, warn, error)", c.LogLevel)
+		add("invalid log_level %q (debug, info, warn, error)", c.LogLevel)
 	}
 	errs = append(errs, c.validateRecipients(c.recipients, c.Language)...)
 	if err := validateExternalURL(c.externalURL, c.Language); err != nil {
@@ -608,8 +608,7 @@ func validateExternalURL(u string, l i18n.Lang) error {
 	}
 	p, err := url.Parse(u)
 	if err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Host == "" {
-		return l.Errorf("invalid Frigate external URL %q (e.g. https://frigate.example.com)",
-			"adresse externe de Frigate %q invalide (ex. https://frigate.example.com)", u)
+		return l.Errorf("invalid Frigate external URL %q (e.g. https://frigate.example.com)", u)
 	}
 	return nil
 }
@@ -618,8 +617,7 @@ func (c *Config) validateRecipients(rs map[string]Recipient, l i18n.Lang) []erro
 	var errs []error
 	for _, name := range slices.Sorted(maps.Keys(rs)) {
 		if _, ok := c.Telegram.Chats[name]; !ok {
-			errs = append(errs, l.Errorf("recipients: unknown chat %q (see telegram.chats)",
-				"recipients : chat %q inconnu (voir telegram.chats)", name))
+			errs = append(errs, l.Errorf("recipients: unknown chat %q (see telegram.chats)", name))
 		}
 	}
 	return errs
@@ -629,31 +627,30 @@ func (c *Config) validateNotify(where string, n Notify, l i18n.Lang) []error {
 	var errs []error
 	for _, ch := range n.Chats {
 		if _, ok := c.Telegram.Chats[ch]; !ok {
-			errs = append(errs, l.Errorf("%s.chats: unknown chat %q (see telegram.chats)", "%s.chats : chat %q inconnu (voir telegram.chats)", where, ch))
+			errs = append(errs, l.Errorf("%s.chats: unknown chat %q (see telegram.chats)", where, ch))
 		}
 	}
 	for _, s := range n.Severity {
 		if s != "alert" && s != "detection" {
-			errs = append(errs, l.Errorf("%s.severity: invalid value %q (alert or detection)", "%s.severity : valeur %q invalide (alert ou detection)", where, s))
+			errs = append(errs, l.Errorf("%s.severity: invalid value %q (alert or detection)", where, s))
 		}
 	}
 	if !n.MinScore.valid() {
-		errs = append(errs, l.Errorf("%s.min_score must be between 0 and 1", "%s.min_score doit être compris entre 0 et 1", where))
+		errs = append(errs, l.Errorf("%s.min_score must be between 0 and 1", where))
 	}
 	switch n.WhenHome {
 	case HomeNotify, HomeSilent, HomeSkip, "": // vide : réglage antérieur à when_home, vaut HomeSkip
 	default:
-		errs = append(errs, l.Errorf("%s.when_home: invalid value %q (notify, silent or skip)",
-			"%s.when_home : valeur %q invalide (notify, silent ou skip)", where, n.WhenHome))
+		errs = append(errs, l.Errorf("%s.when_home: invalid value %q (notify, silent or skip)", where, n.WhenHome))
 	}
 	if n.Group > time.Hour {
-		errs = append(errs, l.Errorf("%s.group: at most 1h", "%s.group : 1 h au maximum", where))
+		errs = append(errs, l.Errorf("%s.group: at most 1h", where))
 	}
 	if n.SubLabelWait > time.Minute {
-		errs = append(errs, l.Errorf("%s.sub_label_wait: at most 1m", "%s.sub_label_wait : 1 min au maximum", where))
+		errs = append(errs, l.Errorf("%s.sub_label_wait: at most 1m", where))
 	}
 	if n.Cooldown < 0 || n.ClipDelay < 0 || n.Group < 0 || n.SubLabelWait < 0 {
-		errs = append(errs, l.Errorf("%s: durations cannot be negative", "%s : les durées ne peuvent pas être négatives", where))
+		errs = append(errs, l.Errorf("%s: durations cannot be negative", where))
 	}
 	return errs
 }

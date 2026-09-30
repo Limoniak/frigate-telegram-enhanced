@@ -10,7 +10,7 @@
 # Les valeurs ${VAR} viennent des variables d'environnement du conteneur (section
 # environment du compose) ; ${VAR:-défaut} utilise « défaut » si elle n'est pas définie.
 
-language: en                     # langue des messages Telegram et des erreurs : en ou fr
+language: en                     # langue des messages Telegram et des erreurs : en, fr (voir internal/i18n/locales)
 timezone: Europe/Paris
 mode: events                     # events (un message par objet) ou reviews (alertes Frigate ≥ 0.14)
 

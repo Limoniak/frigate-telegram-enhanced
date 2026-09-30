@@ -49,8 +49,7 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 		l := requestLang(r, i18n.Default)
 		if wait := a.blocked(ip); wait > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
-			http.Error(w, l.T("too many wrong passwords, try again in a few minutes",
-				"trop de mots de passe erronés, réessayez dans quelques minutes"), http.StatusTooManyRequests)
+			http.Error(w, l.T("too many wrong passwords, try again in a few minutes"), http.StatusTooManyRequests)
 			return
 		}
 		_, got, ok := r.BasicAuth()
@@ -59,7 +58,7 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 				a.fail(ip)
 			}
 			w.Header().Set("WWW-Authenticate", `Basic realm="frigate-telegram-enhanced", charset="UTF-8"`)
-			http.Error(w, l.T("authentication required", "authentification requise"), http.StatusUnauthorized)
+			http.Error(w, l.T("authentication required"), http.StatusUnauthorized)
 			return
 		}
 		a.succeed(ip)

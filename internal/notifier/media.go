@@ -220,9 +220,9 @@ func isMP4(path string) bool {
 
 func (n *Notifier) tooLargeText(path string) string {
 	l := n.Config.Language
-	text := l.T("🎬 Clip too large for Telegram (over 50 MB).", "🎬 Clip trop volumineux pour Telegram (plus de 50 Mo).")
+	text := l.T("🎬 Clip too large for Telegram (over 50 MB).")
 	if base := n.Config.ExternalURL(); base != "" {
-		text += "\n<a href=\"" + html.EscapeString(base+path) + "\">" + l.T("Download the clip", "Télécharger le clip") + "</a>"
+		text += "\n<a href=\"" + html.EscapeString(base+path) + "\">" + l.T("Download the clip") + "</a>"
 	}
 	return text
 }

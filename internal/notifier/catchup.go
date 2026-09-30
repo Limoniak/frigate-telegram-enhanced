@@ -76,12 +76,12 @@ func (n *Notifier) openAndKnown() (open []string, known map[string]bool) {
 // commencés pendant la coupure, du plus ancien au plus récent.
 func (n *Notifier) missedEvents(ctx context.Context, since time.Time, open []string, known map[string]bool) ([]inMsg, error) {
 	var out []inMsg
-	add := func(typ string, ev frigate.APIEvent) {
+	push := func(typ string, ev frigate.APIEvent) {
 		out = append(out, inMsg{topic: n.topics.events, payload: eventPayload(typ, ev)})
 	}
 	for _, id := range open {
 		if ev, err := n.Frigate.Event(ctx, id); err == nil && ev.EndTime != nil {
-			add("end", ev)
+			push("end", ev)
 		}
 	}
 	evs, err := n.Frigate.EventsSince(ctx, since, catchUpLimit)
@@ -90,9 +90,9 @@ func (n *Notifier) missedEvents(ctx context.Context, since time.Time, open []str
 		if known[ev.ID] {
 			continue
 		}
-		add("new", ev)
+		push("new", ev)
 		if ev.EndTime != nil {
-			add("end", ev)
+			push("end", ev)
 		}
 	}
 	return out, err
@@ -101,13 +101,13 @@ func (n *Notifier) missedEvents(ctx context.Context, since time.Time, open []str
 // missedReviews : même principe que missedEvents, pour le mode reviews.
 func (n *Notifier) missedReviews(ctx context.Context, since time.Time, open []string, known map[string]bool) ([]inMsg, error) {
 	var out []inMsg
-	add := func(typ string, r frigate.Review) {
+	push := func(typ string, r frigate.Review) {
 		b, _ := json.Marshal(frigate.ReviewMessage{Type: typ, After: r})
 		out = append(out, inMsg{topic: n.topics.reviews, payload: b})
 	}
 	for _, id := range open {
 		if r, err := n.Frigate.Review(ctx, id); err == nil && r.EndTime != nil {
-			add("end", r)
+			push("end", r)
 		}
 	}
 	rs, err := n.Frigate.ReviewsSince(ctx, since, catchUpLimit)
@@ -116,9 +116,9 @@ func (n *Notifier) missedReviews(ctx context.Context, since time.Time, open []st
 		if known[r.ID] {
 			continue
 		}
-		add("new", r)
+		push("new", r)
 		if r.EndTime != nil {
-			add("end", r)
+			push("end", r)
 		}
 	}
 	return out, err

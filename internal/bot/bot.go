@@ -141,14 +141,14 @@ func (b *Bot) cameras(ctx context.Context) ([]string, error) {
 // commands est le menu des commandes affiché par Telegram, dans la langue l.
 func commands(l i18n.Lang) []telegram.BotCommand {
 	return []telegram.BotCommand{
-		{Command: "pause", Description: l.T("Pause: /pause [duration] [camera]", "Mettre en pause : /pause [durée] [caméra]")},
-		{Command: "resume", Description: l.T("Resume: /resume [camera]", "Reprendre : /resume [caméra]")},
-		{Command: "status", Description: l.T("Service status", "État du service")},
-		{Command: "cameras", Description: l.T("List cameras", "Liste des caméras")},
-		{Command: "snapshot", Description: l.T("Live image: /snapshot [camera]", "Image en direct : /snapshot [caméra]")},
-		{Command: "last", Description: l.T("Latest event: /last [camera]", "Dernier événement : /last [caméra]")},
-		{Command: "menu", Description: l.T("Control panel: pause, mute cameras", "Tableau de contrôle : pause, couper des caméras")},
-		{Command: "help", Description: l.T("Help", "Aide")},
+		{Command: "pause", Description: l.T("Pause: /pause [duration] [camera]")},
+		{Command: "resume", Description: l.T("Resume: /resume [camera]")},
+		{Command: "status", Description: l.T("Service status")},
+		{Command: "cameras", Description: l.T("List cameras")},
+		{Command: "snapshot", Description: l.T("Live image: /snapshot [camera]")},
+		{Command: "last", Description: l.T("Latest event: /last [camera]")},
+		{Command: "menu", Description: l.T("Control panel: pause, mute cameras")},
+		{Command: "help", Description: l.T("Help")},
 	}
 }
 

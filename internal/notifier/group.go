@@ -77,12 +77,12 @@ func (n *Notifier) groupBlock(g *group) string {
 	}
 	l := n.Config.Language
 	var b strings.Builder
-	b.WriteString("\n\n➕ " + l.Tf("%d more detection(s):", "%d autre(s) détection(s) :", g.count))
+	b.WriteString("\n\n➕ " + l.Tf("%d more detection(s):", g.count))
 	for _, line := range g.lines {
 		b.WriteString("\n• " + line)
 	}
 	if more := g.count - len(g.lines); more > 0 {
-		b.WriteString("\n" + l.Tf("… and %d more", "… et %d de plus", more))
+		b.WriteString("\n" + l.Tf("… and %d more", more))
 	}
 	return b.String()
 }

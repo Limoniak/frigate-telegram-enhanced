@@ -76,7 +76,7 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 		return err
 	}
 	if len(evs) == 0 {
-		_, err := n.Telegram.SendMessage(ctx, chatID, n.Config.Language.T("No event found.", "Aucun événement trouvé."), telegram.SendOptions{})
+		_, err := n.Telegram.SendMessage(ctx, chatID, n.Config.Language.T("No event found."), telegram.SendOptions{})
 		return err
 	}
 	ev := evs[0]
@@ -113,7 +113,7 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 }
 
 // ErrNoRecipient signale une caméra dont les réglages n'ont aucun destinataire.
-var ErrNoRecipient = i18n.NewError("no recipient for this camera", "aucun destinataire pour cette caméra")
+var ErrNoRecipient = i18n.NewError("no recipient for this camera")
 
 // SendTest envoie une notification d'exemple pour camera, telle qu'un vrai
 // événement la produirait avec les réglages en vigueur : destinataires, image en
@@ -126,15 +126,13 @@ func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 		return ErrNoRecipient
 	}
 	l := n.Config.Language
-	caption := "🧪 <b>" + l.T("Test notification", "Notification de test") + "</b> — " + html.EscapeString(camera) +
+	caption := "🧪 <b>" + l.T("Test notification") + "</b> — " + html.EscapeString(camera) +
 		"\n🕑 " + n.Now().In(n.Config.Location).Format(l.DateTime())
 	switch {
 	case cfg.Clip:
-		caption += l.T("\n🎬 On a real event, the video clip will follow as a reply.",
-			"\n🎬 Lors d'un vrai événement, le clip vidéo suivra en réponse.")
+		caption += l.T("\n🎬 On a real event, the video clip will follow as a reply.")
 	case cfg.GIF:
-		caption += l.T("\n🎞 On a real event, an animated GIF will follow as a reply.",
-			"\n🎞 Lors d'un vrai événement, un GIF animé suivra en réponse.")
+		caption += l.T("\n🎞 On a real event, an animated GIF will follow as a reply.")
 	}
 	if link := n.uiLink("/#" + url.PathEscape(camera)); link != "" {
 		caption += openInFrigate(link, l)

@@ -54,7 +54,7 @@ func TestBrowserSmoke(t *testing.T) {
 		}
 	})
 
-	var cameras, activity, health2 string
+	var cameras, activity, health2, saveLabel string
 	err := chromedp.Run(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#cameras .cam-name`),
@@ -68,6 +68,9 @@ func TestBrowserSmoke(t *testing.T) {
 		chromedp.WaitEnabled(`#save`),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#status.saved`),
+		// Le sélecteur de langue vient des catalogues ; en français, la page se traduit.
+		chromedp.Click(`.lang button[data-lang="fr"]`),
+		chromedp.Text(`#save`, &saveLabel),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -84,6 +87,9 @@ func TestBrowserSmoke(t *testing.T) {
 		if !strings.Contains(health2, want) {
 			t.Errorf("état affiché = %q, %s manquant", health2, want)
 		}
+	}
+	if saveLabel != "Enregistrer" {
+		t.Errorf("bouton en français = %q, attendu Enregistrer", saveLabel)
 	}
 	saved, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(saved), "salon") {
