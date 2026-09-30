@@ -15,6 +15,8 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - **events** mode (one message per detected object) or **reviews** mode (grouped alerts, Frigate ≥ 0.14)
 - Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, a link to the clip instead
 - Frigate's GenAI description added to the caption as soon as it is available
+- Frigate's labels (custom classification such as your car's name, faces, license plates) added to the caption as soon as Frigate knows them — `🏷 clio 3`
+- **Label filter**: don't get notified for your own car or cat, or only for unknown objects (waits up to 5 s for Frigate to recognize the object, only when this filter is on)
 - Filters per camera, object, zone, minimum score and severity; cooldown; quiet hours and off hours
 - **Web interface** to configure all of this without editing YAML, applied without a restart
 - Several recipients, with per-camera routing

@@ -13,6 +13,17 @@ func (n *Notifier) handleEvent(ctx context.Context, msg frigate.EventMessage) {
 	ev := msg.After
 	t := n.tracked[ev.ID]
 	if msg.Type == "end" {
+		if t != nil {
+			if t.pending != nil && !t.notified {
+				// Fin pendant l'attente de l'étiquette : on décide maintenant, avec
+				// l'étiquette connue à la fin, pour ne pas perdre la notification.
+				t.subLabel = string(ev.SubLabel)
+				in := *t.pending
+				in.SubLabels = []string{t.subLabel}
+				n.decide(ctx, t, in, n.Now(), true)
+			}
+			n.setSubLabel(ctx, t, string(ev.SubLabel))
+		}
 		n.finish(ctx, t, ev.HasClip)
 		return
 	}
@@ -36,12 +47,17 @@ func (n *Notifier) handleEvent(ctx context.Context, msg frigate.EventMessage) {
 		n.Metrics.EventsReceived.WithLabelValues(ev.Camera, ev.Label).Inc()
 	}
 	t.lastSeen = now
-	if t.notified || t.suppressed {
+	if t.notified {
+		// L'étiquette (classification, plaque) arrive souvent après la notification.
+		n.setSubLabel(ctx, t, string(ev.SubLabel))
+		return
+	}
+	if t.suppressed {
 		return
 	}
 	t.label, t.subLabel, t.zones = ev.Label, string(ev.SubLabel), ev.EnteredZones
 	t.score, t.hasScore = ev.BestScore(), true
-	d := n.Engine.Evaluate(filter.Input{
+	n.decide(ctx, t, filter.Input{
 		Camera:        ev.Camera,
 		Labels:        []string{ev.Label},
 		Score:         ev.BestScore(),
@@ -49,11 +65,6 @@ func (n *Notifier) handleEvent(ctx context.Context, msg frigate.EventMessage) {
 		Zones:         ev.EnteredZones,
 		Stationary:    ev.Stationary,
 		FalsePositive: ev.FalsePositive,
-	}, now)
-	if !d.Notify {
-		t.lastReason = d.Reason
-		t.suppressed = d.Reason == filter.ReasonCooldown
-		return
-	}
-	n.notify(ctx, t, d)
+		SubLabels:     []string{t.subLabel},
+	}, now, false)
 }

@@ -57,7 +57,8 @@ func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	var b strings.Builder
 	b.WriteString("<b>" + esc(labelText(d.Label, lang)) + "</b> — " + esc(d.Camera))
 	if d.SubLabel != "" {
-		b.WriteString(" (" + esc(d.SubLabel) + ")")
+		// Étiquette de Frigate : classification (« clio 3 océane »), visage, plaque.
+		b.WriteString("\n🏷 " + esc(d.SubLabel))
 	}
 	var details []string
 	if len(d.Zones) > 0 {

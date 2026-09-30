@@ -32,6 +32,11 @@ var assets embed.FS
 // réaliste pèse quelques kilo-octets.
 const maxBody = 1 << 20
 
+// SubLabelLister donne les étiquettes connues de Frigate ; facultatif pour CameraLister.
+type SubLabelLister interface {
+	SubLabels(ctx context.Context) ([]string, error)
+}
+
 // CameraLister énumère les caméras de Frigate avec leurs zones et leurs objets suivis.
 type CameraLister interface {
 	CameraDetails(ctx context.Context) ([]frigate.CameraInfo, error)
@@ -240,6 +245,8 @@ type settings struct {
 	Presence bool                 `json:"presence"` // topics de présence configurés
 	// FrigateURL est l'adresse des liens quand aucune adresse externe n'est réglée.
 	FrigateURL string `json:"frigate_url"`
+	// SubLabels : étiquettes connues de Frigate, proposées par le filtre des étiquettes.
+	SubLabels []string `json:"sub_labels"`
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -272,6 +279,12 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.Cameras = cams
+	s.SubLabels = []string{}
+	if sl, ok := h.cameras.(SubLabelLister); ok && err == nil {
+		if subs, err := sl.SubLabels(ctx); err == nil {
+			s.SubLabels = subs
+		}
+	}
 	writeJSON(w, http.StatusOK, s)
 }
 

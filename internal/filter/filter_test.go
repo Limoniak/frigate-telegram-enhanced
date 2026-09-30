@@ -188,3 +188,44 @@ recipients:
 		t.Errorf("aucun destinataire : %+v", d)
 	}
 }
+
+func TestSubLabelFilter(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+timezone: Europe/Paris
+frigate: {url: "http://f"}
+mqtt: {broker: "tcp://m:1883"}
+telegram: {token: t, admins: [1], chats: {moi: 1}}
+notify: {ignore_sub_labels: ["Clio 3 Océane", ohana]}
+cameras:
+  salon: {ignore_known: true}
+`), func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := New(cfg, &fakeState{})
+	noon := time.Date(2026, 9, 28, 15, 0, 0, 0, cfg.Location)
+	in := func(cam, label string, subs ...string) Input {
+		return Input{Camera: cam, Labels: []string{label}, Score: 0.9, HasScore: true, SubLabels: subs}
+	}
+	for _, tc := range []struct {
+		name   string
+		in     Input
+		reason string
+	}{
+		{"voiture ignorée (casse différente)", in("jardin", "car", "clio 3 océane"), ReasonSubLabel},
+		{"chat ignoré", in("jardin", "cat", "ohana"), ReasonSubLabel},
+		{"autre voiture connue", in("jardin", "car", "audi a3 baptiste"), ""},
+		{"voiture sans étiquette", in("jardin", "car"), ""},
+		{"salon : seulement les inconnus", in("salon", "cat", "ulysse"), ReasonSubLabel},
+		{"salon : inconnu", in("salon", "cat"), ""},
+		{"revue : un ignoré et un inconnu", in("jardin", "car", "ohana", ""), ""},
+		{"revue : deux ignorés", in("jardin", "car", "ohana", "clio 3 océane"), ReasonSubLabel},
+	} {
+		if d := e.Evaluate(tc.in, noon); d.Reason != tc.reason || d.Notify != (tc.reason == "") {
+			t.Errorf("%s : %+v, attendu raison %q", tc.name, d, tc.reason)
+		}
+	}
+	if !cfg.ForCamera("jardin").FiltersSubLabels() || cfg.Global().SubLabelWait != 5*time.Second {
+		t.Errorf("attente par défaut = %v", cfg.Global().SubLabelWait)
+	}
+}

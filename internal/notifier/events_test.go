@@ -352,3 +352,43 @@ func TestExternalURLChangeAppliesToLinks(t *testing.T) {
 		t.Fatalf("lien : %+v", photos)
 	}
 }
+
+// withSubLabel ajoute à un message d'événement l'étiquette que Frigate attribue après
+// coup, au format de Frigate 0.18 : ["nom", score].
+func withSubLabel(msg []byte, sub string) []byte {
+	var m map[string]any
+	json.Unmarshal(msg, &m)
+	m["after"].(map[string]any)["sub_label"] = []any{sub, 0.95}
+	b, _ := json.Marshal(m)
+	return b
+}
+
+// L'étiquette (classification, visage : « Océane ») arrive après la notification : la légende est
+// mise à jour, sans nouveau message, et l'activité récente la montre.
+func TestLateSubLabelUpdatesCaption(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", withSubLabel(eventMsg("update", evID, "garage", "person", nil), "Océane"))
+
+	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
+		t.Fatalf("photos = %d : l'étiquette ne doit pas créer de nouveau message", n)
+	}
+	edits := h.tg.byMethod("editMessageCaption")
+	if len(edits) != 2 {
+		t.Fatalf("éditions = %d, attendu une par destinataire", len(edits))
+	}
+	for _, e := range edits {
+		if !strings.Contains(e.Text, "🏷 Océane") {
+			t.Errorf("légende mise à jour :\n%s", e.Text)
+		}
+	}
+	if hist := h.n.History(); hist[0].SubLabel != "Océane" {
+		t.Errorf("historique : %+v", hist[0])
+	}
+	// La même étiquette répétée dans les mises à jour suivantes ne refait pas d'édition.
+	h.send(t, "frigate/events", withSubLabel(eventMsg("update", evID, "garage", "person", nil), "Océane"))
+	if n := len(h.tg.byMethod("editMessageCaption")); n != 2 {
+		t.Errorf("éditions = %d après une étiquette inchangée", n)
+	}
+}

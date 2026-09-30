@@ -69,6 +69,9 @@ notify:                          # réglages globaux, surchargeables par caméra
   off_hours: []                  # aucune notification
   when_home: skip                # quand quelqu'un est à la maison (voir presence) : notify, silent ou skip
   group: 0s                      # regroupe les rafales sur ce délai (ex. 2m) : un message mis à jour ; réglage global
+  ignore_sub_labels: []          # étiquettes de Frigate à ne pas notifier, ex. ["clio 3 océane", ohana]
+  ignore_known: false            # true = seulement les inconnus (tout objet étiqueté est ignoré)
+  sub_label_wait: 5s             # avec un filtre d'étiquettes : attente maximale de l'étiquette
 
 # Présence (facultatif) : quelqu'un est à la maison dès qu'un de ces topics MQTT
 # porte une des valeurs de home_values. Jokers + et # acceptés. Avec Home Assistant,

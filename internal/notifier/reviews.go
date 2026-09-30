@@ -23,6 +23,15 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 			}
 			t.clipPath = frigate.RecordingClipPath(r.Camera, r.StartTime, end)
 			t.eventIDs = r.Data.Detections
+			if t.pending != nil && !t.notified {
+				// Fin pendant l'attente de l'étiquette : on décide maintenant.
+				in := *t.pending
+				in.SubLabels = slices.Clone(r.Data.SubLabels)
+				if len(in.SubLabels) < len(r.Data.Detections) {
+					in.SubLabels = append(in.SubLabels, "")
+				}
+				n.decide(ctx, t, in, now, true)
+			}
 		}
 		n.finish(ctx, t, true)
 		return
@@ -48,7 +57,11 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 	}
 	t.lastSeen = now
 	t.eventIDs = r.Data.Detections
-	if t.notified || t.suppressed {
+	if t.notified {
+		n.setSubLabel(ctx, t, strings.Join(r.Data.SubLabels, ", "))
+		return
+	}
+	if t.suppressed {
 		return
 	}
 	t.zones = r.Data.Zones
@@ -61,18 +74,17 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 		t.snapshotPath = frigate.EventSnapshotPath(r.Data.Detections[0])
 	}
 	t.clipPath = frigate.RecordingClipPath(r.Camera, r.StartTime, float64(now.Unix())) // remplacé à la fin
-	d := n.Engine.Evaluate(filter.Input{
-		Camera:   r.Camera,
-		Labels:   r.Data.Objects,
-		Zones:    r.Data.Zones,
-		Severity: r.Severity,
-	}, now)
-	if !d.Notify {
-		t.lastReason = d.Reason
-		t.suppressed = d.Reason == filter.ReasonCooldown
-		return
+	subs := slices.Clone(r.Data.SubLabels)
+	if len(subs) < len(r.Data.Detections) {
+		subs = append(subs, "") // des objets sans étiquette : peut-être des inconnus
 	}
-	n.notify(ctx, t, d)
+	n.decide(ctx, t, filter.Input{
+		Camera:    r.Camera,
+		Labels:    r.Data.Objects,
+		Zones:     r.Data.Zones,
+		Severity:  r.Severity,
+		SubLabels: subs,
+	}, now, false)
 }
 
 // handleUpdate ajoute la description GenAI aux messages déjà envoyés. Appelé sous n.mu.

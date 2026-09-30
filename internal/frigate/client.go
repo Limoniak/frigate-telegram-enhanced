@@ -320,3 +320,11 @@ func (c *Client) Version(ctx context.Context) (string, error) {
 	}
 	return strings.Trim(strings.TrimSpace(string(b)), `"`), nil
 }
+
+// SubLabels renvoie les étiquettes connues de Frigate (classification, visages,
+// plaques nommées) : « clio 3 océane », « ohana »…
+func (c *Client) SubLabels(ctx context.Context) ([]string, error) {
+	var out []string
+	err := c.getJSON(ctx, "/api/sub_labels?split_joined=1", &out)
+	return out, err
+}

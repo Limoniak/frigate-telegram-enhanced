@@ -15,6 +15,8 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - Mode **events** (un message par objet détecté) ou **reviews** (alertes regroupées, Frigate ≥ 0.14)
 - Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, un lien vers le clip
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
+- Étiquettes de Frigate (classification personnalisée comme le nom de ta voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
+- **Filtre sur les étiquettes** : ne pas être prévenu pour ta voiture ou ton chat, ou seulement pour les inconnus (attend jusqu'à 5 s que Frigate reconnaisse l'objet, seulement avec ce filtre)
 - Filtres par caméra, objet, zone, score minimum et sévérité ; cooldown ; plages silencieuses et plages coupées
 - **Interface web** pour régler tout cela sans éditer de YAML, appliquée sans redémarrage
 - Plusieurs destinataires avec routage par caméra

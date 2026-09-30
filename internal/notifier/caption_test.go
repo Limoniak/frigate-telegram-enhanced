@@ -25,7 +25,7 @@ func TestBuildCaption(t *testing.T) {
 		Start: time.Date(2026, 9, 28, 14, 32, 5, 0, time.UTC),
 		Link:  "https://nvr.example/explore?event_id=abc",
 	}, paris(t), i18n.FR)
-	want := "<b>🚶 Personne</b> — jardin (Alice)\n" +
+	want := "<b>🚶 Personne</b> — jardin\n🏷 Alice\n" +
 		"📍 allee, portail · 87 %\n" +
 		"🕑 28/09 16:32:05\n" +
 		"🔗 <a href=\"https://nvr.example/explore?event_id=abc\">Ouvrir dans Frigate</a>"

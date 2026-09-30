@@ -43,6 +43,8 @@ type Telegram interface {
 }
 
 type Deps struct {
+	// Schedule lance f après d (défaut : time.AfterFunc) ; remplaçable en test.
+	Schedule           func(d time.Duration, f func())
 	Config             *config.Config
 	Engine             *filter.Engine
 	State              *state.Store
@@ -115,6 +117,9 @@ type tracked struct {
 	messages map[string]sentMsg // nom du chat → message envoyé
 	groups   map[string]*group  // regroupements dont t est la tête, par chat (sous n.mu)
 	grouped  bool               // ajouté au message d'une autre notification
+	// pending : détection qui serait notifiée, en attente de son étiquette pour le
+	// filtre des étiquettes (voir decide) ; nil sinon.
+	pending *filter.Input
 }
 
 func (t *tracked) setMessage(chat string, m sentMsg) {
@@ -141,6 +146,9 @@ func New(d Deps) *Notifier {
 	}
 	if d.Log == nil {
 		d.Log = slog.Default()
+	}
+	if d.Schedule == nil {
+		d.Schedule = func(wait time.Duration, f func()) { time.AfterFunc(wait, f) }
 	}
 	if d.MediaWorkers == 0 {
 		d.MediaWorkers = defaultMediaWorkers
@@ -211,6 +219,8 @@ func (n *Notifier) Process(ctx context.Context, topic string, payload []byte) {
 		if msg, err = frigate.ParseReviewMessage(payload); err == nil {
 			n.handleReview(ctx, msg)
 		}
+	case recheckTopic:
+		n.recheck(ctx, string(payload))
 	case n.topics.updates:
 		var u frigate.TrackedObjectUpdate
 		if u, err = frigate.ParseTrackedObjectUpdate(payload); err == nil {
@@ -389,4 +399,60 @@ func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool) {
 		path, inPlace := t.gifPath, cfg.MediaInPlace && !clip
 		n.goAsync(func() { n.sendFollowUp(ctx, t, "animation", path, chats, 0, inPlace) })
 	}
+}
+
+// setSubLabel enregistre l'étiquette que Frigate attribue à un objet déjà notifié
+// (classification personnalisée, visage, plaque) et met à jour la légende des
+// messages envoyés, sans nouvelle sonnerie. Appelé sous n.mu.
+func (n *Notifier) setSubLabel(ctx context.Context, t *tracked, sub string) {
+	if sub == "" || sub == t.subLabel {
+		return
+	}
+	t.subLabel = sub
+	n.updateHistory(t)
+	for _, chat := range t.chats {
+		n.goAsync(func() { n.editCaption(ctx, t, chat) })
+	}
+}
+
+// recheckTopic est un « topic » interne : la fin de l'attente d'une étiquette passe
+// par la même file que les messages MQTT, pour être traitée sous n.mu, dans l'ordre.
+const recheckTopic = "\x00recheck-sub-label"
+
+// decide évalue une détection non encore notifiée et la notifie, la refuse, ou la
+// met en attente de son étiquette : avec un filtre sur les étiquettes, une détection
+// sans étiquette attend jusqu'à SubLabelWait que Frigate la classe. final (fin de
+// l'attente ou de l'événement) notifie sans plus attendre : l'objet est un inconnu.
+// Appelé sous n.mu.
+func (n *Notifier) decide(ctx context.Context, t *tracked, in filter.Input, now time.Time, final bool) {
+	d := n.Engine.Evaluate(in, now)
+	if !d.Notify {
+		t.lastReason = d.Reason
+		t.suppressed = d.Reason == filter.ReasonCooldown
+		t.pending = nil
+		return
+	}
+	cfg := n.Config.ForCamera(t.camera)
+	known := slices.ContainsFunc(in.SubLabels, func(s string) bool { return s != "" })
+	if !final && !known && cfg.FiltersSubLabels() && cfg.SubLabelWait > 0 {
+		if t.pending == nil {
+			id := t.id
+			n.Schedule(cfg.SubLabelWait, func() { n.Handle(recheckTopic, []byte(id)) })
+		}
+		t.pending = &in // la dernière version de la détection sera évaluée à la fin
+		return
+	}
+	t.pending = nil
+	n.notify(ctx, t, d)
+}
+
+// recheck termine l'attente de l'étiquette d'une détection : sans étiquette arrivée
+// entre-temps, l'objet est tenu pour inconnu et notifié (si les autres règles le
+// permettent toujours). Appelé sous n.mu.
+func (n *Notifier) recheck(ctx context.Context, id string) {
+	t := n.tracked[id]
+	if t == nil || t.pending == nil || t.notified || t.suppressed {
+		return
+	}
+	n.decide(ctx, t, *t.pending, n.Now(), true)
 }

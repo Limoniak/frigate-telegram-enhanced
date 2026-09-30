@@ -695,6 +695,15 @@ const FIELDS = () => [
   {key: "min_score", type: "score", name: T("Minimum score", "Score minimal"), source: "labels"},
   {key: "cooldown", type: "duration", name: T("Delay between two notifications", "Délai entre deux notifications"),
    hint: T("Per camera and per object. E.g. 60s, 5m, 1h30m.", "Par caméra et par objet. Ex. 60s, 5m, 1h30m.")},
+  {key: "ignore_sub_labels", type: "chips", source: "sub_labels", free: true,
+   name: T("Don't notify for these labels", "Ne pas prévenir pour ces étiquettes"),
+   hint: T("Frigate's labels (custom classification, faces, plates), e.g. your own car or cat.",
+     "Les étiquettes de Frigate (classification personnalisée, visages, plaques), par exemple ta voiture ou ton chat.")},
+  {key: "ignore_known", type: "bool", name: T("Only unknown objects", "Seulement les inconnus"),
+   hint: T("Every object Frigate recognizes (with a label) is ignored.", "Tout objet que Frigate reconnaît (avec une étiquette) est ignoré.")},
+  {key: "sub_label_wait", type: "duration", name: T("Wait for the label", "Attente de l'étiquette"),
+   hint: T("With a label filter, how long a notification waits for Frigate to recognize the object (e.g. 5s). Without a label by then, the object is unknown.",
+     "Avec un filtre d'étiquettes, combien de temps la notification attend que Frigate reconnaisse l'objet (ex. 5s). Sans étiquette d'ici là, l'objet est inconnu.")},
   {key: "ignore_stationary", type: "bool", name: T("Ignore stationary objects", "Ignorer les objets immobiles"),
    hint: T("Parked cars, garden furniture…", "Voitures garées, mobilier de jardin…")},
   {key: "severity", type: "chips", name: T("Severity", "Sévérité"), source: "severity", mode: "reviews",
@@ -727,6 +736,7 @@ const TYPES = Object.fromEntries(FIELDS().map((f) => [f.key, f.type]));
 const GROUPS = () => [
   {title: T("Recipients and filtering", "Destinataires et filtrage"),
    keys: ["enabled", "chats", "labels", "zones", "min_score", "ignore_stationary", "severity"]},
+  {title: T("Labels", "Étiquettes"), keys: ["ignore_sub_labels", "ignore_known", "sub_label_wait"]},
   {title: T("Media", "Médias"),
    keys: ["snapshot", "crop", "clip", "media_in_place", "gif", "clip_delay", "genai_description"]},
   {title: T("Pace", "Rythme"), keys: ["cooldown", "group"]},
@@ -1121,6 +1131,26 @@ function renderQuestions() {
     if (q.presence && !data.presence) continue;
     box.append(question(q.title, q.hint, pills(q.options, null)));
   }
+  // Étiquettes connues de Frigate (« clio 3 océane », « ohana »…) : les ignorer, ou
+  // ne garder que les inconnus.
+  const subs = data.sub_labels || [];
+  if (subs.length || (overlay.notify.ignore_sub_labels || []).length || overlay.notify.ignore_known) {
+    const known = !!overlay.notify.ignore_known;
+    const content = el("div", {},
+      pills([
+        {label: T("Report everything", "Tout signaler"), patch: {ignore_known: false}},
+        {label: T("🏷 Only unknown objects", "🏷 Seulement les inconnus"), patch: {ignore_known: true}},
+      ], null));
+    if (!known) {
+      content.append(el("div", {class: "hint", text: T("Don't notify for:", "Ne pas prévenir pour :")}),
+        CONTROLS.chips(FIELDS().find((f) => f.key === "ignore_sub_labels"), overlay.notify.ignore_sub_labels,
+          (v) => { overlay.notify.ignore_sub_labels = v; changed(); }, {disabled: false, options: subs.slice().sort()}));
+    }
+    box.append(question(T("Known labels", "Étiquettes connues"),
+      T("Frigate takes a few seconds to recognize an object: with a label filter, notifications wait up to 5 s for it.",
+        "Frigate met quelques secondes à reconnaître un objet : avec un filtre d'étiquettes, les notifications l'attendent jusqu'à 5 s."),
+      content));
+  }
   // Le score n'existe qu'en mode events : Frigate n'en donne pas pour une revue.
   if (data.mode !== "reviews") {
     box.append(question(T("Sensitivity", "Sensibilité"),
@@ -1451,6 +1481,7 @@ function optionsFor(field, camera) {
     case "severity": return ["alert", "detection"];
     case "labels": return unionOf("labels", camera);
     case "zones": return unionOf("zones", camera);
+    case "sub_labels": return (data.sub_labels || []).slice().sort();
     default: return [];
   }
 }
@@ -1721,6 +1752,7 @@ const REASONS = () => ({
   muted: {text: T("camera muted", "caméra coupée")},
   home: {text: T("someone was home", "quelqu'un était à la maison"), fix: true},
   recipients: {text: T("no recipient for this object or at this time", "aucun destinataire pour cet objet ou à cette heure")},
+  sub_label: {text: T("ignored label", "étiquette ignorée"), fix: true},
   off_hours: {text: T("during off hours", "pendant les heures coupées"), fix: true},
   cooldown: {text: T("already reported a moment ago", "déjà signalé il y a peu"), fix: true},
 });
@@ -1793,7 +1825,7 @@ function renderHistory() {
       }
     }
     list.append(el("li", {}, thumb,
-      el("div", {class: "what"}, el("div", {class: "t", text: labelText(e.label)}), el("div", {class: "d", text: details.join(" · ")})),
+      el("div", {class: "what"}, el("div", {class: "t", text: labelText(e.label) + (e.sub_label ? " · 🏷 " + e.sub_label : "")}), el("div", {class: "d", text: details.join(" · ")})),
       out));
   }
   const foot = $("activity-foot");

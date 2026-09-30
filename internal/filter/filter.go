@@ -20,6 +20,7 @@ const (
 	ReasonMuted          = "muted"
 	ReasonHome           = "home"
 	ReasonRecipients     = "recipients"
+	ReasonSubLabel       = "sub_label"
 	ReasonOffHours       = "off_hours"
 	ReasonCooldown       = "cooldown"
 )
@@ -42,6 +43,7 @@ type Input struct {
 	Severity      string
 	Stationary    bool
 	FalsePositive bool
+	SubLabels     []string // étiquettes de Frigate connues (classification, visage, plaque)
 }
 
 type Decision struct {
@@ -89,6 +91,9 @@ func (e *Engine) Evaluate(in Input, now time.Time) Decision {
 	}
 	if len(n.Zones) > 0 && !slices.ContainsFunc(in.Zones, func(z string) bool { return slices.Contains(n.Zones, z) }) {
 		return reject(ReasonZone)
+	}
+	if ignoredSubLabels(n, in.SubLabels) {
+		return reject(ReasonSubLabel)
 	}
 	if e.state.IsPaused(now) {
 		return reject(ReasonPaused)
@@ -151,4 +156,19 @@ func matchLabel(allowed, labels []string) string {
 		}
 	}
 	return ""
+}
+
+// ignoredSubLabels indique si tous les objets de la détection portent une étiquette
+// à ignorer. Une étiquette vide désigne un objet sans étiquette, peut-être un
+// inconnu : la détection est alors notifiée.
+func ignoredSubLabels(n config.Notify, subs []string) bool {
+	if len(subs) == 0 {
+		return false
+	}
+	for _, s := range subs {
+		if s == "" || !n.IgnoresSubLabel(s) {
+			return false
+		}
+	}
+	return true
 }

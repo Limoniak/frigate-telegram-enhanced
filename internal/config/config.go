@@ -125,6 +125,25 @@ type Notify struct {
 	// détections suivantes s'ajoutent à son message au lieu d'en envoyer un nouveau.
 	// Réglage global (celui de notify) ; 0 = désactivé.
 	Group time.Duration
+	// Filtre sur les étiquettes de Frigate (classification, visage, plaque) :
+	// IgnoreSubLabels ne notifie pas ces étiquettes, IgnoreKnown aucun objet étiqueté.
+	// L'étiquette arrivant après la détection, la notification attend jusqu'à
+	// SubLabelWait qu'elle soit connue ; sans étiquette à temps, l'objet est inconnu.
+	IgnoreSubLabels []string
+	IgnoreKnown     bool
+	SubLabelWait    time.Duration
+}
+
+// FiltersSubLabels indique si la notification dépend de l'étiquette de l'objet.
+func (n Notify) FiltersSubLabels() bool { return len(n.IgnoreSubLabels) > 0 || n.IgnoreKnown }
+
+// IgnoresSubLabel indique si une étiquette (non vide) est à ignorer, sans tenir
+// compte de la casse.
+func (n Notify) IgnoresSubLabel(sub string) bool {
+	if sub == "" {
+		return false
+	}
+	return n.IgnoreKnown || slices.ContainsFunc(n.IgnoreSubLabels, func(s string) bool { return strings.EqualFold(strings.TrimSpace(s), sub) })
 }
 
 // Config rassemble les réglages du service. Les sections notify et cameras sont
@@ -257,6 +276,9 @@ type NotifyPatch struct {
 	OffHours         *[]TimeRange `yaml:"off_hours,omitempty" json:"off_hours,omitempty"`
 	WhenHome         *string      `yaml:"when_home,omitempty" json:"when_home,omitempty"`
 	Group            *Duration    `yaml:"group,omitempty" json:"group,omitempty"`
+	IgnoreSubLabels  *[]string    `yaml:"ignore_sub_labels,omitempty" json:"ignore_sub_labels,omitempty"`
+	IgnoreKnown      *bool        `yaml:"ignore_known,omitempty" json:"ignore_known,omitempty"`
+	SubLabelWait     *Duration    `yaml:"sub_label_wait,omitempty" json:"sub_label_wait,omitempty"`
 }
 
 func set[T any](dst *T, src *T) {
@@ -293,18 +315,22 @@ func (y NotifyPatch) ApplyTo(base Notify) Notify {
 	set(&n.OffHours, y.OffHours)
 	set(&n.WhenHome, y.WhenHome)
 	setDuration(&n.Group, y.Group)
+	set(&n.IgnoreSubLabels, y.IgnoreSubLabels)
+	set(&n.IgnoreKnown, y.IgnoreKnown)
+	setDuration(&n.SubLabelWait, y.SubLabelWait)
 	return n
 }
 
 // FullPatch décrit n entièrement : tous les champs sont renseignés.
 func FullPatch(n Notify) NotifyPatch {
-	cooldown, clipDelay, group := Duration(n.Cooldown), Duration(n.ClipDelay), Duration(n.Group)
+	cooldown, clipDelay, group, wait := Duration(n.Cooldown), Duration(n.ClipDelay), Duration(n.Group), Duration(n.SubLabelWait)
 	return NotifyPatch{
 		Enabled: &n.Enabled, Chats: &n.Chats, Labels: &n.Labels, Zones: &n.Zones,
 		MinScore: &n.MinScore, Cooldown: &cooldown, IgnoreStationary: &n.IgnoreStationary,
 		Severity: &n.Severity, Snapshot: &n.Snapshot, Crop: &n.Crop, Clip: &n.Clip, GIF: &n.GIF, MediaInPlace: &n.MediaInPlace,
 		GenAIDescription: &n.GenAIDescription, ClipDelay: &clipDelay,
 		QuietHours: &n.QuietHours, OffHours: &n.OffHours, WhenHome: &n.WhenHome, Group: &group,
+		IgnoreSubLabels: &n.IgnoreSubLabels, IgnoreKnown: &n.IgnoreKnown, SubLabelWait: &wait,
 	}
 }
 
@@ -341,6 +367,12 @@ func DiffPatch(base, n Notify) NotifyPatch {
 		d := Duration(n.Group)
 		p.Group = &d
 	}
+	diffSlice(&p.IgnoreSubLabels, base.IgnoreSubLabels, n.IgnoreSubLabels)
+	diff(&p.IgnoreKnown, base.IgnoreKnown, n.IgnoreKnown)
+	if base.SubLabelWait != n.SubLabelWait {
+		d := Duration(n.SubLabelWait)
+		p.SubLabelWait = &d
+	}
 	return p
 }
 
@@ -371,6 +403,7 @@ func defaultNotify(chats map[string]int64) Notify {
 		GenAIDescription: true,
 		ClipDelay:        5 * time.Second,
 		WhenHome:         HomeSkip,
+		SubLabelWait:     5 * time.Second,
 	}
 }
 
@@ -616,7 +649,10 @@ func (c *Config) validateNotify(where string, n Notify, l i18n.Lang) []error {
 	if n.Group > time.Hour {
 		errs = append(errs, l.Errorf("%s.group: at most 1h", "%s.group : 1 h au maximum", where))
 	}
-	if n.Cooldown < 0 || n.ClipDelay < 0 || n.Group < 0 {
+	if n.SubLabelWait > time.Minute {
+		errs = append(errs, l.Errorf("%s.sub_label_wait: at most 1m", "%s.sub_label_wait : 1 min au maximum", where))
+	}
+	if n.Cooldown < 0 || n.ClipDelay < 0 || n.Group < 0 || n.SubLabelWait < 0 {
 		errs = append(errs, l.Errorf("%s: durations cannot be negative", "%s : les durées ne peuvent pas être négatives", where))
 	}
 	return errs

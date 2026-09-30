@@ -12,22 +12,23 @@ const historySize = 50
 
 // HistoryEntry décrit l'issue d'une détection : notifiée, ou ignorée et pourquoi.
 type HistoryEntry struct {
-	ID      string    `json:"id"`
-	At      time.Time `json:"at"`
-	Camera  string    `json:"camera"`
-	Label   string    `json:"label"`
-	Zones   []string  `json:"zones"`
-	Score   float64   `json:"score,omitempty"`
-	Sent    bool      `json:"sent"`
-	Grouped bool      `json:"grouped,omitempty"` // ajoutée au message d'une notification précédente
-	Reason  string    `json:"reason,omitempty"`  // raison du filtrage (voir filter.Reason*)
-	Thumb   string    `json:"-"`                 // chemin Frigate de la miniature, vide si aucune
+	ID       string    `json:"id"`
+	At       time.Time `json:"at"`
+	Camera   string    `json:"camera"`
+	Label    string    `json:"label"`
+	SubLabel string    `json:"sub_label,omitempty"` // étiquette de Frigate (« clio 3 océane »…)
+	Zones    []string  `json:"zones"`
+	Score    float64   `json:"score,omitempty"`
+	Sent     bool      `json:"sent"`
+	Grouped  bool      `json:"grouped,omitempty"` // ajoutée au message d'une notification précédente
+	Reason   string    `json:"reason,omitempty"`  // raison du filtrage (voir filter.Reason*)
+	Thumb    string    `json:"-"`                 // chemin Frigate de la miniature, vide si aucune
 }
 
 // record ajoute l'issue d'un suivi à l'historique. Appelé sous n.mu.
 func (n *Notifier) record(t *tracked, sent bool) {
 	e := HistoryEntry{
-		ID: t.id, At: t.start, Camera: t.camera, Label: t.label,
+		ID: t.id, At: t.start, Camera: t.camera, Label: t.label, SubLabel: t.subLabel,
 		Zones: slices.Clone(t.zones), Sent: sent,
 	}
 	if !sent {
@@ -46,6 +47,15 @@ func (n *Notifier) record(t *tracked, sent bool) {
 	n.history = append(n.history, e)
 	if len(n.history) > historySize {
 		n.history = slices.Delete(n.history, 0, len(n.history)-historySize)
+	}
+}
+
+// updateHistory reporte dans l'historique l'étiquette arrivée après coup. Appelé sous n.mu.
+func (n *Notifier) updateHistory(t *tracked) {
+	for i := range n.history {
+		if n.history[i].ID == t.id {
+			n.history[i].SubLabel = t.subLabel
+		}
 	}
 }
 
