@@ -133,6 +133,12 @@ func run(parent context.Context, cfg *config.Config, connectionPath string, tgOp
 		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg, drops: notif, page: fromPage}
 		opts := []web.Option{web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr),
 			web.WithHealth(chk.check), web.WithRefused(b)}
+		// Login sessions survive restarts (a changed connection restarts the service).
+		if key, err := web.LoadSessionKey(filepath.Join(filepath.Dir(cfg.StateFile), "session.key")); err != nil {
+			log.Warn("login sessions will not survive a restart", "err", err)
+		} else {
+			opts = append(opts, web.WithSessionKey(key))
+		}
 		if fromPage {
 			conn, err := config.LoadConnection(connectionPath)
 			if err != nil {
@@ -151,7 +157,7 @@ func run(parent context.Context, cfg *config.Config, connectionPath string, tgOp
 	var metricsHandler http.Handler = promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{})
 	if cfg.Web.ProtectMetrics {
 		if protect == nil {
-			protect = web.NewAuth(cfg.Web.Password, log).Wrap
+			protect = web.NewAuth(cfg.Web.Password, nil, log).WrapBasic
 		}
 		metricsHandler = protect(metricsHandler)
 	}

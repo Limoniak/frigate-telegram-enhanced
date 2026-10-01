@@ -639,7 +639,7 @@ func TestWrongPasswordsBlockTheAddress(t *testing.T) {
 
 func TestAuthUnblocksAfterDelay(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 0, 0, 0, time.UTC)
-	a := NewAuth("pw", nil)
+	a := NewAuth("pw", nil, nil)
 	a.now = func() time.Time { return now }
 	for range maxFailures {
 		a.fail("10.0.0.1")

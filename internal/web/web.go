@@ -29,7 +29,7 @@ import (
 // The interface: the page, its style sheet and its script, with no build step,
 // and the setup page.
 //
-//go:embed ui.html ui.css ui.js setup.html setup.js
+//go:embed ui.html ui.css ui.js setup.html setup.js login.html
 var assets embed.FS
 
 // maxBody bounds the size of a save: the override of a realistic installation
@@ -113,8 +113,10 @@ type Handler struct {
 	health  HealthFunc // nil: no connection status
 	refused Refusals   // nil: no list of refused users
 	setup   *Setup     // nil: connection set by config.yml or the environment
-	auth    *Auth      // password, shared by every route
-	now     func() time.Time
+	// sessionKey signs the login sessions; nil: a random one, lost on restart.
+	sessionKey []byte
+	auth       *Auth // password, shared by every route
+	now        func() time.Time
 
 	// save serializes the saves: two tabs open at the same time must not interleave
 	// validation, writing and applying.
@@ -147,28 +149,35 @@ func WithRefused(r Refusals) Option { return func(h *Handler) { h.refused = r } 
 // WithSetup adds the "Connection" page, to change what the setup page saved.
 func WithSetup(s *Setup) Option { return func(h *Handler) { h.setup = s } }
 
+// WithSessionKey keeps the login sessions across restarts (see LoadSessionKey).
+func WithSessionKey(key []byte) Option { return func(h *Handler) { h.sessionKey = key } }
+
 // WithClock replaces the clock (tests).
 func WithClock(now func() time.Time) Option { return func(h *Handler) { h.now = now } }
 
 func New(cfg *config.Config, overlayPath string, cameras CameraLister, log *slog.Logger, opts ...Option) *Handler {
-	h := &Handler{cfg: cfg, path: overlayPath, cameras: cameras, log: log, now: time.Now,
-		auth: NewAuth(cfg.Web.Password, log)}
+	h := &Handler{cfg: cfg, path: overlayPath, cameras: cameras, log: log, now: time.Now}
 	for _, o := range opts {
 		o(h)
 	}
+	h.auth = NewAuth(cfg.Web.Password, h.sessionKey, log)
 	return h
 }
 
 // Protect puts next behind the interface password, with the same failure count
 // (serves /metrics with web.protect_metrics).
-func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.Wrap(next) }
+func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.WrapBasic(next) }
 
 // Mount registers the interface and its API on mux, behind a password if the
 // configuration sets one. /healthz and /metrics stay outside: the container probe
 // and the Prometheus scrape do not authenticate (see web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
-	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
+	// The style sheet holds nothing private: the login page needs it before the password.
+	mux.Handle("GET /ui.css", asset("ui.css", "text/css; charset=utf-8"))
+	mux.HandleFunc("GET /login", h.loginPage)
+	mux.HandleFunc("POST /login", h.login)
+	mux.Handle("POST /logout", sameOrigin(http.HandlerFunc(h.logout)))
 	mux.Handle("GET /ui.js", h.guard(asset("ui.js", "text/javascript; charset=utf-8")))
 	mux.Handle("GET /i18n.js", h.guard(serve(i18nScript, "text/javascript; charset=utf-8")))
 	mux.Handle("GET /api/settings", h.guard(http.HandlerFunc(h.get)))
@@ -307,6 +316,7 @@ type settings struct {
 	CanHlth  bool                 `json:"can_health"`
 	Presence bool                 `json:"presence"`       // presence topics configured
 	CanConn  bool                 `json:"can_connection"` // connection made on the setup page
+	Auth     bool                 `json:"auth"`           // a password protects the interface: offer to log out
 	// FrigateURL is the address of the links when no external address is set.
 	FrigateURL string `json:"frigate_url"`
 	// SubLabels: labels Frigate knows, offered by the label filter.
@@ -325,6 +335,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		CanHlth:    h.health != nil,
 		Presence:   h.cfg.Presence.Enabled(),
 		CanConn:    h.setup != nil,
+		Auth:       h.cfg.Web.Password != "",
 		FrigateURL: h.cfg.Frigate.URL,
 	}
 	if _, err := os.Stat(h.path); err == nil {

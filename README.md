@@ -262,7 +262,10 @@ browser points its own domain at `127.0.0.1` to drive the interface behind your 
 To use a host name, add it to `WEB_ALLOWED_HOSTS`, or set a password (which lifts this
 check).
 
-After 5 wrong passwords within a minute, an address is blocked for 5 minutes.
+With a password, the interface opens on a login page; the session then lasts 30
+days, survives restarts, and ends when the password changes (*Log out* at the bottom
+of the page ends it sooner). After 5 wrong passwords within a minute, an address is
+blocked for 5 minutes.
 
 Authentication only covers the interface: `/healthz` always stays open for the
 container probe, and so does `/metrics`, unless `protect_metrics: true`. Keep this in

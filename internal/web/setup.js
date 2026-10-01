@@ -38,10 +38,13 @@ function el(tag, props, ...children) {
   return n;
 }
 
-function api(path, opts) {
+// A session that ended leads back to the login page (changing a connection).
+async function api(path, opts) {
   opts = Object.assign({}, opts);
   opts.headers = Object.assign({"X-Lang": lang, "X-Requested-With": TOKEN}, opts.body ? {"Content-Type": "application/json"} : {}, opts.headers || {});
-  return fetch(path, opts);
+  const resp = await fetch(path, opts);
+  if (resp.status === 401) location.href = "login?next=setup&lang=" + lang;
+  return resp;
 }
 
 async function post(path, body, method) {

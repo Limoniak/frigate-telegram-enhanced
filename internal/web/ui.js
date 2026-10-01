@@ -57,10 +57,13 @@ function setLang(l) {
 }
 
 // api is fetch with the page's language: the server answers its errors in the same one.
-function api(path, opts) {
+// A session that ended (password changed, 30 days passed) leads back to the login page.
+async function api(path, opts) {
   opts = Object.assign({}, opts);
   opts.headers = Object.assign({"X-Lang": lang}, opts.headers || {});
-  return fetch(path, opts);
+  const resp = await fetch(path, opts);
+  if (resp.status === 401) location.href = "login?lang=" + lang;
+  return resp;
 }
 
 // ---- styles and simple questions ---------------------------------------------
@@ -1359,6 +1362,7 @@ async function load() {
   $("mode").textContent = T("mode ") + data.mode;
   $("tz").textContent = data.timezone;
   $("connection").hidden = !data.can_connection;
+  $("logout").hidden = !data.auth;
   $("reset").hidden = !data.custom;
   // Set on the setup page, there is no config.yml: going back means the defaults.
   $("reset").dataset.t = data.can_connection ? "Back to the default settings" : "Back to the config.yml settings";
@@ -1438,6 +1442,10 @@ async function reset() {
 }
 
 $("reset").addEventListener("click", reset);
+$("logout").addEventListener("click", async () => {
+  await api("logout", {method: "POST", headers: {"X-Requested-With": TOKEN}});
+  location.href = "login?lang=" + lang;
+});
 // Leaving with a save pending: it is sent at once, the browser asks to wait for it.
 window.addEventListener("beforeunload", (e) => {
   if (!dirty()) return;

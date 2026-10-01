@@ -419,6 +419,19 @@ footer a.link:hover { text-decoration: underline; }
 .framing details.more > summary { padding: 0; }
 .framing details.more[open] > summary { padding-bottom: 8px; }
 
+/* ---- login page ---- */
+body.login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.login-card { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 28px 24px 18px; display: flex; flex-direction: column; gap: 10px; }
+.login-card .brand { margin-bottom: 14px; }
+.login-card h1 { font-size: 17px; margin: 0; font-weight: 650; }
+.login-card label { font-weight: 600; font-size: 14px; }
+.login-card input[type=password] { width: 100%; font-size: 16px; padding: 10px 12px; }
+.login-card button.primary { padding: 10px 18px; font-size: 15px; margin-top: 4px; }
+.login-error { margin: 0; color: var(--danger); font-size: 14px; }
+.login-langs { display: flex; justify-content: center; gap: 12px; margin-top: 8px; font-size: 12px; text-transform: uppercase; }
+.login-langs a { color: var(--muted); text-decoration: none; }
+.login-langs a[aria-current] { color: var(--fg); font-weight: 600; }
+
 /* ---- setup page ---- */
 body.setup main { max-width: 760px; }
 /* a form read from top to bottom: one column, label above its fields */

@@ -238,3 +238,34 @@ func TestBrowserSampleSavesFirst(t *testing.T) {
 		t.Errorf("JavaScript errors: %q", errs)
 	}
 }
+
+// With a password, a page of the service's own leads to its login page (never the
+// browser's dialog), then back to the interface.
+func TestBrowserLogin(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	var errText string
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(ts.URL+"/"),
+		chromedp.WaitVisible(`.login-card input[type=password]`),
+		chromedp.SendKeys(`#password`, "wrong"),
+		chromedp.Submit(`.login-card`),
+		chromedp.WaitVisible(`.login-error`),
+		chromedp.Text(`.login-error`, &errText),
+		chromedp.SendKeys(`#password`, "s3cret"),
+		chromedp.Submit(`.login-card`),
+		chromedp.WaitVisible(`#cameras .cam-name`),
+		chromedp.WaitVisible(`#logout`),
+		chromedp.Click(`#logout`),
+		chromedp.WaitVisible(`.login-card`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errText == "" {
+		t.Error("no error shown for a wrong password")
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}

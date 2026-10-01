@@ -265,7 +265,10 @@ malveillant ouvert dans votre navigateur fait pointer son propre domaine vers
 `127.0.0.1` pour piloter l'interface à votre insu. Pour passer par un nom d'hôte,
 l'ajouter à `WEB_ALLOWED_HOSTS`, ou définir un mot de passe (qui lève ce contrôle).
 
-Après 5 mots de passe erronés en une minute, une adresse est bloquée 5 minutes.
+Avec un mot de passe, l'interface s'ouvre sur une page de connexion ; la session dure
+ensuite 30 jours, survit aux redémarrages et se ferme quand le mot de passe change
+(*Se déconnecter*, en bas de page, la ferme plus tôt). Après 5 mots de passe erronés en
+une minute, une adresse est bloquée 5 minutes.
 
 L'authentification ne couvre que l'interface : `/healthz` reste toujours libre pour la
 sonde du conteneur, et `/metrics` aussi, sauf avec `protect_metrics: true`. Si le port
