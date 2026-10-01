@@ -20,6 +20,7 @@ import (
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/kb"
 
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/frigate"
@@ -141,18 +142,28 @@ func TestBrowserSetup(t *testing.T) {
 		chromedp.SendKeys(`#token`, "123:abc"),
 		chromedp.Click(`#check-token`),
 		chromedp.WaitVisible(`#chats .chip`),
+		// An ID by hand: refused with a message if it is not a number, added on Enter.
+		chromedp.Click(`#manual summary`),
+		chromedp.SendKeys(`#manual-id`, "abc"+kb.Enter),
+		chromedp.WaitVisible(`#manual-result.err`),
+		chromedp.Evaluate(`document.getElementById("manual-id").value = ""`, nil),
+		chromedp.SendKeys(`#manual-id`, "-100 123"),
+		chromedp.SendKeys(`#manual-name`, "Family"+kb.Enter),
+		chromedp.WaitVisible(`#manual-result.ok`),
 		chromedp.Text(`#chats`, &chats),
 		chromedp.SendKeys(`#frigate-url`, "http://192.168.1.10:5000"),
 		chromedp.Click(`#check-frigate`),
 		chromedp.WaitVisible(`#frigate-result.ok`),
 		chromedp.Value(`#mqtt-broker`, &broker),
+		chromedp.Click(`#check-mqtt`),
+		chromedp.WaitVisible(`#mqtt-result.ok`),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#save-result.ok`),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(chats, "Alice") {
+	if !strings.Contains(chats, "Alice") || !strings.Contains(chats, "Family") {
 		t.Errorf("chats offered = %q", chats)
 	}
 	if broker != "192.168.1.10:1883" {
@@ -167,7 +178,7 @@ func TestBrowserSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Telegram.Chats["Alice"] != 111 || c.Timezone == "" || c.Frigate.URL != "http://192.168.1.10:5000" {
+	if c.Telegram.Chats["Alice"] != 111 || c.Telegram.Chats["Family"] != -100123 || c.Timezone == "" || c.Frigate.URL != "http://192.168.1.10:5000" {
 		t.Errorf("saved %+v", c)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
@@ -264,6 +275,65 @@ func TestBrowserLogin(t *testing.T) {
 	}
 	if errText == "" {
 		t.Error("no error shown for a wrong password")
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// Changing a connection with saved passwords: a box removes one, and a password
+// is no longer "unchanged" once its address changes (it would not be kept).
+func TestBrowserSetupSavedPasswords(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "connection.yml")
+	current := config.Connection{
+		Frigate:  config.Frigate{URL: "http://192.168.1.10:5000"},
+		MQTT:     config.MQTT{Broker: "tcp://192.168.1.10:1883", Password: "mqtt-secret"},
+		Telegram: config.Telegram{Token: "123:abc", Chats: map[string]int64{"Alice": 111}},
+		Web:      config.ConnectionWeb{Password: "web-secret"},
+	}
+	saved := make(chan struct{})
+	s := NewSetup(path, &current, &fakeProber{}, slog.New(slog.DiscardHandler), func() { close(saved) })
+	mux := http.NewServeMux()
+	s.MountAlone(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ctx, jsErrors := browser(t)
+	var before, after, unchanged string
+	var webDisabled bool
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(ts.URL+"/"),
+		chromedp.WaitVisible(`#clear-web-pass-row`),
+		chromedp.AttributeValue(`#mqtt-pass`, "placeholder", &before, nil),
+		chromedp.Evaluate(`T("unchanged")`, &unchanged), // in the browser's language
+		chromedp.Evaluate(`document.getElementById("mqtt-broker").value = "192.168.1.99"; document.getElementById("mqtt-broker").dispatchEvent(new Event("input")); 0`, nil),
+		chromedp.AttributeValue(`#mqtt-pass`, "placeholder", &after, nil),
+		chromedp.Click(`#clear-web-pass`),
+		chromedp.Evaluate(`document.getElementById("web-pass").disabled`, &webDisabled),
+		chromedp.Evaluate(`document.getElementById("mqtt-broker").value = "192.168.1.10"; 0`, nil),
+		chromedp.Click(`#save`),
+		chromedp.WaitVisible(`#save-result.ok`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before != unchanged || after == unchanged {
+		t.Errorf("MQTT password placeholder: %q, then %q after changing the broker", before, after)
+	}
+	if !webDisabled {
+		t.Error("removing the interface password must disable its field")
+	}
+	select {
+	case <-saved:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the connection was not saved")
+	}
+	c, err := config.LoadConnection(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Web.Password != "" || c.MQTT.Password != "mqtt-secret" {
+		t.Errorf("web password %q (want removed), mqtt password %q (want kept)", c.Web.Password, c.MQTT.Password)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

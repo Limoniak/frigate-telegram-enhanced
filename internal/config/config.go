@@ -230,6 +230,21 @@ func (c *Config) ChatNames() []string { return slices.Sorted(maps.Keys(c.Telegra
 // IsAdmin reports whether the Telegram user can control the bot.
 func (c *Config) IsAdmin(userID int64) bool { return slices.Contains(c.Telegram.Admins, userID) }
 
+// CanControl reports whether userID, writing in chatID, may use the commands and
+// buttons: the admins if there are any, wherever they write; without admins, anyone
+// in a recipient chat (the person of a private chat, the members of a group).
+func (c *Config) CanControl(userID, chatID int64) bool {
+	if len(c.Telegram.Admins) > 0 {
+		return c.IsAdmin(userID)
+	}
+	for _, id := range c.Telegram.Chats {
+		if id == chatID {
+			return true
+		}
+	}
+	return false
+}
+
 type fileYAML struct {
 	Language   string                 `yaml:"language"`
 	Timezone   string                 `yaml:"timezone"`
@@ -582,9 +597,6 @@ func (c *Config) validate() error {
 	}
 	if len(c.Telegram.Chats) == 0 {
 		add("telegram.chats must list at least one chat")
-	}
-	if len(c.Telegram.Admins) == 0 {
-		add("telegram.admins must list at least one user")
 	}
 	if c.Web.ProtectMetrics && c.Web.Password == "" {
 		add("web.protect_metrics requires web.password")

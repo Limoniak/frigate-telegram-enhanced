@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 )
@@ -57,7 +58,8 @@ func TestLoadReadsTheSavedConnection(t *testing.T) {
 	if err := SaveConnection(conn, c); err != nil {
 		t.Fatal(err)
 	}
-	if fi, err := os.Stat(conn); err != nil || fi.Mode().Perm() != 0o600 {
+	// Windows has no Unix permissions: the file is read-write for all there.
+	if fi, err := os.Stat(conn); runtime.GOOS != "windows" && (err != nil || fi.Mode().Perm() != 0o600) {
 		t.Errorf("connection file mode = %v, %v; want 0600", fi.Mode().Perm(), err)
 	}
 	cfg, err := Load(filepath.Join(dir, "absent.yml"), conn)

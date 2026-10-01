@@ -75,6 +75,6 @@ func (b *Bot) refuseCommand(ctx context.Context, m telegram.Message) {
 	id := strconv.FormatInt(m.From.ID, 10)
 	l := b.Config.Language
 	chat := m.Chat.ID
-	text := l.Tf("⛔ You are not allowed to use this bot.\n\nYour Telegram ID is <code>%s</code>.\nIf this bot is yours, add this ID to TELEGRAM_CHAT_ID (and to TELEGRAM_ADMINS if you set it), then restart the container.", id)
+	text := l.Tf("⛔ You are not allowed to use this bot.\n\nYour Telegram ID is <code>%s</code>.\nIf this bot is yours, add this ID as a recipient: with the Connection link of its web interface, or in TELEGRAM_CHAT_ID if you set it up with environment variables.", id)
 	b.async(func() { b.reply(ctx, chat, text) })
 }

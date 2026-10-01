@@ -509,3 +509,44 @@ func TestRefusedUsersAreListed(t *testing.T) {
 		t.Errorf("%d refused users kept, want %d", n, maxRefused)
 	}
 }
+
+// Without admins, the members of a recipient group control the bot; other chats do not.
+func TestNoAdminsGroupMembersControlTheBot(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+timezone: Europe/Paris
+frigate: {url: "http://f"}
+mqtt: {broker: "tcp://m:1883"}
+telegram: {token: t, chats: {famille: -100}}
+`), func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := newEnv(t)
+	e.b.Config = cfg
+	e.cmdIn("/pause", telegram.User{ID: 7}, telegram.Chat{ID: -555, Type: "group"})
+	if e.st.IsPaused(now) {
+		t.Fatal("a group that is not a recipient must not control the bot")
+	}
+	e.cmdIn("/pause", telegram.User{ID: 7}, telegram.Chat{ID: -100, Type: "group"})
+	if !e.st.IsPaused(now) {
+		t.Error("a member of the recipient group must be able to pause")
+	}
+	e.b.HandleUpdate(context.Background(), telegram.Update{CallbackQuery: &telegram.CallbackQuery{
+		ID: "q", From: telegram.User{ID: 8}, Data: "r:all",
+		Message: &telegram.Message{MessageID: 77, Chat: telegram.Chat{ID: -100}}}})
+	e.b.Wait()
+	if len(e.tg.answers) != 1 || strings.Contains(e.tg.answers[0], "Not allowed") {
+		t.Errorf("button in the recipient group: answers = %v", e.tg.answers)
+	}
+}
+
+// A button whose message Telegram no longer sends (too old) still works for an admin.
+func TestAdminButtonWithoutMessage(t *testing.T) {
+	e := newEnv(t)
+	e.b.HandleUpdate(context.Background(), telegram.Update{CallbackQuery: &telegram.CallbackQuery{
+		ID: "q", From: telegram.User{ID: 1}, Data: "p:1800"}})
+	e.b.Wait()
+	if !e.st.IsPaused(now) || len(e.tg.answers) != 1 || strings.Contains(e.tg.answers[0], "Not allowed") {
+		t.Errorf("paused = %v, answers = %v", e.st.IsPaused(now), e.tg.answers)
+	}
+}

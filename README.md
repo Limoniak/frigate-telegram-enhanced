@@ -139,7 +139,7 @@ the four required ones is set, the environment replaces the setup page and its
 | `TZ` | | Time zone, e.g. `Europe/Paris` (default: `UTC`) |
 | `LANGUAGE` | | Language of Telegram messages and error messages: `en` (default), `fr`, or any language added in `internal/i18n/locales/` (logs are always in English) |
 | `WEB_PASSWORD` | | Password for the web interface (empty = none) |
-| `TELEGRAM_ADMINS` | | User IDs allowed to control the bot (default: the private chats of `TELEGRAM_CHAT_ID`; required if it only lists groups) |
+| `TELEGRAM_ADMINS` | | User IDs allowed to control the bot (default: the private chats of `TELEGRAM_CHAT_ID`; with groups only, their members) |
 | `FRIGATE_EXTERNAL_URL` | | Frigate address used by the "Open in Frigate" links (default: `FRIGATE_URL`; also editable in the web interface) — set it to open Frigate from outside your network |
 | `FRIGATE_USERNAME` / `FRIGATE_PASSWORD` | | If Frigate authentication is enabled |
 | `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` for a self-signed certificate |
@@ -291,7 +291,9 @@ Prometheus then authenticates with `basic_auth` (any user name, password `WEB_PA
 | `/snapshot [camera]` | Live image |
 | `/last [camera]` | Latest event (snapshot and clip) |
 
-Only the users listed in `telegram.admins` can use the commands and buttons.
+Only the users listed in `telegram.admins` can use the commands and buttons. Without
+admins, anyone in a recipient chat can: the person of a private chat, the members of a
+group.
 
 ## Monitoring
 

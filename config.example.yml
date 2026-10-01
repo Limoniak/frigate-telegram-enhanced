@@ -30,7 +30,7 @@ mqtt:
 
 telegram:
   token: "${TELEGRAM_TOKEN}"
-  admins: [123456789]            # IDs of the users allowed to control the bot
+  admins: [123456789]            # users allowed to control the bot; empty: anyone in the chats below
   chats:                         # free names → chat IDs
     me: 123456789
     # family: -1001234567890     # a group has a negative ID

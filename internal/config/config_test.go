@@ -197,3 +197,30 @@ func TestInRanges(t *testing.T) {
 		t.Error("12:00 must not be in the range")
 	}
 }
+
+func TestAdminsAreOptional(t *testing.T) {
+	c := mustParse(t, strings.Replace(minimal, "  admins: [42]\n", "", 1))
+	if len(c.Telegram.Admins) != 0 {
+		t.Fatalf("admins = %v", c.Telegram.Admins)
+	}
+	// Without admins, whoever writes in a recipient chat controls the bot.
+	for _, tc := range []struct {
+		user, chat int64
+		want       bool
+	}{
+		{7, -100, true},  // a member of the famille group
+		{42, 42, true},   // the private chat moi
+		{7, -999, false}, // a group that is not a recipient
+		{7, 7, false},    // a private chat that is not a recipient
+	} {
+		if got := c.CanControl(tc.user, tc.chat); got != tc.want {
+			t.Errorf("no admins: CanControl(%d, %d) = %v, want %v", tc.user, tc.chat, got, tc.want)
+		}
+	}
+
+	// With admins, only they do, wherever they write.
+	c = mustParse(t, minimal)
+	if !c.CanControl(42, -999) || c.CanControl(7, -100) {
+		t.Errorf("admins [42]: CanControl(42, -999) = %v, CanControl(7, -100) = %v", c.CanControl(42, -999), c.CanControl(7, -100))
+	}
+}

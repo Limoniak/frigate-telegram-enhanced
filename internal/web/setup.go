@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -107,6 +108,7 @@ func (s *Setup) mount(mux *http.ServeMux, guard func(http.Handler) http.Handler)
 	mux.Handle("GET /api/connection", guard(http.HandlerFunc(s.get)))
 	mux.Handle("POST /api/connection/telegram", guard(sameOrigin(http.HandlerFunc(s.telegram))))
 	mux.Handle("POST /api/connection/frigate", guard(sameOrigin(http.HandlerFunc(s.frigate))))
+	mux.Handle("POST /api/connection/mqtt", guard(sameOrigin(http.HandlerFunc(s.mqtt))))
 	mux.Handle("POST /api/connection/discover", guard(sameOrigin(http.HandlerFunc(s.discover))))
 	mux.Handle("PUT /api/connection", guard(sameOrigin(http.HandlerFunc(s.put))))
 }
@@ -135,20 +137,38 @@ func (s *Setup) get(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, v)
 }
 
-// keep fills the secrets left empty with the saved ones.
-func (s *Setup) keep(c *config.Connection) {
+// keep fills the secrets left empty with the saved ones, except those named in
+// clear ("frigate_password"…): the page removes a saved password that way. c must
+// be normalized. A password is only kept for the address it was saved for: typed
+// with another address, it would go to whoever answers there.
+func (s *Setup) keep(c *config.Connection, clear []string) {
 	if s.current == nil {
 		return
 	}
-	keep := func(dst *string, saved string) {
-		if *dst == "" {
+	cur := *s.current
+	cur.Normalize() // the saved addresses, in the same form as c's
+	keep := func(dst *string, saved, name string, sameTarget bool) {
+		if *dst == "" && sameTarget && !slices.Contains(clear, name) {
 			*dst = saved
 		}
 	}
-	keep(&c.Telegram.Token, s.current.Telegram.Token)
-	keep(&c.Frigate.Password, s.current.Frigate.Password)
-	keep(&c.MQTT.Password, s.current.MQTT.Password)
-	keep(&c.Web.Password, s.current.Web.Password)
+	keep(&c.Telegram.Token, s.current.Telegram.Token, "token", true)
+	keep(&c.Frigate.Password, s.current.Frigate.Password, "frigate_password", sameAddress(c.Frigate.URL, cur.Frigate.URL))
+	keep(&c.MQTT.Password, s.current.MQTT.Password, "mqtt_password", strings.EqualFold(c.MQTT.Broker, cur.MQTT.Broker))
+	keep(&c.Web.Password, s.current.Web.Password, "web_password", true)
+}
+
+// sameAddress reports whether two URLs have the same scheme and host (port included).
+func sameAddress(a, b string) bool {
+	ua, err1 := url.Parse(a)
+	ub, err2 := url.Parse(b)
+	return err1 == nil && err2 == nil && ua.Host != "" &&
+		strings.EqualFold(ua.Scheme, ub.Scheme) && strings.EqualFold(ua.Host, ub.Host)
+}
+
+// clearParam reads the secrets to leave out of a check: ?clear=mqtt_password.
+func clearParam(r *http.Request) []string {
+	return strings.Split(r.URL.Query().Get("clear"), ",")
 }
 
 func (s *Setup) telegram(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +177,7 @@ func (s *Setup) telegram(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
-	s.keep(&c)
+	s.keep(&c, nil)
 	if c.Telegram.Token == "" {
 		writeErr(w, r, http.StatusBadRequest, i18n.NewError("missing bot token"))
 		return
@@ -181,8 +201,8 @@ func (s *Setup) frigate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}
-	s.keep(&c)
 	c.Normalize()
+	s.keep(&c, clearParam(r))
 	if c.Frigate.URL == "" {
 		writeErr(w, r, http.StatusBadRequest, i18n.NewError("missing Frigate address"))
 		return
@@ -195,6 +215,28 @@ func (s *Setup) frigate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, found)
+}
+
+// mqtt tries the broker as typed in the page; an empty password is the saved one.
+func (s *Setup) mqtt(w http.ResponseWriter, r *http.Request) {
+	var c config.Connection
+	if err := decodeBody(w, r, &c.MQTT); err != nil {
+		writeErr(w, r, http.StatusBadRequest, err)
+		return
+	}
+	c.Normalize()
+	s.keep(&c, clearParam(r))
+	if c.MQTT.Broker == "" {
+		writeErr(w, r, http.StatusBadRequest, i18n.NewError("missing broker address"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	if err := s.probe.MQTT(ctx, c.MQTT, requestLang(r, i18n.Default)); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"broker": c.MQTT.Broker})
 }
 
 // discover looks for Frigate by itself, starting with the machine the page was
@@ -239,6 +281,7 @@ func (s *Setup) put(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Connection config.Connection `json:"connection"`
 		Force      bool              `json:"force"` // save even if a connection fails
+		Clear      []string          `json:"clear"` // saved secrets to remove (see keep)
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
 	dec.DisallowUnknownFields()
@@ -247,8 +290,8 @@ func (s *Setup) put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := req.Connection
-	s.keep(&c)
 	c.Normalize()
+	s.keep(&c, req.Clear)
 	c.Telegram.Token = strings.TrimSpace(c.Telegram.Token)
 	if err := c.Validate(); err != nil {
 		writeErr(w, r, http.StatusBadRequest, err)

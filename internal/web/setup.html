@@ -52,12 +52,13 @@
         <p class="hint" id="chats-howto"></p>
         <div class="control"><div class="chips" id="chats"></div></div>
         <p class="hint waiting" id="chats-waiting"><span class="dot pending pulse"></span> <span data-t="Waiting for a message to the bot…"></span></p>
-        <details class="more">
+        <details class="more" id="manual">
           <summary data-t="Add an ID by hand"></summary>
           <div class="control">
             <input type="text" id="manual-id" inputmode="numeric" placeholder="123456789" aria-label="ID">
             <input type="text" id="manual-name" data-t-placeholder="Name" aria-label="Name">
             <button type="button" id="manual-add" data-t="Add"></button>
+            <span class="result" id="manual-result" role="status"></span>
           </div>
           <p class="hint" data-t="A person's ID is positive, a group's is negative (-100…)."></p>
         </details>
@@ -87,6 +88,7 @@
             <input type="text" id="frigate-user" autocomplete="off" data-t-placeholder="Username" aria-label="Username">
             <input type="password" id="frigate-pass" autocomplete="new-password" data-t-placeholder="Password" aria-label="Password">
           </div>
+          <label class="override" id="clear-frigate-pass-row" hidden><input type="checkbox" id="clear-frigate-pass"> <span data-t="Remove the saved password"></span></label>
           <label class="override"><input type="checkbox" id="frigate-insecure"> <span data-t="Accept a self-signed certificate"></span></label>
         </details>
       </div>
@@ -106,7 +108,12 @@
       <div class="field" id="mqtt-pass-field" hidden>
         <label class="field-head" for="mqtt-pass"><span class="name" data-t="MQTT password"></span></label>
         <div class="control"><input type="password" id="mqtt-pass" autocomplete="new-password" data-t-placeholder="Password"></div>
+        <label class="override" id="clear-mqtt-pass-row" hidden><input type="checkbox" id="clear-mqtt-pass"> <span data-t="Remove the saved password"></span></label>
         <p class="hint" data-t="The one in the mqtt section of Frigate's configuration (Frigate does not share it)."></p>
+      </div>
+      <div class="control">
+        <button type="button" id="check-mqtt" data-t="Check"></button>
+        <span class="result" id="mqtt-result" role="status"></span>
       </div>
       <details class="more" id="mqtt-edit">
         <summary data-t="Change the MQTT settings"></summary>
@@ -136,6 +143,7 @@
     <div class="body">
       <div class="field">
         <div class="control"><input type="password" id="web-pass" autocomplete="new-password" data-t-placeholder="None" aria-label="Password"></div>
+        <label class="override" id="clear-web-pass-row" hidden><input type="checkbox" id="clear-web-pass"> <span data-t="Remove the saved password"></span></label>
       </div>
       <details class="more">
         <summary data-t="More options"></summary>

@@ -145,8 +145,9 @@ func parseChats(s string, l i18n.Lang) (map[string]int64, error) {
 }
 
 // parseAdmins reads TELEGRAM_ADMINS. By default, the positive IDs of
-// TELEGRAM_CHAT_ID: a private chat with the bot has the user's ID. A group
-// (negative ID) designates nobody: TELEGRAM_ADMINS is then needed.
+// TELEGRAM_CHAT_ID: a private chat with the bot has the user's ID. With groups
+// only, the list stays empty: the members of the groups control the bot (see
+// Config.CanControl).
 func parseAdmins(s string, chats map[string]int64, l i18n.Lang) ([]int64, error) {
 	var admins []int64
 	if s == "" {
@@ -156,10 +157,6 @@ func parseAdmins(s string, chats map[string]int64, l i18n.Lang) ([]int64, error)
 			}
 		}
 		slices.Sort(admins)
-		if len(admins) == 0 {
-			return nil, l.Errorf("TELEGRAM_ADMINS is required when TELEGRAM_CHAT_ID only lists groups: " +
-				"give the IDs of the users allowed to control the bot")
-		}
 		return admins, nil
 	}
 	for _, item := range splitList(s) {

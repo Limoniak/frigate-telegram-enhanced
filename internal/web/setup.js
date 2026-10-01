@@ -92,9 +92,8 @@ function applyStatic() {
     "https://t.me/BotFather", "@BotFather");
   if (searching) setResult("frigate-result", "", T("Looking for Frigate on your network…"));
   if (!msgLang) $("msg-lang").value = lang; // not chosen: the messages follow the page
-  for (const [id, key] of [["token", "token"], ["frigate-pass", "frigate_password"], ["mqtt-pass", "mqtt_password"], ["web-pass", "web_password"]]) {
-    if (saved[key]) $(id).placeholder = T("unchanged");
-  }
+  if (saved.token) $("token").placeholder = T("unchanged");
+  renderSecrets();
   renderChats();
   renderBroker();
 }
@@ -131,6 +130,7 @@ function renderChats() {
       onclick: () => { c.on = !c.on; renderChats(); }}, label));
   }
   $("chats-field").hidden = !bot && chats.length === 0;
+  if (bot && chats.length === 0) $("manual").open = true; // nobody found yet: the ID by hand in view
   $("chats-waiting").hidden = chats.length > 0 || !bot;
   const howto = $("chats-howto");
   howto.replaceChildren();
@@ -181,9 +181,13 @@ function pollChats() {
   pollTimer = setTimeout(tick, POLL_EVERY);
 }
 
+// addManual adds a recipient by its Telegram ID, for someone who cannot send
+// /start while the page is open. Saving the connection applies it.
 function addManual() {
-  const id = Number($("manual-id").value.trim());
-  if (!Number.isSafeInteger(id) || id === 0) {
+  const raw = $("manual-id").value.replace(/\s/g, "");
+  const id = Number(raw);
+  if (!/^-?\d+$/.test(raw) || !Number.isSafeInteger(id) || id === 0) {
+    setResult("manual-result", "err", T("Enter a number: a person's ID is positive, a group's is negative."));
     $("manual-id").focus();
     return;
   }
@@ -191,6 +195,7 @@ function addManual() {
   chats = chats.filter((c) => c.id !== id);
   chats.push({id, name, private: id > 0, on: true});
   $("manual-id").value = $("manual-name").value = "";
+  setResult("manual-result", "ok", Tf("✓ %s added: save to apply.", name));
   renderChats();
 }
 
@@ -212,7 +217,7 @@ async function checkFrigate() {
     return;
   }
   setResult("frigate-result", "", T("Checking…"));
-  const r = await post("api/connection/frigate", f);
+  const r = await post("api/connection/frigate" + clearQuery("frigate_password"), f);
   if (!r.ok) {
     setResult("frigate-result", "err", problem(r.data));
     return;
@@ -227,6 +232,7 @@ let mqttTouched = false;
 function applyFrigate(found) {
   $("frigate-url").value = found.url;
   setResult("frigate-result", "ok", Tf("✓ Frigate %s", found.version));
+  renderSecrets();
   const m = found.mqtt || {};
   if (!m.broker || mqttTouched) return;
   $("mqtt-broker").value = m.broker;
@@ -234,6 +240,7 @@ function applyFrigate(found) {
   $("mqtt-prefix").value = m.topic_prefix || "";
   broker = {state: found.broker_state || "", error: found.broker_error || "", address: m.broker};
   renderBroker();
+  renderSecrets();
   if (broker.state === "password") $("mqtt-pass").focus();
 }
 
@@ -276,6 +283,76 @@ function renderBroker() {
   if (b && b.state === "error") $("mqtt-edit").open = true;
 }
 
+// mqttValues is the broker as typed in the page; an empty password keeps the saved one.
+function mqttValues() {
+  return {
+    broker: $("mqtt-broker").value.trim(),
+    username: $("mqtt-user").value.trim(),
+    password: $("mqtt-pass").value,
+    topic_prefix: $("mqtt-prefix").value.trim(),
+    insecure_skip_verify: false,
+  };
+}
+
+// checkMqtt tries the broker with what the page holds, without saving anything.
+async function checkMqtt() {
+  const m = mqttValues();
+  if (!m.broker) {
+    setResult("mqtt-result", "err", T("Enter the broker address first."));
+    $("mqtt-edit").open = true;
+    $("mqtt-broker").focus();
+    return;
+  }
+  setResult("mqtt-result", "", T("Checking…"));
+  const r = await post("api/connection/mqtt" + clearQuery("mqtt_password"), m);
+  if (!r.ok) {
+    setResult("mqtt-result", "err", problem(r.data));
+    return;
+  }
+  setResult("mqtt-result", "ok", Tf("✓ The broker %s accepts the connection.", r.data.broker.replace(/^tcp:\/\//, "")));
+}
+
+// ---- saved passwords -------------------------------------------------------------
+//
+// They are never sent back: an empty field keeps them, for the address they were
+// saved with only (the server would not hand them to another one), and a box
+// removes them.
+
+const SECRETS = [
+  {field: "frigate-pass", box: "clear-frigate-pass", key: "frigate_password"},
+  {field: "mqtt-pass", box: "clear-mqtt-pass", key: "mqtt_password"},
+  {field: "web-pass", box: "clear-web-pass", key: "web_password"},
+];
+let loaded = {frigate: "", broker: ""}; // the saved addresses
+
+const normURL = (u) => u.trim().toLowerCase().replace(/\/+$/, "");
+function normBroker(b) {
+  b = b.trim().toLowerCase().replace(/^tcp:\/\//, "");
+  return b && !/:\d+$/.test(b) ? b + ":1883" : b;
+}
+
+// keepsSaved: the field left empty would keep the saved password.
+function keepsSaved(s) {
+  if (!saved[s.key] || $(s.box).checked) return false;
+  if (s.key === "frigate_password") return normURL($("frigate-url").value) === loaded.frigate;
+  if (s.key === "mqtt_password") return normBroker($("mqtt-broker").value) === loaded.broker;
+  return true;
+}
+
+function renderSecrets() {
+  for (const s of SECRETS) {
+    const field = $(s.field), removing = $(s.box).checked;
+    $(s.box + "-row").hidden = !saved[s.key];
+    field.disabled = removing;
+    if (removing) field.value = "";
+    field.placeholder = keepsSaved(s) ? T("unchanged") : T(field.dataset.tPlaceholder);
+  }
+}
+
+// clears lists the saved passwords to remove; clearQuery is the same for a check.
+const clears = () => SECRETS.filter((s) => $(s.box).checked).map((s) => s.key);
+const clearQuery = (key) => (clears().includes(key) ? "?clear=" + key : "");
+
 // ---- save --------------------------------------------------------------------
 
 function connection() {
@@ -290,13 +367,7 @@ function connection() {
     timezone: $("timezone").value.trim(),
     mode: $("mode").value,
     frigate: frigateValues(),
-    mqtt: {
-      broker: $("mqtt-broker").value.trim(),
-      username: $("mqtt-user").value.trim(),
-      password: $("mqtt-pass").value,
-      topic_prefix: $("mqtt-prefix").value.trim(),
-      insecure_skip_verify: false,
-    },
+    mqtt: mqttValues(),
     telegram: {token: $("token").value.trim(), admins: [], chats: named},
     web: {password: $("web-pass").value, allowed_hosts: allowedHosts},
   };
@@ -326,7 +397,7 @@ async function save(force) {
   $("save").disabled = true;
   setResult("save-result", "", T("Checking the connections…"));
   renderChecks([]);
-  const r = await post("api/connection", {connection: c, force: !!force}, "PUT");
+  const r = await post("api/connection", {connection: c, force: !!force, clear: clears()}, "PUT");
   if (r.status === 422) {
     $("save").disabled = false;
     setResult("save-result", "err", T("Some connections don't work yet."));
@@ -380,6 +451,7 @@ async function load() {
   $("mqtt-broker").value = (m.broker || "").replace(/^tcp:\/\//, "");
   $("mqtt-user").value = m.username || "";
   $("mqtt-prefix").value = m.topic_prefix || "";
+  loaded = {frigate: normURL(f.url || ""), broker: normBroker(m.broker || "")};
   $("timezone").value = c.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "";
   $("mode").value = c.mode || "events";
   msgLang = c.language || "";
@@ -398,7 +470,14 @@ $("check-token").addEventListener("click", async () => { if (await checkToken())
 $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") $("check-token").click(); });
 $("check-frigate").addEventListener("click", checkFrigate);
 for (const id of ["mqtt-broker", "mqtt-user", "mqtt-prefix"]) {
-  $(id).addEventListener("input", () => { mqttTouched = true; renderBroker(); });
+  $(id).addEventListener("input", () => { mqttTouched = true; renderBroker(); setResult("mqtt-result", "", ""); });
+}
+$("mqtt-pass").addEventListener("input", () => setResult("mqtt-result", "", ""));
+for (const id of ["frigate-url", "mqtt-broker"]) $(id).addEventListener("input", renderSecrets);
+for (const s of SECRETS) $(s.box).addEventListener("change", renderSecrets);
+$("check-mqtt").addEventListener("click", checkMqtt);
+for (const id of ["mqtt-broker", "mqtt-pass"]) {
+  $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") checkMqtt(); });
 }
 // A pasted token is checked right away: no button to look for.
 const TOKEN_RE = /^\d{5,}:[\w-]{30,}$/;
@@ -407,6 +486,10 @@ $("token").addEventListener("input", async () => {
 });
 $("frigate-url").addEventListener("keydown", (e) => { if (e.key === "Enter") checkFrigate(); });
 $("manual-add").addEventListener("click", addManual);
+for (const id of ["manual-id", "manual-name"]) {
+  $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") addManual(); });
+}
+$("manual-id").addEventListener("input", () => setResult("manual-result", "", ""));
 $("save").addEventListener("click", () => save(false));
 initLang();
 applyStatic();

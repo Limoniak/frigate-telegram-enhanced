@@ -141,7 +141,7 @@ d'installation et son lien *Connexion*.
 | `TZ` | | Fuseau horaire, ex. `Europe/Paris` (défaut : `UTC`) |
 | `LANGUAGE` | | Langue des messages Telegram et des erreurs : `en` (défaut), `fr`, ou toute langue ajoutée dans `internal/i18n/locales/` — **mettre `fr` pour du français** (les journaux restent en anglais) |
 | `WEB_PASSWORD` | | Mot de passe de l'interface web (vide = aucun) |
-| `TELEGRAM_ADMINS` | | Utilisateurs autorisés à piloter le bot (défaut : les chats privés de `TELEGRAM_CHAT_ID` ; obligatoire s'il ne liste que des groupes) |
+| `TELEGRAM_ADMINS` | | Utilisateurs autorisés à piloter le bot (défaut : les chats privés de `TELEGRAM_CHAT_ID` ; avec seulement des groupes, leurs membres) |
 | `FRIGATE_EXTERNAL_URL` | | Adresse de Frigate utilisée par les liens « Ouvrir dans Frigate » (défaut : `FRIGATE_URL` ; modifiable aussi dans l'interface web) — à renseigner pour ouvrir Frigate hors de chez vous |
 | `FRIGATE_USERNAME` / `FRIGATE_PASSWORD` | | Si l'authentification de Frigate est activée |
 | `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` pour un certificat auto-signé |
@@ -295,7 +295,9 @@ s'authentifie alors avec `basic_auth` (nom d'utilisateur libre, mot de passe `WE
 | `/snapshot [caméra]` | Image en direct |
 | `/last [caméra]` | Dernier événement (snapshot et clip) |
 
-Seuls les utilisateurs listés dans `telegram.admins` peuvent utiliser les commandes et les boutons.
+Seuls les utilisateurs listés dans `telegram.admins` peuvent utiliser les commandes et les boutons. Sans
+admins, toute personne d'un chat destinataire le peut : la personne d'un chat privé, les membres d'un
+groupe.
 
 ## Supervision
 

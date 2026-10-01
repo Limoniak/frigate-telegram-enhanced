@@ -134,13 +134,17 @@ const QUESTIONS = () => [
   ]},
 ];
 
+// data is the response of /api/settings; declared before FIELDS, which reads it.
+let data = null;
+
 // Each detailed setting is described once and rendered twice: in the global advanced
 // settings, and in each camera where it becomes an optional override.
 const FIELDS = () => [
   {key: "enabled", type: "bool", name: T("Notifications enabled"),
    hint: T("Unchecked: no notifications at all (or none for this camera).")},
   {key: "chats", type: "chips", name: T("Recipients"), source: "chats",
-   hint: T("Chats declared in TELEGRAM_CHAT_ID (or telegram.chats).")},
+   hint: data && data.can_connection ? T("Chats chosen on the Connection page (link at the bottom).")
+     : T("Chats declared in TELEGRAM_CHAT_ID (or telegram.chats).")},
   {key: "labels", type: "chips", name: T("Objects"), source: "labels", free: true,
    hint: T("No object selected = every object is reported.")},
   {key: "zones", type: "chips", name: T("Zones"), source: "zones", free: true,
@@ -194,7 +198,6 @@ const GROUPS = () => [
   {title: T("Links"), keys: [], extra: () => externalURLField(), globalOnly: true},
 ];
 
-let data = null;      // response of /api/settings
 let overlay = null;   // what will be saved
 let saved = null;     // serialization of the last saved state, to detect changes
 
@@ -1218,8 +1221,9 @@ function refusedBox() {
     list.append(el("li", null, document.createTextNode(who + " · " + T("ID ")),
       el("code", {text: String(u.id)}), el("span", {class: "when", text: " · " + whenText(u.at)})));
   }
-  box.append(list, el("div", {class: "fix", text: "👉 " + T(
-    "To allow someone, add their ID to TELEGRAM_CHAT_ID (and to TELEGRAM_ADMINS if you set it), then restart the container.")}));
+  box.append(list, el("div", {class: "fix", text: "👉 " + (data && data.can_connection
+    ? T("To allow someone, add their ID as a recipient with the Connection link at the bottom of the page.")
+    : T("To allow someone, add their ID to TELEGRAM_CHAT_ID (and to TELEGRAM_ADMINS if you set it), then restart the container."))}));
   return box;
 }
 

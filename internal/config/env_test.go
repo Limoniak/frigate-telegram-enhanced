@@ -84,7 +84,6 @@ func TestFromEnvErrors(t *testing.T) {
 	}{
 		{"nothing", map[string]string{}, "TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, FRIGATE_URL, MQTT_BROKER"},
 		{"invalid chat", with("TELEGRAM_CHAT_ID", "moi"), "TELEGRAM_CHAT_ID"},
-		{"group without admin", with("TELEGRAM_CHAT_ID", "-1001234567890"), "TELEGRAM_ADMINS is required"},
 		{"negative admin", with("TELEGRAM_ADMINS", "-5"), "TELEGRAM_ADMINS"},
 		{"boolean", with("WEB_ENABLED", "maybe"), "WEB_ENABLED"},
 		{"mode", with("MODE", "everything"), "mode"},
@@ -127,9 +126,10 @@ func TestLanguage(t *testing.T) {
 	if c, err = FromEnv(env(base)); err != nil || c.Language != i18n.FR {
 		t.Fatalf("LANGUAGE=fr: %q, %v", c.Language, err)
 	}
+	// A group alone needs no admin: its members control the bot.
 	base["TELEGRAM_CHAT_ID"] = "-1001234567890"
-	if _, err := FromEnv(env(base)); err == nil || !strings.Contains(err.Error(), "TELEGRAM_ADMINS est obligatoire") {
-		t.Errorf("want an error in French, got %v", err)
+	if c, err := FromEnv(env(base)); err != nil || len(c.Telegram.Admins) != 0 {
+		t.Errorf("group without admin: %v, admins %v", err, c.Telegram.Admins)
 	}
 	base["LANGUAGE"] = "de"
 	base["TELEGRAM_CHAT_ID"] = "111"

@@ -22,6 +22,8 @@ type fakeProber struct {
 	discover    bool   // Discover finds a Frigate
 	brokerState string // state of the broker found through Frigate
 	hosts       []string
+	mqtt        config.MQTT    // the last broker tried
+	frigate     config.Frigate // the last Frigate tried
 }
 
 func (f *fakeProber) Telegram(_ context.Context, token string, _ i18n.Lang) (string, []FoundChat, error) {
@@ -30,6 +32,7 @@ func (f *fakeProber) Telegram(_ context.Context, token string, _ i18n.Lang) (str
 }
 
 func (f *fakeProber) Frigate(_ context.Context, fr config.Frigate, _ i18n.Lang) (FoundFrigate, error) {
+	f.frigate = fr
 	return FoundFrigate{URL: fr.URL, Version: "0.16.0", MQTT: config.MQTT{Broker: "192.168.1.10:1883", TopicPrefix: "frigate"},
 		BrokerState: f.brokerState}, nil
 }
@@ -43,7 +46,10 @@ func (f *fakeProber) Discover(_ context.Context, hosts []string, l i18n.Lang) *F
 	return &found
 }
 
-func (f *fakeProber) MQTT(context.Context, config.MQTT, i18n.Lang) error { return f.mqttErr }
+func (f *fakeProber) MQTT(_ context.Context, m config.MQTT, _ i18n.Lang) error {
+	f.mqtt = m
+	return f.mqttErr
+}
 
 func setupServer(t *testing.T, current *config.Connection, p Prober) (string, *atomic.Int32, *httptest.Server) {
 	t.Helper()
@@ -228,5 +234,97 @@ func TestSetupDiscoversFrigateFromTheAddressOfThePage(t *testing.T) {
 	p.discover = false
 	if _, out := send(t, "POST", ts.URL+"/api/connection/discover", map[string]any{}); out["found"] != nil {
 		t.Errorf("nothing found: %v", out)
+	}
+}
+
+func TestSetupChecksTheBroker(t *testing.T) {
+	current := pageConnection()
+	current.MQTT.Password = "mqtt-secret"
+	p := &fakeProber{}
+	_, _, ts := setupServer(t, &current, p)
+
+	resp, out := send(t, "POST", ts.URL+"/api/connection/mqtt", map[string]string{"broker": "192.168.1.10", "username": "frigate"})
+	if resp.StatusCode != http.StatusOK || out["broker"] != "tcp://192.168.1.10:1883" {
+		t.Fatalf("check: %d %v", resp.StatusCode, out)
+	}
+	// A password left empty is the one saved, for the same broker: the page never gets it back.
+	if p.mqtt.Broker != "tcp://192.168.1.10:1883" || p.mqtt.Username != "frigate" || p.mqtt.Password != "mqtt-secret" {
+		t.Errorf("broker tried = %+v", p.mqtt)
+	}
+
+	p.mqttErr = &Problem{Detail: "the broker refused the password", Hint: "check the MQTT password"}
+	resp, out = send(t, "POST", ts.URL+"/api/connection/mqtt", map[string]string{"broker": "192.168.1.10"})
+	if resp.StatusCode != http.StatusBadGateway || out["error"] != "the broker refused the password" || out["hint"] != "check the MQTT password" {
+		t.Errorf("failing broker: %d %v", resp.StatusCode, out)
+	}
+	if resp, _ := send(t, "POST", ts.URL+"/api/connection/mqtt", map[string]string{}); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("without a broker: %d", resp.StatusCode)
+	}
+}
+
+// A group alone is enough: no admin to give, its members control the bot.
+func TestSetupSavesAGroupWithoutAdmin(t *testing.T) {
+	path, saved, ts := setupServer(t, nil, &fakeProber{})
+	c := pageConnection()
+	c.Telegram.Chats = map[string]int64{"Family": -1001234567890}
+	resp, out := send(t, "PUT", ts.URL+"/api/connection", map[string]any{"connection": c})
+	if resp.StatusCode != http.StatusOK || saved.Load() != 1 {
+		t.Fatalf("group only: %d %v", resp.StatusCode, out)
+	}
+	got, err := config.LoadConnection(path)
+	if err != nil || len(got.Telegram.Admins) != 0 {
+		t.Errorf("saved %+v, %v", got, err)
+	}
+}
+
+// A saved password is only sent back to the address it was saved for: typing
+// another address must not hand it over to whoever answers there.
+func TestSetupKeepsSecretsForTheSameAddressOnly(t *testing.T) {
+	current := pageConnection()
+	current.Frigate.Password, current.MQTT.Password = "frigate-secret", "mqtt-secret"
+	current.Normalize()
+	p := &fakeProber{}
+	_, _, ts := setupServer(t, &current, p)
+
+	send(t, "POST", ts.URL+"/api/connection/mqtt", map[string]string{"broker": "attacker.example"})
+	if p.mqtt.Password != "" {
+		t.Errorf("another broker got the saved password %q", p.mqtt.Password)
+	}
+	send(t, "POST", ts.URL+"/api/connection/mqtt", map[string]string{"broker": "192.168.1.10"})
+	if p.mqtt.Password != "mqtt-secret" {
+		t.Errorf("the same broker: password %q, want the saved one", p.mqtt.Password)
+	}
+	send(t, "POST", ts.URL+"/api/connection/frigate", map[string]string{"url": "http://attacker.example:5000"})
+	if p.frigate.Password != "" {
+		t.Errorf("another Frigate got the saved password %q", p.frigate.Password)
+	}
+	send(t, "POST", ts.URL+"/api/connection/frigate", map[string]string{"url": "http://192.168.1.10:5000/"})
+	if p.frigate.Password != "frigate-secret" {
+		t.Errorf("the same Frigate: password %q, want the saved one", p.frigate.Password)
+	}
+}
+
+// A saved password can be removed: an empty field keeps it, "clear" removes it.
+func TestSetupRemovesASavedPassword(t *testing.T) {
+	current := pageConnection()
+	current.MQTT.Password, current.Web.Password = "mqtt-secret", "web-secret"
+	current.Normalize()
+	p := &fakeProber{}
+	path, _, ts := setupServer(t, &current, p)
+
+	send(t, "POST", ts.URL+"/api/connection/mqtt?clear=mqtt_password", map[string]string{"broker": "192.168.1.10"})
+	if p.mqtt.Password != "" {
+		t.Errorf("check without the saved password: got %q", p.mqtt.Password)
+	}
+	resp, out := send(t, "PUT", ts.URL+"/api/connection", map[string]any{"connection": pageConnection(), "clear": []string{"web_password"}})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("save: %d %v", resp.StatusCode, out)
+	}
+	c, err := config.LoadConnection(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Web.Password != "" || c.MQTT.Password != "mqtt-secret" {
+		t.Errorf("web password %q (want removed), mqtt password %q (want kept)", c.Web.Password, c.MQTT.Password)
 	}
 }
