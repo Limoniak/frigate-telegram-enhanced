@@ -7,6 +7,29 @@ never a breaking 2.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-01
+
+### Added
+
+- The setup page checks the MQTT broker with a *Check* button, without saving anything.
+- A saved password (Frigate, MQTT, web interface) can be removed from the *Connection* page.
+
+### Changed
+
+- Admins are no longer required. Without them, anyone in a recipient chat controls the
+  bot: the person of a private chat, the members of a group. Listed admins stay the only ones.
+- Adding a recipient by ID on the setup page: an invalid ID is explained, Enter adds it,
+  spaces are accepted, and the field opens by itself while nobody was found.
+- The message to a refused Telegram user, and the refused users box of the interface,
+  point to the *Connection* page when the service was set up from the browser.
+
+### Fixed
+
+- **Security**: a saved Frigate or MQTT password is only reused for the address it was
+  saved for. Checking another address from the *Connection* page could send it there.
+- A button whose message Telegram no longer sends (an old one) answered "Not allowed"
+  to an admin instead of working.
+
 ## [1.0.0] - 2026-10-01
 
 First release.
@@ -39,5 +62,6 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Limoniak/frigate-telegram-enhanced/releases/tag/v1.0.0
