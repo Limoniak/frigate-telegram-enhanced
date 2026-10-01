@@ -91,17 +91,19 @@ func TestBrowserSmoke(t *testing.T) {
 // browser starts Chrome for the test; jsErrors returns the uncaught JavaScript errors so far.
 func browser(t *testing.T) (ctx context.Context, jsErrors func() []string) {
 	t.Helper()
-	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.WindowSize(1280, 900))
-	// Ubuntu 24.04 runners block the unprivileged user namespaces Chrome's sandbox
-	// needs (AppArmor). The page under test is our own, served locally.
-	if os.Getenv("CI") != "" {
-		opts = append(opts, chromedp.NoSandbox)
+	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.WindowSize(1280, 900),
+		// A CI runner can take a while to start Chrome.
+		chromedp.WSURLReadTimeout(60*time.Second))
+	// CHROME_PATH picks the browser: without it, chromedp takes the first one it
+	// finds, which can be a slow snap wrapper (chromium-browser on Ubuntu).
+	if p := os.Getenv("CHROME_PATH"); p != "" {
+		opts = append(opts, chromedp.ExecPath(p))
 	}
 	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	t.Cleanup(cancel)
 	ctx, cancel = chromedp.NewContext(actx)
 	t.Cleanup(cancel)
-	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel = context.WithTimeout(ctx, 90*time.Second)
 	t.Cleanup(cancel)
 
 	var mu sync.Mutex
