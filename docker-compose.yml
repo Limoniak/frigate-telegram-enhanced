@@ -6,7 +6,7 @@
 
 services:
   frigate-telegram-enhanced:
-    image: ghcr.io/limoniak/frigate-telegram-enhanced:latest
+    image: ghcr.io/limoniak/frigate-telegram-enhanced:1   # every 1.x release, never a breaking 2.0
     container_name: frigate-telegram-enhanced
     restart: unless-stopped
     ports:

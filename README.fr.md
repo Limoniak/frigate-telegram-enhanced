@@ -112,9 +112,14 @@ ensuite avec le lien *Connexion* en bas de l'interface.
 L'image est construite par GitHub Actions et publiée sur GitHub Container Registry :
 `ghcr.io/limoniak/frigate-telegram-enhanced` (amd64 et arm64).
 
-- `:latest` et `:main` — la dernière version de `main`
-- `:X.Y.Z` — publiés à chaque tag `v*`
+- `:1` — la dernière version 1.x, utilisée par le `docker-compose.yml` fourni : elle
+  reçoit correctifs et nouveautés, jamais de changement incompatible (ce serait une 2.0)
+- `:X.Y` et `:X.Y.Z` — une version précise, publiées à chaque tag `v*`
+- `:latest` et `:main` — le dernier commit de `main`, avant toute version
+- `:dev` — la branche `dev`, pour essayer les changements en cours
 - `:sha-<court>` — un commit précis
+
+Le contenu de chaque version est décrit dans le [journal des modifications](CHANGELOG.md) (en anglais).
 
 Pour mettre à jour : `docker compose pull && docker compose up -d`.
 
@@ -347,3 +352,7 @@ texte omis s'affiche en anglais. La nouvelle langue est alors acceptée par `LAN
 proposée par le sélecteur de langue de l'interface web. `go test ./internal/i18n/` vérifie
 les catalogues : `%s`/`%d` conservés, et catalogue français à jour avec le code (tout
 texte traduit, aucun en trop).
+
+## Licence
+
+[MIT](LICENSE).
