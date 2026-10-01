@@ -28,7 +28,8 @@ import (
 // is canceled (nil too: the caller checks ctx).
 func runSetup(ctx context.Context, connectionPath string, log *slog.Logger, tgOpts []telegram.Option) error {
 	saved := make(chan struct{})
-	setup := web.NewSetup(connectionPath, nil, prober{tgOpts: tgOpts}, log, func() { close(saved) })
+	p := prober{tgOpts: tgOpts, answered: &sync.Map{}, log: log}
+	setup := web.NewSetup(connectionPath, nil, p, log, func() { close(saved) })
 	addr := config.SetupListen()
 	// The container is healthy while it waits: nothing is broken, it waits for its setup.
 	srv := server.New(addr, func() error { return nil }, http.NotFoundHandler(), setup.MountAlone)
@@ -69,6 +70,11 @@ type prober struct {
 	// cut its connection. The users it refused then stand for those who wrote.
 	token   string
 	refused func() []bot.Refused
+	// answered: the /start already answered, by update ID. Before the setup, no bot
+	// runs: without an answer, a /start would seem to go nowhere. nil: no answer
+	// (the service's bot answers).
+	answered *sync.Map
+	log      *slog.Logger
 }
 
 func (p prober) Telegram(ctx context.Context, token string, l i18n.Lang) (string, []web.FoundChat, error) {
@@ -106,7 +112,32 @@ func (p prober) Telegram(ctx context.Context, token string, l i18n.Lang) (string
 		}
 		chats = append(chats, c)
 	}
+	p.answerStarts(ctx, tg, ups, l)
 	return "@" + me.Username, chats, nil
+}
+
+// answerStarts answers each /start once, so that whoever sent it sees it arrived.
+// The updates stay unread: the bot will answer them again once the service runs.
+func (p prober) answerStarts(ctx context.Context, tg *telegram.Client, ups []telegram.Update, l i18n.Lang) {
+	if p.answered == nil {
+		return
+	}
+	for _, u := range ups {
+		m := u.Message
+		if m == nil || !strings.HasPrefix(m.Text, "/start") {
+			continue
+		}
+		if _, done := p.answered.LoadOrStore(u.UpdateID, true); done {
+			continue
+		}
+		text := l.T("✅ Received! You now appear on the setup page: keep yourself ticked there, then save.")
+		if _, err := tg.SendMessage(ctx, m.Chat.ID, text, telegram.SendOptions{}); err != nil {
+			p.answered.Delete(u.UpdateID) // tried again on the next look
+			if p.log != nil {
+				p.log.Warn("answering /start during the setup failed", "chat", m.Chat.ID, "err", err)
+			}
+		}
+	}
 }
 
 func personName(first, username string, id int64) string {

@@ -164,16 +164,18 @@ async function checkToken(quiet) {
   return true;
 }
 
-// pollChats asks again who wrote to the bot, for a few minutes, until someone is found.
+// pollChats asks again who wrote to the bot while the page is open: someone can
+// send /start at any time, including once others are already in the list.
+const POLL_EVERY = 4000, POLL_FOR = 30 * 60 * 1000;
 function pollChats() {
   clearTimeout(pollTimer);
-  pollUntil = Date.now() + 5 * 60 * 1000;
+  pollUntil = Date.now() + POLL_FOR;
   const tick = async () => {
-    if (chats.length > 0 || Date.now() > pollUntil) return;
-    await checkToken(true);
-    pollTimer = setTimeout(tick, 4000);
+    if (Date.now() > pollUntil) return;
+    if (!document.hidden) await checkToken(true);
+    pollTimer = setTimeout(tick, POLL_EVERY);
   };
-  pollTimer = setTimeout(tick, 4000);
+  pollTimer = setTimeout(tick, POLL_EVERY);
 }
 
 function addManual() {

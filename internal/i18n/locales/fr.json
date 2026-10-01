@@ -419,6 +419,7 @@
     "⚠️ object not tracked by Frigate": "⚠️ objet non suivi par Frigate",
     "⛔ Not allowed (your ID: %d)": "⛔ Non autorisé (votre identifiant : %d)",
     "⛔ You are not allowed to use this bot.\n\nYour Telegram ID is <code>%s</code>.\nIf this bot is yours, add this ID to TELEGRAM_CHAT_ID (and to TELEGRAM_ADMINS if you set it), then restart the container.": "⛔ Vous n'êtes pas autorisé à utiliser ce bot.\n\nVotre identifiant Telegram est <code>%s</code>.\nSi ce bot est le vôtre, ajoutez cet identifiant à TELEGRAM_CHAT_ID (et à TELEGRAM_ADMINS si vous l'avez défini), puis redémarrez le conteneur.",
+    "✅ Received! You now appear on the setup page: keep yourself ticked there, then save.": "✅ Bien reçu ! Vous apparaissez maintenant sur la page d'installation : laissez-vous coché, puis enregistrez.",
     "✅ Sent": "✅ Envoyée",
     "✓ Found through Frigate: %s": "✓ Trouvé grâce à Frigate : %s",
     "✓ Frigate %s": "✓ Frigate %s",

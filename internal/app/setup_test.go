@@ -2,12 +2,15 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 
 	mochi "github.com/mochi-mqtt/server/v2"
@@ -16,6 +19,7 @@ import (
 
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/i18n"
+	"frigate-telegram-enhanced/internal/telegram"
 	"frigate-telegram-enhanced/internal/web"
 )
 
@@ -107,5 +111,49 @@ func TestFrigateFindsItsBrokerFromHere(t *testing.T) {
 				t.Errorf("broker = %q, want %q (the one that answered)", found.MQTT.Broker, want)
 			}
 		})
+	}
+}
+
+// Before the setup, no bot runs: the page reads who wrote, and answers each /start
+// once — the page looks again every few seconds.
+func TestSetupAnswersEachStartOnce(t *testing.T) {
+	var sent []string
+	var mu sync.Mutex
+	tg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		var result any = true
+		switch r.URL.Path[strings.LastIndexByte(r.URL.Path, '/')+1:] {
+		case "getMe":
+			result = map[string]any{"id": 1, "username": "frigate_bot"}
+		case "getUpdates":
+			result = []map[string]any{{
+				"update_id": 7,
+				"message": map[string]any{"message_id": 1, "text": "/start",
+					"from": map[string]any{"id": 42, "first_name": "Alice"}, "chat": map[string]any{"id": 42, "type": "private"}},
+			}}
+		case "sendMessage":
+			mu.Lock()
+			sent = append(sent, r.FormValue("chat_id"))
+			mu.Unlock()
+			result = map[string]any{"message_id": 2, "chat": map[string]any{"id": 42}}
+		}
+		json.NewEncoder(w).Encode(map[string]any{"ok": true, "result": result})
+	}))
+	defer tg.Close()
+
+	p := prober{tgOpts: []telegram.Option{telegram.WithBaseURL(tg.URL)}, answered: &sync.Map{}}
+	for range 3 {
+		bot, chats, err := p.Telegram(context.Background(), "t", i18n.FR)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bot != "@frigate_bot" || len(chats) != 1 || chats[0].Name != "Alice" || !chats[0].Private {
+			t.Fatalf("bot %q, chats %+v", bot, chats)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(sent) != 1 || sent[0] != "42" {
+		t.Errorf("answers sent to %v, want one to 42", sent)
 	}
 }
