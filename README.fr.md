@@ -112,7 +112,7 @@ ensuite avec le lien *Connexion* en bas de l'interface.
 L'image est construite par GitHub Actions et publiée sur GitHub Container Registry :
 `ghcr.io/limoniak/frigate-telegram-enhanced` (amd64 et arm64).
 
-- `:latest` et `:main` — le dernier commit de `main`, utilisée par le
+- `:latest` et `:main` — le dernier commit de `main`, utilisés par le
   `docker-compose.yml` fourni
 - `:1` — la dernière version 1.x : correctifs et nouveautés, jamais de changement
   incompatible (ce serait une 2.0) ; pour ne recevoir que les versions, la mettre dans
