@@ -37,6 +37,11 @@ func TestBrowserSmoke(t *testing.T) {
 		WithRefused(fakeRefusals{{ID: 999, Name: "Alice", At: time.Now()}}))
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.WindowSize(1280, 900))
+	// Ubuntu 24.04 runners block the unprivileged user namespaces Chrome's sandbox
+	// needs (AppArmor). The page under test is our own, served locally.
+	if os.Getenv("CI") != "" {
+		opts = append(opts, chromedp.NoSandbox)
+	}
 	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
 	ctx, cancel := chromedp.NewContext(actx)
