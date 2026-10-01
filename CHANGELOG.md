@@ -2,8 +2,8 @@
 
 All notable changes to this project are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/): the provided `docker-compose.yml` uses the
-`:1` image, which gets every 1.x release but never a breaking 2.0.
+[Semantic Versioning](https://semver.org/): the `:1` image gets every 1.x release but
+never a breaking 2.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 

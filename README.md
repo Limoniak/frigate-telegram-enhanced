@@ -111,10 +111,11 @@ later with the *Connection* link at the bottom of the interface.
 The image is built by GitHub Actions and published to GitHub Container Registry:
 `ghcr.io/limoniak/frigate-telegram-enhanced` (amd64 and arm64).
 
-- `:1` — the latest 1.x release, used by the provided `docker-compose.yml`: it gets
-  fixes and new features, never a breaking change (that would be a 2.0)
+- `:latest` and `:main` — the latest commit of `main`, used by the provided
+  `docker-compose.yml`
+- `:1` — the latest 1.x release: fixes and new features, never a breaking change
+  (that would be a 2.0); to only get releases, use it in `docker-compose.yml`
 - `:X.Y` and `:X.Y.Z` — a precise release, published on every `v*` tag
-- `:latest` and `:main` — the latest commit of `main`, before any release
 - `:dev` — the `dev` branch, to try changes in progress
 - `:sha-<short>` — a specific commit
 
