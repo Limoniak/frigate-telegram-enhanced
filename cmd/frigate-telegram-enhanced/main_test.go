@@ -26,7 +26,7 @@ func writeConfig(t *testing.T, extra string) string {
 
 func TestHealthURLFollowsTheConfiguredPort(t *testing.T) {
 	path := writeConfig(t, `http_listen: "0.0.0.0:9000"`+"\n")
-	if got, want := healthURLFor(path), "http://127.0.0.1:9000/healthz"; got != want {
+	if got, want := healthURLFor(path, ""), "http://127.0.0.1:9000/healthz"; got != want {
 		t.Errorf("healthURLFor = %q, want %q", got, want)
 	}
 }
@@ -40,7 +40,7 @@ func TestHealthURLFallsBackToTheDefaultPort(t *testing.T) {
 		"default port":            writeConfig(t, ""),
 	}
 	for name, path := range cases {
-		if got, want := healthURLFor(path), "http://127.0.0.1:8431/healthz"; got != want {
+		if got, want := healthURLFor(path, ""), "http://127.0.0.1:8431/healthz"; got != want {
 			t.Errorf("%s: healthURLFor = %q, want %q", name, got, want)
 		}
 	}

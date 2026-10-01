@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S10 19 10 13'/%3E%3Cpath d='M14.3 24.5a2 2 0 0 0 3.4 0'/%3E%3C/g%3E%3C/svg%3E">
+<title>frigate-telegram-enhanced — setup</title>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body class="setup">
+<header>
+  <div class="bar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+      <div class="brand-text">
+        <h1 data-t="Connection">Connection</h1>
+        <span class="sub">frigate-telegram-enhanced</span>
+      </div>
+    </div>
+    <span class="spacer"></span>
+    <span class="lang" role="group" aria-label="Language / Langue"></span>
+  </div>
+</header>
+<main>
+  <div id="messages"></div>
+  <div class="notice info" id="intro-first" hidden>
+    <b data-t="Welcome!"></b>
+    <span data-t="Three steps and your notifications are running."></span>
+  </div>
+  <p class="back" id="intro-edit" hidden><a href="./" data-t="← Back to the notifications"></a></p>
+
+  <section id="sec-telegram">
+    <div class="sec-head">
+      <span class="ico step" aria-hidden="true">1</span>
+      <div>
+        <h2 data-t="Telegram bot"></h2>
+        <p class="lead" id="tg-lead"></p>
+      </div>
+    </div>
+    <div class="body">
+      <div class="field">
+        <label class="field-head" for="token"><span class="name" data-t="Bot token"></span></label>
+        <div class="control">
+          <input type="text" class="wide" id="token" autocomplete="off" spellcheck="false" placeholder="123456789:AAH…">
+          <button type="button" id="check-token" data-t="Check"></button>
+          <span class="result" id="token-result" role="status"></span>
+        </div>
+      </div>
+      <div class="field" id="chats-field" hidden>
+        <div class="field-head"><span class="name" data-t="Who receives the notifications?"></span></div>
+        <p class="hint" id="chats-howto"></p>
+        <div class="control"><div class="chips" id="chats"></div></div>
+        <p class="hint waiting" id="chats-waiting"><span class="dot pending pulse"></span> <span data-t="Waiting for a message to the bot…"></span></p>
+        <details class="more">
+          <summary data-t="Add an ID by hand"></summary>
+          <div class="control">
+            <input type="text" id="manual-id" inputmode="numeric" placeholder="123456789" aria-label="ID">
+            <input type="text" id="manual-name" data-t-placeholder="Name" aria-label="Name">
+            <button type="button" id="manual-add" data-t="Add"></button>
+          </div>
+          <p class="hint" data-t="A person's ID is positive, a group's is negative (-100…)."></p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-frigate">
+    <div class="sec-head">
+      <span class="ico step" aria-hidden="true">2</span>
+      <div>
+        <h2 data-t="Frigate"></h2>
+        <p class="lead" data-t="Looked for by itself on your network. If it is not found, enter its address: the one of its web page, with port 5000."></p>
+      </div>
+    </div>
+    <div class="body">
+      <div class="field">
+        <label class="field-head" for="frigate-url"><span class="name" data-t="Frigate address"></span></label>
+        <div class="control">
+          <input type="url" class="wide" id="frigate-url" autocomplete="off" spellcheck="false" placeholder="http://192.168.1.10:5000">
+          <button type="button" id="check-frigate" data-t="Check"></button>
+          <span class="result" id="frigate-result" role="status"></span>
+        </div>
+        <details class="more" id="frigate-auth">
+          <summary data-t="Frigate asks for a login"></summary>
+          <div class="control">
+            <input type="text" id="frigate-user" autocomplete="off" data-t-placeholder="Username" aria-label="Username">
+            <input type="password" id="frigate-pass" autocomplete="new-password" data-t-placeholder="Password" aria-label="Password">
+          </div>
+          <label class="override"><input type="checkbox" id="frigate-insecure"> <span data-t="Accept a self-signed certificate"></span></label>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-mqtt">
+    <div class="sec-head">
+      <span class="ico step" aria-hidden="true">3</span>
+      <div>
+        <h2 data-t="MQTT"></h2>
+        <p class="lead" data-t="How Frigate announces its detections. Read from Frigate's configuration: usually nothing to do."></p>
+      </div>
+    </div>
+    <div class="body">
+      <p class="broker-status" id="broker-status" role="status"></p>
+      <div class="field" id="mqtt-pass-field" hidden>
+        <label class="field-head" for="mqtt-pass"><span class="name" data-t="MQTT password"></span></label>
+        <div class="control"><input type="password" id="mqtt-pass" autocomplete="new-password" data-t-placeholder="Password"></div>
+        <p class="hint" data-t="The one in the mqtt section of Frigate's configuration (Frigate does not share it)."></p>
+      </div>
+      <details class="more" id="mqtt-edit">
+        <summary data-t="Change the MQTT settings"></summary>
+        <div class="field">
+          <label class="field-head" for="mqtt-broker"><span class="name" data-t="Broker address"></span></label>
+          <div class="control">
+            <input type="text" class="wide" id="mqtt-broker" autocomplete="off" spellcheck="false" placeholder="192.168.1.10:1883">
+          </div>
+          <div class="control">
+            <input type="text" id="mqtt-user" autocomplete="off" data-t-placeholder="Username (if any)" aria-label="Username">
+          </div>
+          <div class="control"><input type="text" id="mqtt-prefix" placeholder="frigate" aria-label="Topic prefix"></div>
+          <p class="hint" data-t="Frigate's mqtt.topic_prefix: frigate unless you changed it."></p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section id="sec-more">
+    <div class="sec-head">
+      <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+      <div>
+        <h2 data-t="Password of this interface"></h2>
+        <p class="lead" data-t="Optional. Without one, anyone on your network can open this page."></p>
+      </div>
+    </div>
+    <div class="body">
+      <div class="field">
+        <div class="control"><input type="password" id="web-pass" autocomplete="new-password" data-t-placeholder="None" aria-label="Password"></div>
+      </div>
+      <details class="more">
+        <summary data-t="More options"></summary>
+        <div class="field">
+          <label class="field-head" for="msg-lang"><span class="name" data-t="Language of the Telegram messages"></span></label>
+          <div class="control"><select id="msg-lang"></select></div>
+        </div>
+        <div class="field">
+          <label class="field-head" for="timezone"><span class="name" data-t="Time zone"></span></label>
+          <div class="control"><input type="text" id="timezone" spellcheck="false" placeholder="Europe/Paris"></div>
+        </div>
+        <div class="field">
+          <label class="field-head" for="mode"><span class="name" data-t="What triggers a notification"></span></label>
+          <div class="control">
+            <select id="mode">
+              <option value="events" data-t="Each object Frigate detects"></option>
+              <option value="reviews" data-t="Frigate's alerts (review items, Frigate ≥ 0.14)"></option>
+            </select>
+          </div>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <div class="health-errors" id="checks" hidden></div>
+
+  <div class="finish">
+    <button type="button" class="primary" id="save"></button>
+    <span class="result" id="save-result" role="status"></span>
+  </div>
+</main>
+
+<script src="i18n.js"></script>
+<script src="setup.js"></script>
+</body>
+</html>

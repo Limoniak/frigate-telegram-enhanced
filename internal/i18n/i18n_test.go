@@ -222,40 +222,45 @@ func translates(fun ast.Expr) bool {
 var (
 	jsString = regexp.MustCompile(`"((?:[^"\\\n]|\\.)*)"`)
 	jsCall   = regexp.MustCompile(`(?:^|[^\w.$])Tf?\(\s*"((?:[^"\\\n]|\\.)*)"`)
-	dataT    = regexp.MustCompile(`data-t="([^"]*)"`)
+	dataT    = regexp.MustCompile(`data-t(?:-placeholder)?="([^"]*)"`)
 	// T("…", …) or T(`…${x}…`): a call left bilingual, or a key that changes with its values.
 	jsBilingual = regexp.MustCompile(`(?:^|[^\w.$])T\(\s*(?:"(?:[^"\\\n]|\\.)*"\s*,|` + "`" + `[^` + "`" + `]*\$\{)`)
 )
 
-// scanWeb does the same for the web interface: T("…")/Tf("…") in ui.js, data-t in ui.html.
+// scanWeb does the same for the web interface: T("…")/Tf("…") in its scripts,
+// data-t and data-t-placeholder in its pages.
 func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[string]bool) {
 	t.Helper()
-	js, err := os.ReadFile(filepath.Join(dir, "ui.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	unquote := func(s string) string {
-		u, err := strconv.Unquote(`"` + s + `"`)
+	for _, name := range []string{"ui.js", "setup.js"} {
+		js, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
-			t.Fatalf("ui.js: cannot read the string %q: %v", s, err)
+			t.Fatal(err)
 		}
-		return u
+		unquote := func(s string) string {
+			u, err := strconv.Unquote(`"` + s + `"`)
+			if err != nil {
+				t.Fatalf("%s: cannot read the string %q: %v", name, s, err)
+			}
+			return u
+		}
+		for _, m := range jsString.FindAllStringSubmatch(string(js), -1) {
+			literals[unquote(m[1])] = true
+		}
+		for _, m := range jsCall.FindAllStringSubmatch(string(js), -1) {
+			keys[unquote(m[1])] = name
+		}
+		for _, m := range jsBilingual.FindAllString(string(js), -1) {
+			t.Errorf("%s: %q: T takes one English text; use Tf for a text with values", name, m)
+		}
 	}
-	for _, m := range jsString.FindAllStringSubmatch(string(js), -1) {
-		literals[unquote(m[1])] = true
-	}
-	for _, m := range jsCall.FindAllStringSubmatch(string(js), -1) {
-		keys[unquote(m[1])] = "ui.js"
-	}
-	for _, m := range jsBilingual.FindAllString(string(js), -1) {
-		t.Errorf("ui.js: %q: T takes one English text; use Tf for a text with values", m)
-	}
-	page, err := os.ReadFile(filepath.Join(dir, "ui.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, m := range dataT.FindAllStringSubmatch(string(page), -1) {
-		s := html.UnescapeString(m[1])
-		keys[s], literals[s] = "ui.html", true
+	for _, name := range []string{"ui.html", "setup.html"} {
+		page, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range dataT.FindAllStringSubmatch(string(page), -1) {
+			s := html.UnescapeString(m[1])
+			keys[s], literals[s] = name, true
+		}
 	}
 }

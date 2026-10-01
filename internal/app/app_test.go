@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -87,7 +88,7 @@ log_level: error
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, cfgPath, telegram.WithBaseURL(tg.URL), telegram.WithBackoff(time.Millisecond))
+		done <- Run(ctx, cfgPath, "", telegram.WithBaseURL(tg.URL), telegram.WithBackoff(time.Millisecond))
 	}()
 
 	select {
@@ -127,7 +128,126 @@ func TestRunRejectsInvalidConfig(t *testing.T) {
 	if err := os.WriteFile(path, []byte("mode: foo\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := Run(context.Background(), path); err == nil {
+	if err := Run(context.Background(), path, ""); err == nil {
 		t.Fatal("an invalid configuration must be refused")
+	}
+}
+
+// freeAddr returns a local address nobody listens on (the setup page's address
+// comes from HTTP_LISTEN, it cannot be :0).
+func freeAddr(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	return l.Addr().String()
+}
+
+// waitFor polls url until it answers want.
+func waitFor(t *testing.T, url string, want int) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		resp, err := http.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == want {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("GET %s never answered %d (last: %v)", url, want, err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// With nothing configured, Run serves the setup page; once the connection is
+// saved, the service starts with it, on the same address.
+func TestRunStartsFromTheSetupPage(t *testing.T) {
+	dir := t.TempDir()
+	addr := freeAddr(t)
+	t.Setenv("HTTP_LISTEN", addr)
+	polled := make(chan struct{}, 1)
+	tg := fakeTelegram(t, polled)
+	frigate := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(frigate.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, filepath.Join(dir, "config.yml"), filepath.Join(dir, "connection.yml"),
+			telegram.WithBaseURL(tg.URL), telegram.WithBackoff(time.Millisecond))
+	}()
+	base := "http://" + addr
+	waitFor(t, base+"/api/connection", http.StatusOK)
+	waitFor(t, base+"/healthz", http.StatusOK) // waiting for its setup is not unhealthy
+
+	body := fmt.Sprintf(`{"force": true, "connection": {"frigate": {"url": %q}, "mqtt": {"broker": "127.0.0.1:1"},
+		"telegram": {"token": "t", "chats": {"moi": 42}}}}`, frigate.URL)
+	req, _ := http.NewRequest("PUT", base+"/api/connection", strings.NewReader(body))
+	req.Header.Set("X-Requested-With", "frigate-telegram-enhanced")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/connection = %d", resp.StatusCode)
+	}
+
+	select {
+	case <-polled: // the bot runs: the service started with the saved connection
+	case err := <-done:
+		t.Fatalf("Run stopped: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the service did not start after the setup")
+	}
+	waitFor(t, base+"/api/settings", http.StatusOK)
+	if _, err := os.Stat(filepath.Join(dir, "connection.yml")); err != nil {
+		t.Errorf("connection not saved: %v", err)
+	}
+
+	// Changed from the interface, the connection restarts the service with it.
+	body = strings.Replace(body, `"moi"`, `"me"`, 1)
+	req, _ = http.NewRequest("PUT", base+"/api/connection", strings.NewReader(body))
+	req.Header.Set("X-Requested-With", "frigate-telegram-enhanced")
+	if resp, err = http.DefaultClient.Do(req); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("second PUT /api/connection = %d", resp.StatusCode)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var s struct{ Chats []string }
+		if resp, err := http.Get(base + "/api/settings"); err == nil {
+			json.NewDecoder(resp.Body).Decode(&s)
+			resp.Body.Close()
+		}
+		if len(s.Chats) == 1 && s.Chats[0] == "me" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the service did not restart with the new connection: chats %v", s.Chats)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("Run did not stop")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "state.json")); err != nil {
+		t.Errorf("state not saved next to the connection: %v", err)
 	}
 }

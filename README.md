@@ -75,40 +75,38 @@ the camera to adjust.
      password: ...
    ```
 
-2. **A Telegram bot**: message [@BotFather](https://t.me/BotFather), send `/newbot`, and note the token.
-
-3. **Your Telegram ID**: if you don't know it, start the service with any number in
-   `TELEGRAM_CHAT_ID`, then send `/start` to your bot: it answers with your ID, which the
-   web interface also lists under *Status*. Put it in `TELEGRAM_CHAT_ID` and restart.
-   Before the service runs, you can also send a message to your bot, open
-   `https://api.telegram.org/bot<TOKEN>/getUpdates` and note `message.from.id`.
-   For a group: add the bot to the group, post a message there and note `message.chat.id` (negative).
+2. **A Telegram bot**: message [@BotFather](https://t.me/BotFather), send `/newbot`, and keep the token.
 
 ## Installation
 
-1. Download the `docker-compose.yml` file:
+1. Download the `docker-compose.yml` file — there is nothing to change in it:
 
    ```bash
    curl -O https://raw.githubusercontent.com/Limoniak/frigate-telegram-enhanced/main/docker-compose.yml
-   ```
-
-2. Change the environment variables in `docker-compose.yml` — at least the four
-   required ones (see [Environment variables](#environment-variables)).
-
-3. Deploy:
-
-   ```bash
    docker compose up -d
    ```
 
-Then open `http://<server-ip>:8431/` to choose what gets notified, and use
-*Send me a sample* to check that everything reaches Telegram.
-Notification settings (objects, zones, cameras, night hours…) are made in the web
-interface — no variable needed for those.
+2. Open `http://<server-ip>:8431/` (the IP address, not a host name, for this first
+   visit). The setup page:
+   - asks for the **bot token**, then to send `/start` to the bot from each Telegram
+     account that should receive the notifications: they appear on the page, nothing
+     to look up;
+   - **looks for Frigate by itself** (on the machine the page was opened on, then the
+     Docker host); if it is elsewhere, type its address, e.g. `http://192.168.1.10:5000`;
+   - **fills in the MQTT broker** from Frigate's configuration and tries it: only its
+     password is asked for, when it has one;
+   - offers a password for the interface (optional) — language, time zone and the
+     rest are under *More options*.
+
+3. *Save and start*: the connections are checked, then the service starts and the
+   page leads to the notification settings. Use *Send me a sample* to check that
+   everything reaches Telegram.
+
+The connection is saved in the volume (`/data/connection.yml`) and can be changed
+later with the *Connection* link at the bottom of the interface.
 
 > If Frigate and its MQTT broker run in Docker on the same machine, use the machine's
-> IP address in `FRIGATE_URL` and `MQTT_BROKER` — `localhost` would point to the
-> frigate-telegram-enhanced container itself.
+> IP address — `localhost` would point to the frigate-telegram-enhanced container itself.
 
 The image is built by GitHub Actions and published to GitHub Container Registry:
 `ghcr.io/limoniak/frigate-telegram-enhanced` (amd64 and arm64).
@@ -120,6 +118,11 @@ The image is built by GitHub Actions and published to GitHub Container Registry:
 To update: `docker compose pull && docker compose up -d`.
 
 ## Environment variables
+
+Optional: the setup page needs none. They are for those who prefer to describe the
+installation in `docker-compose.yml` (an `environment:` section): as soon as one of
+the four required ones is set, the environment replaces the setup page and its
+*Connection* link.
 
 | Variable | Required | Description |
 |---|---|---|
@@ -148,7 +151,7 @@ To update: `docker compose pull && docker compose up -d`.
 
 ### Advanced: configuration file
 
-Instead of environment variables, everything can be set in a YAML file — useful to
+Instead of the setup page or environment variables, everything can be set in a YAML file — useful to
 prepare per-camera settings in advance or to keep them under version control. Copy
 [`config.example.yml`](config.example.yml) to `config/config.yml`,
 edit it, and add this volume to the service:
@@ -158,7 +161,8 @@ edit it, and add this volume to the service:
       - ./config:/config:ro
 ```
 
-When `/config/config.yml` exists, it is the only source of configuration; `${VAR}`
+When `/config/config.yml` exists, it is the only source of configuration (before the
+environment variables, then the setup page); `${VAR}`
 values in it are read from the container's environment. Key points:
 
 - `notify` settings apply to every camera; an entry under `cameras` overrides them field by field.
@@ -209,9 +213,11 @@ menu jumps to each section.
   holds the address used by "Open in Frigate" (default: `FRIGATE_URL`), with a button
   to test it.
 
-As soon as something changes, a bar appears at the bottom of the page with **Save**
-and **Cancel**. Saving takes effect **immediately**, without a restart, and is only
-accepted if valid — a rejected change leaves the service on the previous settings.
+Every change is **saved by itself** and takes effect **immediately**, without a
+restart; the status at the top of the page confirms it. A change is only accepted if
+valid — a rejected one is reported and leaves the service on the previous settings.
+The finer choices (framing, bursts, sensitivity, per-person settings) are folded
+under *More choices*: the defaults suit most installations.
 
 Settings are saved in the data volume (`/data/notify.yml`), next to the state (pauses,
 cooldowns) and the recent activity, so they survive restarts and updates. With a configuration file, they
@@ -243,10 +249,11 @@ web interface show who is home.
 ### Access and security
 
 Without a password, the interface is open to anyone who can reach the port, and the
-provided `docker-compose.yml` publishes `8431` on the whole network. **Set
-`WEB_PASSWORD`**, or restrict the port to the machine itself with
-`"127.0.0.1:8431:8431"`. (In a configuration file: `web.password`,
-`web.allowed_hosts`, `web.protect_metrics`.)
+provided `docker-compose.yml` publishes `8431` on the whole network. **Set a
+password** on the setup page (or `WEB_PASSWORD`), or restrict the port to the machine
+itself with `"127.0.0.1:8431:8431"`. (In a configuration file: `web.password`,
+`web.allowed_hosts`, `web.protect_metrics`.) Until the setup is saved, the setup page
+has no password: do it right after starting the container.
 
 Without a password, the interface also only accepts requests addressed to an IP
 address or to `localhost` (`http://192.168.1.10:8431/` works, `http://nas.lan:8431/` is
@@ -286,7 +293,9 @@ Only the users listed in `telegram.admins` can use the commands and buttons.
 ## Troubleshooting
 
 - **The container stops right away**: `docker compose logs` names the missing or
-  invalid environment variables.
+  invalid environment variables (or what is wrong in `config.yml`).
+- **The setup page answers 403**: open it with the server's IP address
+  (`http://192.168.1.10:8431/`), not its host name.
 - **No notifications**: open *recent activity* in the web interface, which gives the
   reason for every ignored detection. Otherwise, set `LOG_LEVEL=debug`, then check
   `ft_events_received_total` and `ft_events_filtered_total{reason=...}` on `/metrics`.
@@ -307,8 +316,8 @@ go test -tags browser ./internal/web/   # web interface smoke test, needs Chrome
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-The web interface is `internal/web/ui.html`, `ui.css` and `ui.js`, embedded in the
-binary as is: no build step.
+The web interface is `internal/web/ui.html`, `ui.css` and `ui.js`, and the setup page
+`setup.html` and `setup.js`, embedded in the binary as is: no build step.
 
 ### Translating
 

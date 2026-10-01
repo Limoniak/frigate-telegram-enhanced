@@ -1,46 +1,18 @@
 # frigate-telegram-enhanced — Telegram notifications for Frigate NVR
 # Documentation: https://github.com/Limoniak/frigate-telegram-enhanced
 #
-# 1. Replace the values below (at least the four required ones).
-# 2. docker compose up -d
-# 3. Open http://<server-ip>:8431/ to set up notifications.
+# docker compose up -d, then open http://<server-ip>:8431/ : the setup page asks
+# for the bot token, Frigate's address and the MQTT broker. Nothing to set here.
 
 services:
   frigate-telegram-enhanced:
     image: ghcr.io/limoniak/frigate-telegram-enhanced:latest
     container_name: frigate-telegram-enhanced
     restart: unless-stopped
-    stop_grace_period: 20s   # time to finish the notifications being sent
-    environment:
-      # --- Required ------------------------------------------------------------
-      TELEGRAM_TOKEN: "123456789:AAAA-replace-with-the-token-from-BotFather"
-      TELEGRAM_CHAT_ID: "123456789"          # your ID; several: "me=123456789,family=-1001234567890"
-      FRIGATE_URL: "http://192.168.1.10:5000"  # Frigate API (5000 without auth, 8971 with auth)
-      MQTT_BROKER: "192.168.1.10:1883"         # the MQTT broker used by Frigate
-
-      # --- Recommended ---------------------------------------------------------
-      TZ: "Europe/Paris"
-      LANGUAGE: "en"                           # Telegram messages: en or fr (see internal/i18n/locales)
-      WEB_PASSWORD: ""                         # web interface password (empty = none)
-
-      # --- Optional ------------------------------------------------------------
-      # TELEGRAM_ADMINS: "123456789"           # who can control the bot (default: the private chats above)
-      # FRIGATE_EXTERNAL_URL: "https://frigate.example.com"  # "Open in Frigate" links (default: FRIGATE_URL)
-      # FRIGATE_USERNAME: ""
-      # FRIGATE_PASSWORD: ""
-      # MQTT_USERNAME: ""
-      # MQTT_PASSWORD: ""
-      # MQTT_TOPIC_PREFIX: "frigate"
-      # MODE: "events"                         # events (one message per object) or reviews (Frigate ≥ 0.14 alerts)
-      # WEB_ALLOWED_HOSTS: "nas.lan"           # host names accepted without a password
-      # PRESENCE_TOPICS: "homeassistant/person/+/state"  # pause when someone is home (see README)
-      # LOG_LEVEL: "info"
-    volumes:
-      - frigate-telegram-enhanced-data:/data            # web interface settings and state (pauses, cooldowns, recent activity)
-    tmpfs:
-      - /tmp:size=256m                         # temporary clips (50 MB max each)
     ports:
-      - "8431:8431"                            # web interface, /healthz and /metrics
+      - "8431:8431"
+    volumes:
+      - frigate-telegram-enhanced-data:/data   # connection, settings and state
 
 volumes:
   frigate-telegram-enhanced-data:

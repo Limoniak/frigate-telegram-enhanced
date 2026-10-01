@@ -22,7 +22,6 @@
     <span class="status" id="status" role="status" aria-live="polite"></span>
     <span class="lang" role="group" aria-label="Language / Langue">
     </span>
-    <button class="primary" id="save" disabled data-t="Save">Save</button>
   </div>
 </header>
 <div class="layout">
@@ -73,7 +72,7 @@
       <span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
       <div>
         <h2 data-t="Recipients"></h2>
-        <p class="lead" data-t="What each person receives, on top of the camera settings."></p>
+        <p class="lead" data-t="By default, everyone receives everything the cameras send. Here, limit someone to some objects or some hours."></p>
       </div>
     </div>
     <div id="recipients"></div>
@@ -116,16 +115,12 @@
   <footer>
     <span id="mode"></span><span>·</span><span id="tz"></span>
     <span class="spacer"></span>
+    <a class="link" id="connection" href="setup" hidden data-t="Connection"></a>
     <button class="link danger" id="reset" data-t="Back to the config.yml settings"></button>
   </footer>
 </main>
 </div>
 
-<div class="savebar" id="savebar" role="region" aria-label="Save / Enregistrer" hidden>
-  <span class="txt"><span class="dot pending"></span><span data-t="Unsaved changes"></span></span>
-  <button type="button" id="discard" data-t="Cancel"></button>
-  <button type="button" class="primary" id="save2" data-t="Save"></button>
-</div>
 
 <script src="i18n.js"></script>
 <script src="ui.js"></script>

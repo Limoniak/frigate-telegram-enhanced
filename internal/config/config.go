@@ -40,26 +40,26 @@ var DefaultHomeValues = []string{"home", "on", "true", "1", "present"}
 const DefaultHTTPListen = ":8431"
 
 type Frigate struct {
-	URL                string `yaml:"url"`
-	ExternalURL        string `yaml:"external_url"`
-	Username           string `yaml:"username"`
-	Password           string `yaml:"password"`
-	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"`
+	URL                string `yaml:"url" json:"url"`
+	ExternalURL        string `yaml:"external_url,omitempty" json:"-"`
+	Username           string `yaml:"username,omitempty" json:"username"`
+	Password           string `yaml:"password,omitempty" json:"password"`
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify"`
 }
 
 type MQTT struct {
-	Broker             string `yaml:"broker"`
-	Username           string `yaml:"username"`
-	Password           string `yaml:"password"`
-	ClientID           string `yaml:"client_id"`
-	TopicPrefix        string `yaml:"topic_prefix"`
-	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"`
+	Broker             string `yaml:"broker" json:"broker"`
+	Username           string `yaml:"username,omitempty" json:"username"`
+	Password           string `yaml:"password,omitempty" json:"password"`
+	ClientID           string `yaml:"client_id,omitempty" json:"-"`
+	TopicPrefix        string `yaml:"topic_prefix,omitempty" json:"topic_prefix"`
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify"`
 }
 
 type Telegram struct {
-	Token  string           `yaml:"token"`
-	Admins []int64          `yaml:"admins"`
-	Chats  map[string]int64 `yaml:"chats"`
+	Token  string           `yaml:"token" json:"token"`
+	Admins []int64          `yaml:"admins" json:"admins"`
+	Chats  map[string]int64 `yaml:"chats" json:"chats"`
 }
 
 // Recipient restricts what a recipient receives, on top of the cameras' settings:
@@ -409,11 +409,15 @@ func defaultNotify(chats map[string]int64) Notify {
 
 // Load reads and validates the configuration file, resolving the ${VAR}.
 // Without a file at path, the configuration is read from the environment
-// variables (see FromEnv): that is the docker-compose-only installation.
-func Load(path string) (*Config, error) {
+// variables (see FromEnv), otherwise from the connection saved by the setup page
+// at connectionPath; with none of the three, Load returns ErrNotConfigured.
+func Load(path, connectionPath string) (*Config, error) {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return FromEnv(os.LookupEnv)
+		if envConfigured(os.LookupEnv) || connectionPath == "" {
+			return FromEnv(os.LookupEnv)
+		}
+		return loadConnection(connectionPath)
 	}
 	if err != nil {
 		return nil, envLang(os.LookupEnv).Errorf("reading the configuration: %w", err)

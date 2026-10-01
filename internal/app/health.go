@@ -33,6 +33,8 @@ type checker struct {
 	tg  *telegram.Client
 	// drops: MQTT messages dropped because the queue was full (the notifier); nil not to report them.
 	drops interface{ Dropped() (int, time.Time) }
+	// page: the connection comes from the setup page; the hints name its fields.
+	page bool
 
 	mu       sync.Mutex
 	probeErr error
@@ -87,27 +89,43 @@ func (c *checker) frigate(ctx context.Context, l i18n.Lang) web.Component {
 		comp.State, comp.Detail = web.StateOK, l.Tf("version %s · %s", v, c.cfg.Frigate.URL)
 		return comp
 	}
-	comp.State = web.StateError
+	p := frigateProblem(err, c.cfg.Frigate.URL, c.page, l)
+	comp.State, comp.Detail, comp.Hint = web.StateError, p.Detail, p.Hint
+	return comp
+}
+
+// frigateProblem explains a Frigate error. page: the connection comes from the
+// setup page, whose fields the hints then name instead of the variables.
+func frigateProblem(err error, url string, page bool, l i18n.Lang) *web.Problem {
 	var he *frigate.HTTPError
 	var ue x509.UnknownAuthorityError
 	switch {
 	case errors.Is(err, frigate.ErrAuth):
-		comp.Detail = l.T("Frigate refused the username or password.")
-		comp.Hint = l.T("Check FRIGATE_USERNAME and FRIGATE_PASSWORD.")
+		return &web.Problem{Detail: l.T("Frigate refused the username or password."),
+			Hint: pick(page, l.T("Check FRIGATE_USERNAME and FRIGATE_PASSWORD."), l.T("Check Frigate's username and password."))}
 	case errors.As(err, &he) && he.Status == 401:
-		comp.Detail = l.T("Frigate requires authentication.")
-		comp.Hint = l.T("Set FRIGATE_USERNAME and FRIGATE_PASSWORD, or use port 5000 (no authentication).")
+		return &web.Problem{Detail: l.T("Frigate requires authentication."),
+			Hint: pick(page, l.T("Set FRIGATE_USERNAME and FRIGATE_PASSWORD, or use port 5000 (no authentication)."),
+				l.T("Fill in Frigate's username and password, or use port 5000 (no authentication)."))}
 	case errors.As(err, &he):
-		comp.Detail = l.Tf("Frigate answers HTTP %d at %s.", he.Status, c.cfg.Frigate.URL)
-		comp.Hint = l.T("Check FRIGATE_URL: it must point to Frigate's API (port 5000, or 8971 with authentication).")
+		return &web.Problem{Detail: l.Tf("Frigate answers HTTP %d at %s.", he.Status, url),
+			Hint: pick(page, l.T("Check FRIGATE_URL: it must point to Frigate's API (port 5000, or 8971 with authentication)."),
+				l.T("Check the address: it must point to Frigate's API (port 5000, or 8971 with authentication)."))}
 	case errors.As(err, &ue) || strings.Contains(err.Error(), "x509"):
-		comp.Detail = l.T("Frigate's HTTPS certificate is not trusted.")
-		comp.Hint = l.T("For a self-signed certificate, set FRIGATE_INSECURE_SKIP_VERIFY=true.")
-	default:
-		comp.Detail = l.Tf("Frigate is unreachable at %s (%s).", c.cfg.Frigate.URL, netCause(err, l))
-		comp.Hint = unreachableHint("FRIGATE_URL", l)
+		return &web.Problem{Detail: l.T("Frigate's HTTPS certificate is not trusted."),
+			Hint: pick(page, l.T("For a self-signed certificate, set FRIGATE_INSECURE_SKIP_VERIFY=true."),
+				l.T("For a self-signed certificate, check \"Accept a self-signed certificate\"."))}
 	}
-	return comp
+	return &web.Problem{Detail: l.Tf("Frigate is unreachable at %s (%s).", url, netCause(err, l)),
+		Hint: unreachableHint("FRIGATE_URL", page, l)}
+}
+
+// pick returns the hint naming the variables, or the one naming the setup page's fields.
+func pick(page bool, variables, fields string) string {
+	if page {
+		return fields
+	}
+	return variables
 }
 
 func (c *checker) mqtt(l i18n.Lang) web.Component {
@@ -129,20 +147,34 @@ func (c *checker) mqtt(l i18n.Lang) web.Component {
 		comp.Detail = l.T("The broker accepts the connection; reconnecting…")
 		return comp
 	}
-	comp.State = web.StateError
-	msg := strings.ToLower(err.Error())
-	switch {
-	case strings.Contains(msg, "not authorized") || strings.Contains(msg, "bad user name or password"):
-		comp.Detail = l.T("The broker refused the username or password.")
-		comp.Hint = l.T("Check MQTT_USERNAME and MQTT_PASSWORD (the same as in Frigate's mqtt section).")
-	case strings.Contains(msg, "identifier rejected"):
-		comp.Detail = l.T("The broker rejected the client ID.")
-		comp.Hint = l.T("Set another MQTT_CLIENT_ID.")
-	default:
-		comp.Detail = l.Tf("The broker is unreachable at %s (%s).", c.cfg.MQTT.Broker, netCause(err, l))
-		comp.Hint = unreachableHint("MQTT_BROKER", l)
-	}
+	p := mqttProblem(err, c.cfg.MQTT.Broker, c.page, l)
+	comp.State, comp.Detail, comp.Hint = web.StateError, p.Detail, p.Hint
 	return comp
+}
+
+// mqttAuthRefused reports a broker that answered but refused the username or
+// password, from the client's error or from the *web.Problem explaining it.
+func mqttAuthRefused(err error) bool {
+	var p *web.Problem
+	if errors.As(err, &p) {
+		return p.Auth
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not authorized") || strings.Contains(msg, "bad user name or password")
+}
+
+// mqttProblem explains a failed connection to the broker.
+func mqttProblem(err error, broker string, page bool, l i18n.Lang) *web.Problem {
+	switch {
+	case mqttAuthRefused(err):
+		return &web.Problem{Auth: true, Detail: l.T("The broker refused the username or password."),
+			Hint: pick(page, l.T("Check MQTT_USERNAME and MQTT_PASSWORD (the same as in Frigate's mqtt section)."),
+				l.T("Check the MQTT username and password (the same as in Frigate's mqtt section)."))}
+	case strings.Contains(strings.ToLower(err.Error()), "identifier rejected"):
+		return &web.Problem{Detail: l.T("The broker rejected the client ID."), Hint: l.T("Set another MQTT_CLIENT_ID.")}
+	}
+	return &web.Problem{Detail: l.Tf("The broker is unreachable at %s (%s).", broker, netCause(err, l)),
+		Hint: unreachableHint("MQTT_BROKER", page, l)}
 }
 
 func (c *checker) telegram(ctx context.Context, l i18n.Lang) web.Component {
@@ -157,20 +189,25 @@ func (c *checker) telegram(ctx context.Context, l i18n.Lang) web.Component {
 			return comp
 		}
 	}
-	comp.State = web.StateError
+	p := telegramProblem(err, c.page, l)
+	comp.State, comp.Detail, comp.Hint = web.StateError, p.Detail, p.Hint
+	return comp
+}
+
+// telegramProblem explains a Telegram error.
+func telegramProblem(err error, page bool, l i18n.Lang) *web.Problem {
 	var ae *telegram.APIError
 	switch {
 	case errors.As(err, &ae) && (ae.Code == 401 || ae.Code == 404):
-		comp.Detail = l.T("Telegram refused the bot token.")
-		comp.Hint = l.T("Check TELEGRAM_TOKEN: copy it again from @BotFather (/mybots → API Token).")
+		return &web.Problem{Detail: l.T("Telegram refused the bot token."),
+			Hint: pick(page, l.T("Check TELEGRAM_TOKEN: copy it again from @BotFather (/mybots → API Token)."),
+				l.T("Copy the token again from @BotFather (/mybots → API Token)."))}
 	case errors.As(err, &ae) && ae.Code == 409:
-		comp.Detail = l.T("Another program is already using this bot.")
-		comp.Hint = l.T("Stop the other instance (or remove its webhook): a bot can only be read by one program.")
-	default:
-		comp.Detail = l.Tf("Telegram is unreachable (%s).", netCause(err, l))
-		comp.Hint = l.T("Check that the container can reach the Internet (api.telegram.org).")
+		return &web.Problem{Detail: l.T("Another program is already using this bot."),
+			Hint: l.T("Stop the other instance (or remove its webhook): a bot can only be read by one program.")}
 	}
-	return comp
+	return &web.Problem{Detail: l.Tf("Telegram is unreachable (%s).", netCause(err, l)),
+		Hint: l.T("Check that the container can reach the Internet (api.telegram.org).")}
 }
 
 // name returns the bot's @name, read from Telegram then kept in memory.
@@ -210,6 +247,9 @@ func netCause(err error, l i18n.Lang) string {
 	return err.Error()
 }
 
-func unreachableHint(variable string, l i18n.Lang) string {
+func unreachableHint(variable string, page bool, l i18n.Lang) string {
+	if page {
+		return l.T("Check the address. In Docker, use the machine's IP address rather than localhost, which is the container itself.")
+	}
 	return l.Tf("Check %s. In Docker, use the machine's IP address rather than localhost, which is the container itself.", variable)
 }

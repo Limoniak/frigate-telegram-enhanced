@@ -1,7 +1,7 @@
 # Advanced configuration of frigate-telegram-enhanced — OPTIONAL.
 #
-# A normal installation does not need it: everything is set with the environment
-# variables of docker-compose.yml, then in the web interface.
+# A normal installation does not need it: everything is set in the web interface
+# (setup page at the first start, then the notification settings).
 #
 # To use this file instead: copy it to config/config.yml, adapt it, and add the
 # volume "- ./config:/config:ro" to the service. When /config/config.yml exists,

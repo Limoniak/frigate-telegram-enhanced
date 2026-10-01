@@ -110,7 +110,7 @@ const QUESTIONS = () => [
     {label: T("1 per minute"), patch: {cooldown: "1m"}},
     {label: T("1 every 10 min"), patch: {cooldown: "10m"}},
   ]},
-  {title: T("Bursts"),
+  {title: T("Bursts"), more: true,
    hint: T("Detections close in time are added to the first message (edited, no new sound) instead of sending new ones."),
    options: [
     {label: T("One message per detection"), patch: {group: "0s"}},
@@ -201,14 +201,23 @@ function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
 function dirty() { return JSON.stringify(overlay) !== saved; }
 
+// Every change is saved by itself, shortly after: no button to forget. Changes close
+// together (several clicks in a row) leave as one save.
+const SAVE_DELAY = 600;
+let saveTimer = null;
+
 function touched() {
-  $("save").disabled = !dirty();
-  $("save2").disabled = !dirty();
-  $("savebar").hidden = !dirty();
-  document.body.classList.toggle("has-savebar", dirty());
+  if (!dirty()) return;
+  welcome = false; // the first change: the user found their way
+  status(T("Saving…"), "dirty");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, SAVE_DELAY);
+}
+
+function status(text, kind) {
   const s = $("status");
-  if (dirty()) { s.textContent = T("Unsaved changes"); s.className = "status dirty"; }
-  else { s.textContent = ""; s.className = "status"; }
+  s.textContent = text;
+  s.className = "status" + (kind ? " " + kind : "");
 }
 
 function changed() { touched(); render(); }
@@ -327,8 +336,8 @@ function preview(style) {
 
 // ---- notification d'essai ----------------------------------------------------
 
-// The test goes out with the settings saved on the server: while the page has
-// pending changes, it invites to save first.
+// The test goes out with the settings saved on the server: the pending changes are
+// saved first.
 function testButton(camera, label) {
   const wrap = el("span", {class: "try-one"});
   const result = el("span", {class: "result"});
@@ -339,6 +348,7 @@ function testButton(camera, label) {
     btn.disabled = true;
     result.className = "result"; result.textContent = T("Sending…");
     try {
+      if (!(await flush())) throw new Error(T("the settings could not be saved"));
       const resp = await api("api/test", {
         method: "POST",
         headers: {"Content-Type": "application/json", "X-Requested-With": TOKEN},
@@ -350,11 +360,9 @@ function testButton(camera, label) {
     } catch (err) {
       result.className = "result err"; result.textContent = T("Failed: ") + err.message;
     } finally {
-      setTimeout(() => { btn.disabled = dirty(); }, 3000);
+      setTimeout(() => { btn.disabled = false; }, 3000);
     }
   });
-  btn.disabled = dirty();
-  if (dirty()) { result.textContent = T("Save first to try these settings."); }
   wrap.append(btn, result);
   return el("span", {class: "row"}, wrap);
 }
@@ -437,15 +445,18 @@ function renderFraming() {
   const box = $("framing");
   box.innerHTML = "";
   const n = overlay.notify;
+  if (!n.snapshot) return;
+  const more = moreBox("framing", T("More choices: framing, video placement"));
+  box.append(more);
   if (n.snapshot) {
-    box.append(el("div", {class: "row"}, el("span", {class: "hint", text: T("Framing:")}),
+    more.append(el("div", {class: "row"}, el("span", {class: "hint", text: T("Framing:")}),
       pills([
         {label: T("🖼 Wide shot"), patch: {crop: false}},
         {label: T("🔍 Zoom on the object"), patch: {crop: true}},
       ], null)));
   }
   if (n.snapshot && (n.clip || n.gif)) {
-    box.append(el("div", {class: "row"}, el("span", {class: "hint", text: T("Video:")}),
+    more.append(el("div", {class: "row"}, el("span", {class: "hint", text: T("Video:")}),
       pills([
         {label: T("🔁 In the same message"), patch: {media_in_place: true}},
         {label: T("↩️ As a reply"), patch: {media_in_place: false}},
@@ -503,6 +514,17 @@ function zonePills(camera, zones) {
       onclick: () => set(current.filter((x) => x !== z))}));
   }
   return wrap;
+}
+
+// moreBox is a folded "More choices" box: the settings a beginner can leave as
+// they are. The page is redrawn on every change: the box remembers whether it was
+// opened, under key. open: opened the first time.
+const opened = {};
+function moreBox(key, label, open) {
+  const d = el("details", {class: "more"}, el("summary", {text: label}));
+  d.open = key in opened ? opened[key] : !!open;
+  d.addEventListener("toggle", () => { opened[key] = d.open; });
+  return d;
 }
 
 function question(title, hint, content) {
@@ -570,10 +592,11 @@ function renderQuestions() {
       CONTROLS.chips(FIELDS()[1], overlay.notify.chats, (v) => { overlay.notify.chats = v; changed(); },
         {disabled: false, options: data.chats})));
   }
+  const more = moreBox("questions", T("More choices: bursts, sensitivity…"));
   for (const q of QUESTIONS()) {
     if (q.mode && q.mode !== data.mode) continue;
     if (q.presence && !data.presence) continue;
-    box.append(question(q.title, q.hint, pills(q.options, null)));
+    (q.more ? more : box).append(question(q.title, q.hint, pills(q.options, null)));
   }
   // Labels Frigate knows ("clio 3 océane", "ohana"…): ignore them, or only keep the
   // unknown ones.
@@ -590,16 +613,17 @@ function renderQuestions() {
         CONTROLS.chips(FIELDS().find((f) => f.key === "ignore_sub_labels"), overlay.notify.ignore_sub_labels,
           (v) => { overlay.notify.ignore_sub_labels = v; changed(); }, {disabled: false, options: subs.slice().sort()}));
     }
-    box.append(question(T("Known labels"),
+    more.append(question(T("Known labels"),
       T("Frigate takes a few seconds to recognize an object: with a label filter, notifications wait up to 5 s for it."),
       content));
   }
   // The score only exists in events mode: Frigate gives none for a review.
   if (data.mode !== "reviews") {
-    box.append(question(T("Sensitivity"),
+    more.append(question(T("Sensitivity"),
       T("Frigate's confidence that the object is real. Higher = fewer false alarms, but more risk of missing something."),
       sensitivity()));
   }
+  if (more.children.length > 1) box.append(more);
 }
 
 // ---- recipients -----------------------------------------------------------------
@@ -655,8 +679,13 @@ function renderRecipients() {
   const box = $("recipients");
   box.innerHTML = "";
   if (chats.length < 2) return;
+  // Everyone receives everything until a restriction is set: folded until then.
+  const restricted = Object.values(overlay.recipients || {}).some((r) =>
+    (r.labels || []).length || (r.quiet_hours || []).length || (r.off_hours || []).length);
+  const more = moreBox("recipients", T("Choose per person"), restricted);
+  box.append(more);
   for (const chat of chats) {
-    box.append(el("div", {class: "recipient"},
+    more.append(el("div", {class: "recipient"},
       el("div", {class: "who", text: "👤 " + chat}),
       el("div", {class: "sub-q", text: T("Receives")}), recipientPills(chat, RECIPIENT_OBJECTS()),
       el("div", {class: "sub-q", text: T("When")}), recipientPills(chat, RECIPIENT_WHEN())));
@@ -1034,7 +1063,13 @@ for (const ev of ["wheel", "touchmove", "keydown"]) {
 }
 window.addEventListener("scroll", currentSection, {passive: true});
 
+// welcome: show the first visit's message (redrawn in the page's language).
+let welcome = false;
+
 function render() {
+  if (welcome) {
+    message(T("Everything is ready: notifications already work with the settings below. Pick a style, then send yourself a sample to see what it looks like."), "info");
+  }
   renderStyles();
   renderFraming();
   renderTry();
@@ -1323,7 +1358,13 @@ async function load() {
   for (const c of data.cameras || []) if (!overlay.cameras[c.name]) overlay.cameras[c.name] = {};
   $("mode").textContent = T("mode ") + data.mode;
   $("tz").textContent = data.timezone;
+  $("connection").hidden = !data.can_connection;
   $("reset").hidden = !data.custom;
+  // Set on the setup page, there is no config.yml: going back means the defaults.
+  $("reset").dataset.t = data.can_connection ? "Back to the default settings" : "Back to the config.yml settings";
+  $("reset").textContent = T($("reset").dataset.t);
+  // First visit: nothing saved yet, everything works with the defaults.
+  welcome = !data.warning && !data.custom && data.can_test;
   message(data.warning || "", "warn");
   saved = JSON.stringify(overlay);
   if (data.can_pause) await stateCall("api/state");
@@ -1333,43 +1374,57 @@ async function load() {
   touched();
 }
 
-// discard goes back to the last saved state.
-function discard() {
-  overlay = JSON.parse(saved);
-  message("", "");
-  render();
-  touched();
+// saving: the save in progress, if any; saves never overlap.
+let saving = null;
+
+// save sends the settings if they changed since the last save. Returns false if the
+// server refused them.
+async function save() {
+  clearTimeout(saveTimer);
+  while (saving) await saving;
+  if (!dirty()) return true;
+  const sent = JSON.stringify(overlay);
+  let ok = false;
+  saving = (async () => {
+    try {
+      const resp = await api("api/settings", {
+        method: "PUT",
+        headers: {"Content-Type": "application/json", "X-Requested-With": TOKEN},
+        body: JSON.stringify(toSend()),
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(body.error || "HTTP " + resp.status);
+      saved = sent;
+      ok = true;
+      message("", "");
+      if (!data.custom) {
+        data.custom = true;
+        $("reset").hidden = false;
+      }
+      status(T("Saved ✓ — applied immediately"), "saved");
+    } catch (e) {
+      message(T("Save refused:\n") + e.message, "err");
+      status(T("Not saved"), "dirty");
+    }
+  })();
+  await saving;
+  saving = null;
+  // Changed while it was being sent: one more save.
+  if (ok && dirty()) touched();
+  return ok;
 }
 
-async function save() {
-  const btns = [$("save"), $("save2")];
-  for (const b of btns) b.disabled = true;
-  try {
-    const resp = await api("api/settings", {
-      method: "PUT",
-      headers: {"Content-Type": "application/json", "X-Requested-With": TOKEN},
-      body: JSON.stringify(toSend()),
-    });
-    const body = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(body.error || "HTTP " + resp.status);
-    saved = JSON.stringify(overlay);
-    message("", "");
-    $("savebar").hidden = true;
-    document.body.classList.remove("has-savebar");
-    data.custom = true;
-    $("reset").hidden = false;
-    render(); // re-enables the test buttons
-    $("status").textContent = T("Saved ✓ — applied immediately");
-    $("status").className = "status saved";
-    setTimeout(touched, 3000);
-  } catch (e) {
-    message(T("Save refused:\n") + e.message, "err");
-    for (const b of btns) b.disabled = false;
-  }
+// flush saves what is pending right away; false if the settings were refused.
+async function flush() {
+  if (saving) await saving;
+  return dirty() ? save() : true;
 }
 
 async function reset() {
-  if (!confirm(T("Delete the settings saved here and go back to the config.yml ones?"))) return;
+  const question = data.can_connection
+    ? T("Go back to the default settings? The choices made on this page will be lost.")
+    : T("Delete the settings saved here and go back to the config.yml ones?");
+  if (!confirm(question)) return;
   try {
     const resp = await api("api/settings/reset", {method: "POST", headers: {"X-Requested-With": TOKEN}});
     if (!resp.ok) {
@@ -1382,11 +1437,13 @@ async function reset() {
   }
 }
 
-$("save").addEventListener("click", save);
-$("save2").addEventListener("click", save);
-$("discard").addEventListener("click", discard);
 $("reset").addEventListener("click", reset);
-window.addEventListener("beforeunload", (e) => { if (dirty()) e.preventDefault(); });
+// Leaving with a save pending: it is sent at once, the browser asks to wait for it.
+window.addEventListener("beforeunload", (e) => {
+  if (!dirty()) return;
+  save();
+  e.preventDefault();
+});
 
 // One button per language of the catalogs.
 for (const l of LANGUAGES) {

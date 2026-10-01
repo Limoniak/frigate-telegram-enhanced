@@ -104,7 +104,8 @@ func TestLoadFallsBackToEnvironment(t *testing.T) {
 	t.Setenv("TELEGRAM_CHAT_ID", "111")
 	t.Setenv("FRIGATE_URL", "http://f:5000")
 	t.Setenv("MQTT_BROKER", "mqtt")
-	c, err := Load(t.TempDir() + "/absent.yml")
+	dir := t.TempDir()
+	c, err := Load(dir+"/absent.yml", dir+"/connection.yml")
 	if err != nil {
 		t.Fatal(err)
 	}

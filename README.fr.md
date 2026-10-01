@@ -75,41 +75,39 @@ score trop bas, déjà signalé il y a peu…), avec un lien direct vers la cam�
      password: ...
    ```
 
-2. **Un bot Telegram** : écrire à [@BotFather](https://t.me/BotFather), `/newbot`, puis noter le token.
-
-3. **Votre identifiant Telegram** : si vous ne le connaissez pas, démarrer le service avec
-   n'importe quel nombre dans `TELEGRAM_CHAT_ID`, puis envoyer `/start` à votre bot : il
-   répond avec votre identifiant, que l'interface web liste aussi dans *État*. Le reporter
-   dans `TELEGRAM_CHAT_ID` et redémarrer.
-   Avant que le service tourne, on peut aussi écrire un message à votre bot, ouvrir
-   `https://api.telegram.org/bot<TOKEN>/getUpdates` et relever `message.from.id`.
-   Pour un groupe : ajouter le bot au groupe, y écrire un message et relever `message.chat.id` (négatif).
+2. **Un bot Telegram** : écrire à [@BotFather](https://t.me/BotFather), `/newbot`, et garder le token.
 
 ## Installation
 
-1. Télécharger le fichier `docker-compose.yml` :
+1. Télécharger le fichier `docker-compose.yml` — il n'y a rien à y modifier :
 
    ```bash
    curl -O https://raw.githubusercontent.com/Limoniak/frigate-telegram-enhanced/main/docker-compose.yml
-   ```
-
-2. Modifier les variables d'environnement dans `docker-compose.yml` — au minimum les
-   quatre obligatoires (voir [Variables d'environnement](#variables-denvironnement)).
-
-3. Déployer :
-
-   ```bash
    docker compose up -d
    ```
 
-Ouvrez ensuite `http://<ip-du-serveur>:8431/` pour choisir ce qui est notifié, puis
-*M'envoyer un exemple* pour vérifier que tout arrive bien dans Telegram. Les réglages
-de notification (objets, zones, caméras, heures de nuit…) se font dans l'interface web —
-aucune variable n'est nécessaire pour eux.
+2. Ouvrir `http://<ip-du-serveur>:8431/` (l'adresse IP, pas un nom d'hôte, pour cette
+   première visite). La page d'installation :
+   - demande le **token du bot**, puis d'envoyer `/start` au bot depuis chaque compte
+     Telegram qui doit recevoir les notifications : ils apparaissent sur la page, aucun
+     identifiant à chercher ;
+   - **cherche Frigate toute seule** (sur la machine où la page a été ouverte, puis
+     l'hôte Docker) ; s'il est ailleurs, taper son adresse, ex. `http://192.168.1.10:5000` ;
+   - **remplit le broker MQTT** d'après la configuration de Frigate et l'essaie : seul
+     son mot de passe est demandé, s'il en a un ;
+   - propose un mot de passe pour l'interface (facultatif) — langue, fuseau horaire et
+     le reste sont sous *Plus d'options*.
+
+3. *Enregistrer et démarrer* : les connexions sont vérifiées, le service démarre et la
+   page mène aux réglages des notifications. *M'envoyer un exemple* vérifie que tout
+   arrive bien dans Telegram.
+
+La connexion est enregistrée dans le volume (`/data/connection.yml`) et se modifie
+ensuite avec le lien *Connexion* en bas de l'interface.
 
 > Si Frigate et son broker MQTT tournent dans Docker sur la même machine, utilisez
-> l'adresse IP de la machine dans `FRIGATE_URL` et `MQTT_BROKER` — `localhost`
-> désignerait le conteneur frigate-telegram-enhanced lui-même.
+> l'adresse IP de la machine — `localhost` désignerait le conteneur
+> frigate-telegram-enhanced lui-même.
 
 L'image est construite par GitHub Actions et publiée sur GitHub Container Registry :
 `ghcr.io/limoniak/frigate-telegram-enhanced` (amd64 et arm64).
@@ -121,6 +119,11 @@ L'image est construite par GitHub Actions et publiée sur GitHub Container Regis
 Pour mettre à jour : `docker compose pull && docker compose up -d`.
 
 ## Variables d'environnement
+
+Facultatives : la page d'installation n'en a besoin d'aucune. Elles servent à qui
+préfère décrire l'installation dans `docker-compose.yml` (section `environment:`) : dès
+que l'une des quatre obligatoires est définie, l'environnement remplace la page
+d'installation et son lien *Connexion*.
 
 | Variable | Obligatoire | Description |
 |---|---|---|
@@ -149,7 +152,7 @@ Pour mettre à jour : `docker compose pull && docker compose up -d`.
 
 ### Avancé : fichier de configuration
 
-À la place des variables d'environnement, tout peut se régler dans un fichier YAML —
+À la place de la page d'installation ou des variables d'environnement, tout peut se régler dans un fichier YAML —
 pratique pour préparer des réglages par caméra à l'avance ou les versionner. Copier
 [`config.example.yml`](config.example.yml) (commentaires en anglais) vers `config/config.yml`, l'adapter, et
 ajouter ce volume au service :
@@ -159,7 +162,8 @@ ajouter ce volume au service :
       - ./config:/config:ro
 ```
 
-Quand `/config/config.yml` existe, il est seul pris en compte ; ses valeurs `${VAR}`
+Quand `/config/config.yml` existe, il est seul pris en compte (avant les variables
+d'environnement, puis la page d'installation) ; ses valeurs `${VAR}`
 sont lues dans l'environnement du conteneur. Points clés :
 
 - Les réglages de `notify` s'appliquent à toutes les caméras ; une entrée dans `cameras` remplace champ par champ.
@@ -210,9 +214,11 @@ un sommaire latéral mène à chaque section.
   **Liens** contient l'adresse utilisée par « Ouvrir dans Frigate » (défaut :
   `FRIGATE_URL`), avec un bouton pour la tester.
 
-Dès qu'un réglage change, une barre apparaît en bas de page avec **Enregistrer** et
-**Annuler**. Un enregistrement prend effet **immédiatement**, sans redémarrage, et n'est
-accepté que s'il est valide — un réglage refusé laisse le service sur les précédents.
+Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
+redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
+est valide — un réglage refusé est signalé et laisse le service sur les précédents.
+Les choix plus fins (cadrage, rafales, sensibilité, réglages par personne) sont repliés
+sous *Plus de choix* : les valeurs par défaut conviennent à la plupart des installations.
 
 Les réglages sont enregistrés dans le volume de données (`/data/notify.yml`), à côté de
 l'état (pauses, cooldowns) et de l'activité récente : ils survivent aux redémarrages et aux mises à jour. Avec un
@@ -245,10 +251,12 @@ Telegram et l'interface web indiquent qui est à la maison.
 ### Accès et sécurité
 
 Sans mot de passe, l'interface est ouverte à quiconque atteint le port, et le
-`docker-compose.yml` fourni publie `8431` sur tout le réseau. **Renseignez
-`WEB_PASSWORD`**, ou limitez le port à la machine elle-même avec
-`"127.0.0.1:8431:8431"`. (Dans un fichier de configuration : `web.password`,
-`web.allowed_hosts`, `web.protect_metrics`.)
+`docker-compose.yml` fourni publie `8431` sur tout le réseau. **Définissez un mot de
+passe** dans la page d'installation (ou `WEB_PASSWORD`), ou limitez le port à la
+machine elle-même avec `"127.0.0.1:8431:8431"`. (Dans un fichier de configuration :
+`web.password`, `web.allowed_hosts`, `web.protect_metrics`.) Tant que l'installation
+n'est pas enregistrée, la page d'installation n'a pas de mot de passe : faites-la dès
+le conteneur démarré.
 
 Sans mot de passe, l'interface n'accepte en outre que les requêtes adressées à une
 adresse IP ou à `localhost` (`http://192.168.1.10:8431/` fonctionne,
@@ -288,7 +296,9 @@ Seuls les utilisateurs listés dans `telegram.admins` peuvent utiliser les comma
 ## Dépannage
 
 - **Le conteneur s'arrête aussitôt** : `docker compose logs` indique les variables
-  d'environnement manquantes ou invalides.
+  d'environnement manquantes ou invalides (ou ce qui ne va pas dans `config.yml`).
+- **La page d'installation répond 403** : l'ouvrir avec l'adresse IP du serveur
+  (`http://192.168.1.10:8431/`), pas son nom d'hôte.
 - **Aucune notification** : ouvrir l'*Activité récente* de l'interface web, qui donne la
   raison de chaque détection ignorée. Sinon, `LOG_LEVEL=debug`, puis vérifier
   `ft_events_received_total` et `ft_events_filtered_total{reason=...}` sur `/metrics`.
@@ -308,8 +318,9 @@ go test -tags browser ./internal/web/   # test de fumée de l'interface web, ave
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-L'interface web se compose de `internal/web/ui.html`, `ui.css` et `ui.js`, intégrés tels
-quels au binaire : aucune étape de build.
+L'interface web se compose de `internal/web/ui.html`, `ui.css` et `ui.js`, et la page
+d'installation de `setup.html` et `setup.js`, intégrés tels quels au binaire : aucune
+étape de build.
 
 ### Traduire
 

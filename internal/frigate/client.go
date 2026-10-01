@@ -258,6 +258,23 @@ type apiConfig struct {
 	Objects struct {
 		Track []string `json:"track"`
 	} `json:"objects"`
+	MQTT MQTTSettings `json:"mqtt"`
+}
+
+// MQTTSettings is the broker Frigate publishes to, as /api/config gives it: the
+// setup page offers it rather than asking. Frigate leaves the password out.
+type MQTTSettings struct {
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	User        string `json:"user"`
+	TopicPrefix string `json:"topic_prefix"`
+}
+
+// MQTT returns the broker settings of Frigate's configuration.
+func (c *Client) MQTT(ctx context.Context) (MQTTSettings, error) {
+	var cfg apiConfig
+	err := c.getJSON(ctx, "/api/config", &cfg)
+	return cfg.MQTT, err
 }
 
 // Cameras returns the names of the cameras declared in Frigate, sorted.

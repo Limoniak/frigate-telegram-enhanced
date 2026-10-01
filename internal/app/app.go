@@ -31,13 +31,40 @@ import (
 
 // Run starts the service and runs it until ctx is canceled, then stops it
 // cleanly: sends in progress finished (or interrupted after a delay), state
-// saved, HTTP server closed. tgOpts lets tests redirect the Telegram API to a
-// fake server.
-func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) error {
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return err
+// saved, HTTP server closed. With nothing configured, it first serves the setup
+// page, which saves the connection at connectionPath; a connection changed from
+// the interface restarts the service with it. tgOpts lets tests redirect the
+// Telegram API to a fake server.
+func Run(ctx context.Context, configPath, connectionPath string, tgOpts ...telegram.Option) error {
+	for {
+		cfg, err := config.Load(configPath, connectionPath)
+		switch {
+		case errors.Is(err, config.ErrNotConfigured):
+			log := newLogger("info")
+			slog.SetDefault(log)
+			if err := runSetup(ctx, connectionPath, log, tgOpts); err != nil {
+				return err
+			}
+		case err != nil:
+			return err
+		default:
+			restart, err := run(ctx, cfg, connectionPath, tgOpts)
+			if err != nil || !restart {
+				return err
+			}
+		}
+		if ctx.Err() != nil {
+			return nil
+		}
 	}
+}
+
+// run runs the configured service until ctx is canceled, or until the connection
+// is changed from the interface: it then returns restart = true.
+func run(parent context.Context, cfg *config.Config, connectionPath string, tgOpts []telegram.Option) (restart bool, err error) {
+	ctx, stopService := context.WithCancel(parent)
+	defer stopService()
+	var restarting atomic.Bool
 	log := newLogger(cfg.LogLevel)
 	slog.SetDefault(log)
 
@@ -63,7 +90,7 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	}
 	fr, err := frigate.NewClient(cfg.Frigate)
 	if err != nil {
-		return err
+		return false, err
 	}
 	tg := telegram.New(cfg.Telegram.Token, append([]telegram.Option{telegram.WithErrorHook(func(method string, code int) {
 		m.TelegramErrors.WithLabelValues(method, strconv.Itoa(code)).Inc()
@@ -102,9 +129,22 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	var mount []func(*http.ServeMux)
 	var protect func(http.Handler) http.Handler // interface password, shared failure count
 	if cfg.Web.Enabled {
-		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg, drops: notif}
-		ui := web.New(cfg, overlayPath, fr, log, web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr),
-			web.WithHealth(chk.check), web.WithRefused(b))
+		fromPage := cfg.Source == connectionPath
+		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg, drops: notif, page: fromPage}
+		opts := []web.Option{web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr),
+			web.WithHealth(chk.check), web.WithRefused(b)}
+		if fromPage {
+			conn, err := config.LoadConnection(connectionPath)
+			if err != nil {
+				return false, err
+			}
+			p := prober{tgOpts: tgOpts, token: cfg.Telegram.Token, refused: b.Refused}
+			opts = append(opts, web.WithSetup(web.NewSetup(connectionPath, conn, p, log, func() {
+				restarting.Store(true)
+				stopService()
+			})))
+		}
+		ui := web.New(cfg, overlayPath, fr, log, opts...)
 		mount = append(mount, ui.Mount)
 		protect = ui.Protect
 	}
@@ -167,13 +207,18 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 		}
 	}
 
-	log.Info("shutting down…")
+	if restarting.Load() {
+		log.Info("connection changed, restarting…")
+	} else {
+		log.Info("shutting down…")
+	}
 	sub.Stop()
 	if err := st.Save(); err != nil {
 		log.Warn("saving the state failed", "err", err)
 	}
 	<-runDone
-	if !notif.Shutdown(10 * time.Second) {
+	// 7 s: the whole shutdown must fit in Docker's default 10 s before SIGKILL.
+	if !notif.Shutdown(7 * time.Second) {
 		log.Warn("some notifications were interrupted by the shutdown")
 	}
 	<-botDone
@@ -183,9 +228,8 @@ func Run(ctx context.Context, configPath string, tgOpts ...telegram.Option) erro
 	if err := notif.FlushHistory(); err != nil {
 		log.Warn("saving the recent activity failed", "err", err)
 	}
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	stopServer(srv)
+	return restarting.Load(), nil
 }
 
 func newLogger(level string) *slog.Logger {

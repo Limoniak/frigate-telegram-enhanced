@@ -26,9 +26,10 @@ import (
 	"frigate-telegram-enhanced/internal/state"
 )
 
-// The interface: the page, its style sheet and its script, with no build step.
+// The interface: the page, its style sheet and its script, with no build step,
+// and the setup page.
 //
-//go:embed ui.html ui.css ui.js
+//go:embed ui.html ui.css ui.js setup.html setup.js
 var assets embed.FS
 
 // maxBody bounds the size of a save: the override of a realistic installation
@@ -111,6 +112,7 @@ type Handler struct {
 	media   Media      // nil: history without thumbnails
 	health  HealthFunc // nil: no connection status
 	refused Refusals   // nil: no list of refused users
+	setup   *Setup     // nil: connection set by config.yml or the environment
 	auth    *Auth      // password, shared by every route
 	now     func() time.Time
 
@@ -142,7 +144,10 @@ func WithHealth(f HealthFunc) Option { return func(h *Handler) { h.health = f } 
 // with their ID to add to the configuration.
 func WithRefused(r Refusals) Option { return func(h *Handler) { h.refused = r } }
 
-// WithClock remplace l'horloge (tests).
+// WithSetup adds the "Connection" page, to change what the setup page saved.
+func WithSetup(s *Setup) Option { return func(h *Handler) { h.setup = s } }
+
+// WithClock replaces the clock (tests).
 func WithClock(now func() time.Time) Option { return func(h *Handler) { h.now = now } }
 
 func New(cfg *config.Config, overlayPath string, cameras CameraLister, log *slog.Logger, opts ...Option) *Handler {
@@ -176,6 +181,9 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /api/history", h.guard(http.HandlerFunc(h.getHistory)))
 	mux.Handle("GET /api/health", h.guard(http.HandlerFunc(h.getHealth)))
 	mux.Handle("GET /api/history/{id}/thumb", h.guard(http.HandlerFunc(h.thumb)))
+	if h.setup != nil {
+		h.setup.mount(mux, h.guard)
+	}
 }
 
 // guard applies the access control shared by every route of the interface: the
@@ -184,19 +192,30 @@ func (h *Handler) guard(next http.Handler) http.Handler {
 	if h.cfg.Web.Password != "" {
 		return h.auth.Wrap(next)
 	}
-	return checkHost(h.cfg.Web.AllowedHosts, h.cfg.Language, next)
+	refused := hostRefused
+	if h.setup != nil {
+		refused = hostRefusedPage
+	}
+	return checkHost(h.cfg.Web.AllowedHosts, h.cfg.Language, refused, next)
 }
+
+// Errors of checkHost once the service is configured, by config.yml or the
+// environment, or by the setup page.
+const (
+	hostRefused     = "host not allowed: add this name to WEB_ALLOWED_HOSTS (web.allowed_hosts), or set WEB_PASSWORD"
+	hostRefusedPage = "host not allowed: open the interface with the server's IP address, or set a password on the Connection page"
+)
 
 // checkHost refuses the requests whose Host header is neither an IP address, nor
 // localhost, nor a name listed in allowed. Without a password, that is what blocks
 // DNS rebinding: a third-party site that points its own domain at 127.0.0.1 becomes
 // "same origin" for the browser — X-Requested-With no longer stops it — but its
 // requests still carry its domain name in Host.
-func checkHost(allowed []string, def i18n.Lang, next http.Handler) http.Handler {
+// refused is the English text of the error, translated for the request.
+func checkHost(allowed []string, def i18n.Lang, refused string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !hostAllowed(r.Host, allowed) {
-			http.Error(w, requestLang(r, def).T(
-				"host not allowed: add this name to WEB_ALLOWED_HOSTS (web.allowed_hosts), or set WEB_PASSWORD"), http.StatusForbidden)
+			http.Error(w, requestLang(r, def).T(refused), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -204,10 +223,7 @@ func checkHost(allowed []string, def i18n.Lang, next http.Handler) http.Handler 
 }
 
 func hostAllowed(host string, allowed []string) bool {
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
-	host = strings.TrimSuffix(strings.ToLower(strings.Trim(host, "[]")), ".")
+	host = requestHost(host)
 	if host == "" {
 		return false
 	}
@@ -289,7 +305,8 @@ type settings struct {
 	CanPause bool                 `json:"can_pause"`
 	CanHist  bool                 `json:"can_history"`
 	CanHlth  bool                 `json:"can_health"`
-	Presence bool                 `json:"presence"` // presence topics configured
+	Presence bool                 `json:"presence"`       // presence topics configured
+	CanConn  bool                 `json:"can_connection"` // connection made on the setup page
 	// FrigateURL is the address of the links when no external address is set.
 	FrigateURL string `json:"frigate_url"`
 	// SubLabels: labels Frigate knows, offered by the label filter.
@@ -307,6 +324,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		CanHist:    h.history != nil,
 		CanHlth:    h.health != nil,
 		Presence:   h.cfg.Presence.Enabled(),
+		CanConn:    h.setup != nil,
 		FrigateURL: h.cfg.Frigate.URL,
 	}
 	if _, err := os.Stat(h.path); err == nil {
