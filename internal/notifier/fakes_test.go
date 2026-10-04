@@ -24,7 +24,8 @@ type fakeFrigate struct {
 	files    map[string][]byte
 	fails    map[string]int // number of 404 to return before success
 	tooLarge map[string]bool
-	stalls   map[string]bool // stalling download: files[path] is only partly received
+	stalls   map[string]bool  // stalling download: files[path] is only partly received
+	sizes    map[string]int64 // clip of this size (sparse file), checked against max
 	calls    []string
 	events   []frigate.APIEvent
 	reviews  map[string]frigate.Review
@@ -39,7 +40,7 @@ type fakeFrigate struct {
 }
 
 func newFakeFrigate() *fakeFrigate {
-	return &fakeFrigate{files: map[string][]byte{}, fails: map[string]int{}, tooLarge: map[string]bool{}, stalls: map[string]bool{}, reviews: map[string]frigate.Review{}}
+	return &fakeFrigate{files: map[string][]byte{}, fails: map[string]int{}, tooLarge: map[string]bool{}, stalls: map[string]bool{}, sizes: map[string]int64{}, reviews: map[string]frigate.Review{}}
 }
 
 func (f *fakeFrigate) GetBytes(_ context.Context, path string, _ int64) ([]byte, error) {
@@ -72,6 +73,12 @@ func (f *fakeFrigate) DownloadToFile(ctx context.Context, path string, max int64
 	if f.downloadDelay > 0 {
 		time.Sleep(f.downloadDelay)
 	}
+	f.mu.Lock()
+	size, sized := f.sizes[path]
+	f.mu.Unlock()
+	if sized && size > max {
+		return "", frigate.ErrTooLarge
+	}
 	b, err := f.GetBytes(ctx, path, max)
 	if err != nil {
 		return "", err
@@ -81,6 +88,9 @@ func (f *fakeFrigate) DownloadToFile(ctx context.Context, path string, max int64
 		return "", err
 	}
 	_, err = tmp.Write(b)
+	if err == nil && sized {
+		err = tmp.Truncate(size)
+	}
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}

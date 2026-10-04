@@ -116,7 +116,13 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 		return
 	}
 	defer n.releaseMedia()
-	file, err := n.download(ctx, path)
+	var file string
+	var err error
+	if kind == "video" {
+		file, err = n.fetchClip(ctx, path)
+	} else {
+		file, err = n.download(ctx, path, maxUploadSize)
+	}
 	if errors.Is(err, frigate.ErrTooLarge) {
 		text := n.tooLargeText(path)
 		n.deliver(ctx, chats, "text", telegram.InputFile{},
@@ -156,11 +162,52 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 		}, nil)
 }
 
+// fetchClip downloads a clip that Telegram accepts. A clip over the upload limit
+// gives frigate.ErrTooLarge (a link is sent instead), unless compress_clips has
+// it re-encoded under the limit.
+func (n *Notifier) fetchClip(ctx context.Context, path string) (string, error) {
+	if !n.Config.Global().CompressClips {
+		file, err := n.download(ctx, path, maxUploadSize)
+		if errors.Is(err, frigate.ErrTooLarge) {
+			n.Log.Warn("clip over the Telegram limit, sending a link", "path", path, "limit_mb", maxUploadSize>>20)
+		}
+		return file, err
+	}
+	file, err := n.download(ctx, path, maxCompressInput)
+	if err != nil {
+		if errors.Is(err, frigate.ErrTooLarge) {
+			n.Log.Warn("clip too large even to re-encode, sending a link", "path", path, "limit_mb", maxCompressInput>>20)
+		}
+		return "", err
+	}
+	st, err := os.Stat(file)
+	if err != nil || st.Size() <= maxUploadSize {
+		return file, err
+	}
+	defer os.Remove(file)
+	select {
+	case n.transcoding <- struct{}{}:
+		defer func() { <-n.transcoding }()
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	start := time.Now()
+	out, err := n.Transcode(ctx, file, maxUploadSize)
+	if err != nil {
+		n.Log.Warn("re-encoding the clip failed, sending a link", "path", path, "size_mb", st.Size()>>20, "err", err)
+		return "", frigate.ErrTooLarge
+	}
+	if o, err := os.Stat(out); err == nil {
+		n.Log.Info("clip re-encoded", "path", path, "size_mb", st.Size()>>20, "new_size_mb", o.Size()>>20, "took", time.Since(start).Round(time.Second))
+	}
+	return out, nil
+}
+
 // download fetches a media into a temporary file, with the retries of ClipRetryDelays.
-func (n *Notifier) download(ctx context.Context, path string) (string, error) {
+func (n *Notifier) download(ctx context.Context, path string, max int64) (string, error) {
 	for attempt := 0; ; attempt++ {
 		start := time.Now()
-		file, err := n.Frigate.DownloadToFile(ctx, path, maxUploadSize)
+		file, err := n.Frigate.DownloadToFile(ctx, path, max)
 		n.Metrics.MediaDownload.Observe(time.Since(start).Seconds())
 		if err != nil && file != "" { // partly received (frigate.ErrIncomplete)
 			if n.keepCompletePart(file, path) {

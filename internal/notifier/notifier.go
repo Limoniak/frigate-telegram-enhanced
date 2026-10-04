@@ -15,11 +15,13 @@ import (
 	"frigate-telegram-enhanced/internal/metrics"
 	"frigate-telegram-enhanced/internal/state"
 	"frigate-telegram-enhanced/internal/telegram"
+	"frigate-telegram-enhanced/internal/transcode"
 )
 
 const (
 	maxPhotoSize        = 10 << 20
 	maxUploadSize       = 50 << 20
+	maxCompressInput    = 512 << 20 // largest clip downloaded to be re-encoded (compress_clips)
 	inboxSize           = 256
 	endedRetention      = 10 * time.Minute // gives the GenAI descriptions time to arrive
 	staleAfter          = time.Hour
@@ -62,6 +64,8 @@ type Deps struct {
 	SnapshotRetryDelay time.Duration    // default: 1 s
 	MediaWorkers       int              // default: 4 (concurrent clip/GIF downloads)
 	HistoryFile        string           // recent activity kept across restarts; empty: in memory only
+	// Transcode re-encodes a clip under max bytes (default: transcode.Fit, ffmpeg).
+	Transcode func(ctx context.Context, in string, max int64) (string, error)
 }
 
 type Notifier struct {
@@ -72,6 +76,7 @@ type Notifier struct {
 	cancelSends context.CancelFunc
 	wg          sync.WaitGroup
 	media       chan struct{} // semaphore: bounds the concurrent clip/GIF downloads
+	transcoding chan struct{} // semaphore: one clip re-encoded at a time (CPU)
 	dropped     atomic.Int64  // messages dropped, queue full, since startup
 	lastDrop    atomic.Int64  // time of the last one (UnixNano), 0 if none
 
@@ -162,6 +167,9 @@ func New(d Deps) *Notifier {
 	if d.MediaWorkers == 0 {
 		d.MediaWorkers = defaultMediaWorkers
 	}
+	if d.Transcode == nil {
+		d.Transcode = transcode.Fit
+	}
 	p := d.Config.MQTT.TopicPrefix
 	ctx, cancel := context.WithCancel(context.Background())
 	n := &Notifier{
@@ -173,6 +181,7 @@ func New(d Deps) *Notifier {
 		tracked:     map[string]*tracked{},
 		groups:      map[string]*group{},
 		media:       make(chan struct{}, d.MediaWorkers),
+		transcoding: make(chan struct{}, 1),
 	}
 	n.loadHistory()
 	return n

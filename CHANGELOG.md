@@ -7,6 +7,16 @@ never a breaking 2.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Added
+
+- *Compress clips over 50 MB* (`notify.compress_clips`, off by default): a clip too large
+  for Telegram is re-encoded with FFmpeg, now included in the image, instead of being
+  sent as a link. The link remains when re-encoding fails or the clip is over 512 MB.
+
+### Changed
+
+- A clip sent as a link is now logged, with the reason.
+
 ## [1.1.0] - 2026-10-01
 
 ### Added

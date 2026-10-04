@@ -13,7 +13,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 ## Features
 
 - **events** mode (one message per detected object) or **reviews** mode (grouped alerts, Frigate ≥ 0.14)
-- Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, a link to the clip instead
+- Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, a link to the clip instead, or the clip re-encoded under 50 MB (*Compress clips over 50 MB*, off by default)
 - Frigate's GenAI description added to the caption as soon as it is available
 - Frigate's labels (custom classification such as your car's name, faces, license plates) added to the caption as soon as Frigate knows them — `🏷 clio 3`
 - **Label filter**: don't get notified for your own car or cat, or only for unknown objects (waits up to 5 s for Frigate to recognize the object, only when this filter is on)
@@ -355,4 +355,6 @@ translated, none left over).
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). The Docker image also ships a static build of
+[FFmpeg](https://ffmpeg.org/) (GPL, from [mwader/static-ffmpeg](https://github.com/wader/static-ffmpeg)),
+used only to re-encode the clips over 50 MB.

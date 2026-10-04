@@ -13,6 +13,8 @@ RUN mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/frigate-telegram-enhanced /frigate-telegram-enhanced
+# Static FFmpeg, only used when compress_clips is on (clips over 50 MB).
+COPY --from=mwader/static-ffmpeg:9.0.2 /ffmpeg /usr/local/bin/ffmpeg
 COPY --from=build --chown=65532:65532 /out/data /data
 USER nonroot:nonroot
 EXPOSE 8431

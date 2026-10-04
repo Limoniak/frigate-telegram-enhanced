@@ -13,7 +13,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 ## Fonctionnalités
 
 - Mode **events** (un message par objet détecté) ou **reviews** (alertes regroupées, Frigate ≥ 0.14)
-- Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, un lien vers le clip
+- Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, un lien vers le clip, ou le clip ré-encodé sous 50 Mo (*Compresser les clips de plus de 50 Mo*, désactivé par défaut)
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
 - Étiquettes de Frigate (classification personnalisée comme le nom de ta voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
 - **Filtre sur les étiquettes** : ne pas être prévenu pour ta voiture ou ton chat, ou seulement pour les inconnus (attend jusqu'à 5 s que Frigate reconnaisse l'objet, seulement avec ce filtre)
@@ -359,4 +359,6 @@ texte traduit, aucun en trop).
 
 ## Licence
 
-[MIT](LICENSE).
+[MIT](LICENSE). L'image Docker contient aussi une version statique de
+[FFmpeg](https://ffmpeg.org/) (GPL, issue de [mwader/static-ffmpeg](https://github.com/wader/static-ffmpeg)),
+qui sert uniquement à ré-encoder les clips de plus de 50 Mo.

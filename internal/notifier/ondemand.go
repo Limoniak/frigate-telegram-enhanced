@@ -53,7 +53,7 @@ func (n *Notifier) sendClipFile(ctx context.Context, chatID int64, replyTo int, 
 		return err
 	}
 	defer n.releaseMedia()
-	file, err := n.download(ctx, path)
+	file, err := n.fetchClip(ctx, path)
 	if errors.Is(err, frigate.ErrTooLarge) {
 		_, err = n.Telegram.SendMessage(ctx, chatID, n.tooLargeText(path), telegram.SendOptions{ReplyTo: replyTo})
 		return err

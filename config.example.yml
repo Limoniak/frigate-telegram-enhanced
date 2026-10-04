@@ -62,6 +62,7 @@ notify:                          # global settings, can be overridden per camera
   clip: true
   media_in_place: true           # the video (or GIF) replaces the image in the same message; false = as a reply
   gif: false
+  compress_clips: false          # clip over 50 MB: re-encoded with ffmpeg (included in the image) instead of a link; global setting
   genai_description: true        # adds Frigate's GenAI description when it arrives
   clip_delay: 5s                 # wait after the end of the event before fetching the clip
   quiet_hours:                   # silent notifications

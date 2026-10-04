@@ -116,6 +116,7 @@ type Notify struct {
 	// the notification message, instead of arriving as a reply.
 	MediaInPlace     bool
 	GIF              bool
+	CompressClips    bool // clips over 50 MB re-encoded rather than linked; global setting
 	GenAIDescription bool
 	ClipDelay        time.Duration
 	QuietHours       []TimeRange
@@ -285,6 +286,7 @@ type NotifyPatch struct {
 	MediaInPlace     *bool        `yaml:"media_in_place,omitempty" json:"media_in_place,omitempty"`
 	Clip             *bool        `yaml:"clip,omitempty" json:"clip,omitempty"`
 	GIF              *bool        `yaml:"gif,omitempty" json:"gif,omitempty"`
+	CompressClips    *bool        `yaml:"compress_clips,omitempty" json:"compress_clips,omitempty"`
 	GenAIDescription *bool        `yaml:"genai_description,omitempty" json:"genai_description,omitempty"`
 	ClipDelay        *Duration    `yaml:"clip_delay,omitempty" json:"clip_delay,omitempty"`
 	QuietHours       *[]TimeRange `yaml:"quiet_hours,omitempty" json:"quiet_hours,omitempty"`
@@ -324,6 +326,7 @@ func (y NotifyPatch) ApplyTo(base Notify) Notify {
 	set(&n.MediaInPlace, y.MediaInPlace)
 	set(&n.Clip, y.Clip)
 	set(&n.GIF, y.GIF)
+	set(&n.CompressClips, y.CompressClips)
 	set(&n.GenAIDescription, y.GenAIDescription)
 	setDuration(&n.ClipDelay, y.ClipDelay)
 	set(&n.QuietHours, y.QuietHours)
@@ -343,6 +346,7 @@ func FullPatch(n Notify) NotifyPatch {
 		Enabled: &n.Enabled, Chats: &n.Chats, Labels: &n.Labels, Zones: &n.Zones,
 		MinScore: &n.MinScore, Cooldown: &cooldown, IgnoreStationary: &n.IgnoreStationary,
 		Severity: &n.Severity, Snapshot: &n.Snapshot, Crop: &n.Crop, Clip: &n.Clip, GIF: &n.GIF, MediaInPlace: &n.MediaInPlace,
+		CompressClips:    &n.CompressClips,
 		GenAIDescription: &n.GenAIDescription, ClipDelay: &clipDelay,
 		QuietHours: &n.QuietHours, OffHours: &n.OffHours, WhenHome: &n.WhenHome, Group: &group,
 		IgnoreSubLabels: &n.IgnoreSubLabels, IgnoreKnown: &n.IgnoreKnown, SubLabelWait: &wait,
@@ -370,6 +374,7 @@ func DiffPatch(base, n Notify) NotifyPatch {
 	diff(&p.MediaInPlace, base.MediaInPlace, n.MediaInPlace)
 	diff(&p.Clip, base.Clip, n.Clip)
 	diff(&p.GIF, base.GIF, n.GIF)
+	diff(&p.CompressClips, base.CompressClips, n.CompressClips)
 	diff(&p.GenAIDescription, base.GenAIDescription, n.GenAIDescription)
 	if base.ClipDelay != n.ClipDelay {
 		d := Duration(n.ClipDelay)
