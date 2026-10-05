@@ -46,13 +46,15 @@ const stallTimeout = 15 * time.Second
 
 // Retryable reports whether retrying may succeed (media not ready yet, server or network in trouble).
 // A stalled clip is not retried: Frigate stalls at the same place every time.
+// 400 is retried: Frigate answers it ("No recordings found") for a clip whose
+// recording segments are not written yet, a few seconds after a short event.
 func Retryable(err error) bool {
 	if errors.Is(err, ErrTooLarge) || errors.Is(err, ErrIncomplete) || errors.Is(err, context.Canceled) {
 		return false
 	}
 	var he *HTTPError
 	if errors.As(err, &he) {
-		return he.Status == http.StatusNotFound || he.Status >= 500
+		return he.Status == http.StatusBadRequest || he.Status == http.StatusNotFound || he.Status >= 500
 	}
 	return true
 }

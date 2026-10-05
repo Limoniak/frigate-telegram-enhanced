@@ -81,7 +81,8 @@ func TestHTTPErrorAndRetryable(t *testing.T) {
 	}{
 		{&HTTPError{Status: 404}, true},
 		{&HTTPError{Status: 503}, true},
-		{&HTTPError{Status: 400}, false},
+		{&HTTPError{Status: 400}, true}, // clip whose recordings are not written yet
+		{&HTTPError{Status: 403}, false},
 		{ErrTooLarge, false},
 		{context.Canceled, false},
 		{errors.New("connection refused"), true},

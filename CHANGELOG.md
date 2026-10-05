@@ -17,6 +17,11 @@ never a breaking 2.0, while `:latest` follows `main`.
 
 - A clip sent as a link is now logged, with the reason.
 
+### Fixed
+
+- The clip of a short event was sometimes never sent: Frigate answers HTTP 400 while
+  its recording segments are not written yet, and that answer was not retried.
+
 ## [1.1.0] - 2026-10-01
 
 ### Added
