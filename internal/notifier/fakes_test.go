@@ -34,6 +34,11 @@ type fakeFrigate struct {
 	reviewList []frigate.Review
 	after      time.Time
 
+	// recordings: successive answers of Recordings, the last one repeated; none: the
+	// API is unavailable (404). recArgs keeps the arguments of each call.
+	recordings [][]frigate.Recording
+	recArgs    []string
+
 	downloadDelay time.Duration // simulated pause in DownloadToFile, to test concurrency
 	concurrent    int32         // downloads in progress (atomic)
 	maxConcurrent int32         // observed peak (atomic)
@@ -147,6 +152,21 @@ func (f *fakeFrigate) ReviewsSince(_ context.Context, after time.Time, _ int) ([
 	defer f.mu.Unlock()
 	f.after = after
 	return f.reviewList, nil
+}
+
+func (f *fakeFrigate) Recordings(_ context.Context, camera string, after, before float64) ([]frigate.Recording, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "recordings")
+	f.recArgs = append(f.recArgs, fmt.Sprintf("%s %.0f %.0f", camera, after, before))
+	if len(f.recordings) == 0 {
+		return nil, &frigate.HTTPError{Status: 404, Path: "/api/" + camera + "/recordings"}
+	}
+	r := f.recordings[0]
+	if len(f.recordings) > 1 {
+		f.recordings = f.recordings[1:]
+	}
+	return r, nil
 }
 
 func (f *fakeFrigate) countCalls(path string) int {
@@ -331,6 +351,8 @@ func newHarness(t *testing.T, mode string, opts ...func(*Deps)) *harness {
 		Log: slog.New(slog.DiscardHandler), Now: clk.Now,
 		ClipRetryDelays:    []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond},
 		SnapshotRetryDelay: time.Millisecond,
+		RecordingPoll:      time.Millisecond,
+		RecordingWait:      10 * time.Millisecond,
 	}
 	for _, o := range opts {
 		o(&deps)

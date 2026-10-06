@@ -152,3 +152,64 @@ func sentLink(h *harness) bool {
 	}
 	return false
 }
+
+// The event ends at 1790604030 while Frigate has only stored the recording up to
+// 1790604025: the clip is only fetched once the segment covering the end is stored,
+// otherwise Frigate would answer with a clip cut short.
+func TestClipWaitsForTheRecording(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+	early := []frigate.Recording{{StartTime: 1790603995, EndTime: 1790604025}}
+	h.fr.recordings = [][]frigate.Recording{early, early, append(early, frigate.Recording{StartTime: 1790604026, EndTime: 1790604036})}
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	var order []string
+	for _, c := range h.fr.calls {
+		if c == "recordings" || c == frigate.EventClipPath(evID) {
+			order = append(order, c)
+		}
+	}
+	want := []string{"recordings", "recordings", "recordings", frigate.EventClipPath(evID)}
+	if strings.Join(order, ",") != strings.Join(want, ",") {
+		t.Errorf("calls = %v, want %v", order, want)
+	}
+	if h.fr.recArgs[0] != "garage 1790604000 1790604031" {
+		t.Errorf("recordings asked for %q", h.fr.recArgs[0])
+	}
+	if len(h.tg.byMethod("editMessageMedia:video")) != 2 {
+		t.Error("the clip must replace the image once recorded")
+	}
+}
+
+// A recording that stays incomplete delays the clip by RecordingWait at most: it is
+// then sent anyway.
+func TestClipSentWhenRecordingStaysIncomplete(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+	h.fr.recordings = [][]frigate.Recording{{{StartTime: 1790603995, EndTime: 1790604025}}}
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	if n := h.fr.countCalls("recordings"); n != 11 {
+		t.Errorf("recordings asked %d times, want 11 (10 ms in 1 ms polls, plus the first)", n)
+	}
+	if len(h.tg.byMethod("editMessageMedia:video")) != 2 {
+		t.Error("the clip must be sent after the wait")
+	}
+}
+
+// Without the recordings API (error), the clip is fetched right away.
+func TestClipNotDelayedWhenRecordingsUnavailable(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	if n := h.fr.countCalls("recordings"); n != 1 || len(h.tg.byMethod("editMessageMedia:video")) != 2 {
+		t.Errorf("recordings asked %d times; the clip must be sent without waiting", n)
+	}
+}

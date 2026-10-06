@@ -119,6 +119,9 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	var file string
 	var err error
 	if kind == "video" {
+		if err := n.waitRecorded(ctx, t); err != nil {
+			return
+		}
 		file, err = n.fetchClip(ctx, path)
 	} else {
 		file, err = n.download(ctx, path, maxUploadSize)
@@ -160,6 +163,51 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 			}
 			return n.Telegram.SendVideo(ctx, chatID, f, o)
 		}, nil)
+}
+
+// waitRecorded waits until Frigate has stored the recording up to the end of the
+// event. Frigate records in segments of about 10 s and only builds a clip from the
+// stored ones: asked too early, it answers with a clip cut short, sometimes a single
+// second. After RecordingWait, or if Frigate does not answer, the clip is fetched
+// anyway. Only ctx being canceled gives an error.
+func (n *Notifier) waitRecorded(ctx context.Context, t *tracked) error {
+	n.mu.Lock()
+	camera, start, end := t.camera, t.startTS, t.endTS
+	n.mu.Unlock()
+	if end == 0 {
+		return nil
+	}
+	// Counted in polls rather than clock time: the wait stays bounded whatever Now returns.
+	polls := int(n.RecordingWait / n.RecordingPoll)
+	for attempt := 0; ; attempt++ {
+		recs, err := n.Frigate.Recordings(ctx, camera, start, end+1)
+		if err != nil {
+			n.Log.Debug("recordings unavailable, fetching the clip without waiting", "event_id", t.id, "err", err)
+			return nil
+		}
+		if recordedUntil(recs) >= end {
+			if attempt > 0 {
+				n.Log.Info("waited for the recording before fetching the clip", "event_id", t.id, "waited", time.Duration(attempt)*n.RecordingPoll)
+			}
+			return nil
+		}
+		if attempt >= polls {
+			n.Log.Warn("recording still incomplete, the clip may be cut short", "event_id", t.id, "recorded_until", recordedUntil(recs), "event_end", end)
+			return nil
+		}
+		if err := sleepCtx(ctx, n.RecordingPoll); err != nil {
+			return err
+		}
+	}
+}
+
+// recordedUntil returns the end of the latest stored segment (0 without any).
+func recordedUntil(recs []frigate.Recording) float64 {
+	var until float64
+	for _, r := range recs {
+		until = max(until, r.EndTime)
+	}
+	return until
 }
 
 // fetchClip downloads a clip that Telegram accepts. A clip over the upload limit

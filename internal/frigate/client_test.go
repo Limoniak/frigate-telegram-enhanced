@@ -295,3 +295,20 @@ func TestCatchUpQueries(t *testing.T) {
 		}
 	}
 }
+
+func TestRecordings(t *testing.T) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.Path + "?" + r.URL.RawQuery
+		w.Write([]byte(`[{"id":"s1","start_time":1791284181.0,"end_time":1791284189.883,"duration":8.88},
+			{"id":"s2","start_time":1791284191.0,"end_time":1791284201.815,"duration":10.82}]`))
+	}))
+	defer srv.Close()
+	rs, err := newTestClient(t, srv.URL, "", "").Recordings(context.Background(), "jardin", 1791284189.335, 1791284200)
+	if err != nil || len(rs) != 2 || rs[1].EndTime != 1791284201.815 {
+		t.Fatalf("Recordings = %+v, %v", rs, err)
+	}
+	if want := "/api/jardin/recordings?after=1791284189.335&before=1791284200.000"; query != want {
+		t.Errorf("request = %q, want %q", query, want)
+	}
+}

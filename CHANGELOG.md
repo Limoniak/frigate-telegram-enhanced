@@ -31,6 +31,9 @@ never a breaking 2.0, while `:latest` follows `main`.
 
 - The clip of a short event was sometimes never sent: Frigate answers HTTP 400 while
   its recording segments are not written yet, and that answer was not retried.
+- A clip could last a single second: it was fetched before Frigate had stored the
+  recording up to the end of the event. The clip now waits until the recording covers
+  the whole event (30 s at most).
 
 ## [1.1.0] - 2026-10-01
 

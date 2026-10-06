@@ -37,6 +37,8 @@ type Frigate interface {
 	Event(ctx context.Context, id string) (frigate.APIEvent, error)
 	EventsSince(ctx context.Context, after time.Time, limit int) ([]frigate.APIEvent, error)
 	ReviewsSince(ctx context.Context, after time.Time, limit int) ([]frigate.Review, error)
+	// Recordings lists the stored recording segments, to wait for the clip's (see waitRecorded).
+	Recordings(ctx context.Context, camera string, after, before float64) ([]frigate.Recording, error)
 }
 
 type Telegram interface {
@@ -51,19 +53,23 @@ type Telegram interface {
 
 type Deps struct {
 	// Schedule runs f after d (default: time.AfterFunc); replaceable in tests.
-	Schedule           func(d time.Duration, f func())
-	Config             *config.Config
-	Engine             *filter.Engine
-	State              *state.Store
-	Frigate            Frigate
-	Telegram           Telegram
-	Metrics            *metrics.Metrics
-	Log                *slog.Logger
-	Now                func() time.Time // default: time.Now
-	ClipRetryDelays    []time.Duration  // default: 5 s, 10 s, 20 s
-	SnapshotRetryDelay time.Duration    // default: 1 s
-	MediaWorkers       int              // default: 4 (concurrent clip/GIF downloads)
-	HistoryFile        string           // recent activity kept across restarts; empty: in memory only
+	Schedule        func(d time.Duration, f func())
+	Config          *config.Config
+	Engine          *filter.Engine
+	State           *state.Store
+	Frigate         Frigate
+	Telegram        Telegram
+	Metrics         *metrics.Metrics
+	Log             *slog.Logger
+	Now             func() time.Time // default: time.Now
+	ClipRetryDelays []time.Duration  // default: 5 s, 10 s, 20 s
+	// RecordingPoll and RecordingWait: how often, and at most how long, to check that
+	// Frigate has stored the recording of an ended event before fetching its clip
+	// (default: 2 s, 30 s).
+	RecordingPoll, RecordingWait time.Duration
+	SnapshotRetryDelay           time.Duration // default: 1 s
+	MediaWorkers                 int           // default: 4 (concurrent clip/GIF downloads)
+	HistoryFile                  string        // recent activity kept across restarts; empty: in memory only
 	// Transcode re-encodes a clip under max bytes (default: transcode.Fit, ffmpeg).
 	Transcode func(ctx context.Context, in string, max int64) (string, error)
 }
@@ -110,6 +116,7 @@ type tracked struct {
 	hasScore     bool
 	start        time.Time
 	startTS      float64
+	endTS        float64  // end of the event in Frigate's time; 0 until it ends
 	eventIDs     []string // ids of the linked Frigate events (GenAI descriptions)
 	snapshotPath string
 	clipPath     string
@@ -154,6 +161,12 @@ func New(d Deps) *Notifier {
 	}
 	if d.ClipRetryDelays == nil {
 		d.ClipRetryDelays = []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second}
+	}
+	if d.RecordingPoll == 0 {
+		d.RecordingPoll = 2 * time.Second
+	}
+	if d.RecordingWait == 0 {
+		d.RecordingWait = 30 * time.Second
 	}
 	if d.SnapshotRetryDelay == 0 {
 		d.SnapshotRetryDelay = time.Second
@@ -397,12 +410,16 @@ func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 	n.goAsync(func() { n.sendSnapshot(ctx, t, path, caption, silent, chats) })
 }
 
-// finish handles the end of an event: counting the filtering, or sending the clip and GIF. Called under n.mu.
-func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool) {
+// finish handles the end of an event: counting the filtering, or sending the clip
+// and GIF. end is the end of the event in Frigate's time (0: unknown). Called under n.mu.
+func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool, end float64) {
 	if t == nil {
 		return
 	}
 	now := n.Now()
+	if t.endTS == 0 {
+		t.endTS = end
+	}
 	t.lastSeen = now
 	if !t.notified {
 		if t.lastReason != "" {

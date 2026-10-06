@@ -24,7 +24,11 @@ func (n *Notifier) handleEvent(ctx context.Context, msg frigate.EventMessage) {
 			}
 			n.setSubLabel(ctx, t, string(ev.SubLabel))
 		}
-		n.finish(ctx, t, ev.HasClip)
+		var end float64
+		if ev.EndTime != nil {
+			end = *ev.EndTime
+		}
+		n.finish(ctx, t, ev.HasClip, end)
 		return
 	}
 	if msg.Type != "new" && msg.Type != "update" {

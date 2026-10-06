@@ -346,6 +346,21 @@ func (c *Client) ReviewsSince(ctx context.Context, after time.Time, limit int) (
 	return rs, err
 }
 
+// Recording is a recording segment (about 10 s) Frigate has stored.
+type Recording struct {
+	StartTime float64 `json:"start_time"`
+	EndTime   float64 `json:"end_time"`
+}
+
+// Recordings returns the stored recording segments of a camera that overlap the
+// interval [after, before] (Frigate timestamps, in seconds).
+func (c *Client) Recordings(ctx context.Context, camera string, after, before float64) ([]Recording, error) {
+	q := url.Values{"after": {strconv.FormatFloat(after, 'f', 3, 64)}, "before": {strconv.FormatFloat(before, 'f', 3, 64)}}
+	var rs []Recording
+	err := c.getJSON(ctx, "/api/"+url.PathEscape(camera)+"/recordings?"+q.Encode(), &rs)
+	return rs, err
+}
+
 // unixParam formats a date like Frigate's timestamps (seconds).
 func unixParam(t time.Time) string {
 	return strconv.FormatFloat(float64(t.UnixMilli())/1000, 'f', 3, 64)

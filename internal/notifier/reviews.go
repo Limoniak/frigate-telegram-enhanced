@@ -16,11 +16,11 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 	t := n.tracked[r.ID]
 	now := n.Now()
 	if msg.Type == "end" {
+		end := float64(now.Unix())
+		if r.EndTime != nil {
+			end = *r.EndTime
+		}
 		if t != nil {
-			end := float64(now.Unix())
-			if r.EndTime != nil {
-				end = *r.EndTime
-			}
 			t.clipPath = frigate.RecordingClipPath(r.Camera, r.StartTime, end)
 			t.eventIDs = r.Data.Detections
 			if t.pending != nil && !t.notified {
@@ -33,7 +33,7 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 				n.decide(ctx, t, in, now, true)
 			}
 		}
-		n.finish(ctx, t, true)
+		n.finish(ctx, t, true, end)
 		return
 	}
 	if msg.Type != "new" && msg.Type != "update" {
