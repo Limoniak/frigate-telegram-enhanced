@@ -112,7 +112,7 @@ type Handler struct {
 	media   Media      // nil: history without thumbnails
 	health  HealthFunc // nil: no connection status
 	refused Refusals   // nil: no list of refused users
-	setup   *Setup     // nil: connection set by config.yml or the environment
+	setup   *Setup     // nil: connection set by config.yml
 	// sessionKey signs the login sessions; nil: a random one, lost on restart.
 	sessionKey []byte
 	auth       *Auth // password, shared by every route
@@ -208,10 +208,10 @@ func (h *Handler) guard(next http.Handler) http.Handler {
 	return checkHost(h.cfg.Web.AllowedHosts, h.cfg.Language, refused, next)
 }
 
-// Errors of checkHost once the service is configured, by config.yml or the
-// environment, or by the setup page.
+// Errors of checkHost once the service is configured, by config.yml or by the
+// setup page.
 const (
-	hostRefused     = "host not allowed: add this name to WEB_ALLOWED_HOSTS (web.allowed_hosts), or set WEB_PASSWORD"
+	hostRefused     = "host not allowed: add this name to web.allowed_hosts, or set web.password"
 	hostRefusedPage = "host not allowed: open the interface with the server's IP address, or set a password on the Connection page"
 )
 

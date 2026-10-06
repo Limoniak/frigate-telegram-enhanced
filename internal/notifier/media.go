@@ -83,7 +83,7 @@ func (n *Notifier) fetchSnapshot(ctx context.Context, path string) []byte {
 // silent tells, chat by chat, whether it gets it silently.
 func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption string, silent func(chat string) bool, chats []string) {
 	defer close(t.ready)
-	markup := buttons(t.camera, t.id, n.Config.Language)
+	markup := buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language)
 	photo := n.fetchSnapshot(ctx, path)
 	if photo == nil {
 		n.deliver(ctx, chats, "text", telegram.InputFile{},
@@ -147,7 +147,7 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 				n.mu.Lock()
 				caption := n.captionFor(t, chat)
 				n.mu.Unlock()
-				edited, err := n.Telegram.EditMessageMedia(ctx, chatID, m.id, kind, f, caption, buttons(t.camera, t.id, n.Config.Language))
+				edited, err := n.Telegram.EditMessageMedia(ctx, chatID, m.id, kind, f, caption, buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language))
 				if err == nil {
 					return edited, nil
 				}

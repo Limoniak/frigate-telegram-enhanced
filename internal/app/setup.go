@@ -30,7 +30,7 @@ func runSetup(ctx context.Context, connectionPath string, log *slog.Logger, tgOp
 	saved := make(chan struct{})
 	p := prober{tgOpts: tgOpts, answered: &sync.Map{}, log: log}
 	setup := web.NewSetup(connectionPath, nil, p, log, func() { close(saved) })
-	addr := config.SetupListen()
+	addr := config.SetupListen
 	// The container is healthy while it waits: nothing is broken, it waits for its setup.
 	srv := server.New(addr, func() error { return nil }, http.NotFoundHandler(), setup.MountAlone)
 	errc := make(chan error, 1)

@@ -20,12 +20,12 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - Filters per camera, object, zone, minimum score and severity; cooldown; quiet hours and off hours
 - **Web interface** to configure all of this without editing YAML, applied without a restart
 - Several recipients, with per-camera routing
-- Buttons on each notification: 📷 *now* (live image, to see if the person is still there), 🎬 *clip*, 🔇 *mute camera for 1 h*, ⏸ *pause 30 min*
+- Buttons on each notification: 📷 *now* (live image, to see if the person is still there), 🎬 *clip*, 🔇 *mute camera for 1 h*, ⏸ *pause 30 min*, and optionally 🏠 *Home Assistant* to open your dashboard (address set in the web interface, *Links*)
 - `/menu`: a control panel with buttons to pause, resume and mute each camera
 - Commands: `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Burst grouping**: detections close in time are added to the first message instead of sending new ones
 - **Cropped snapshots**: the image zoomed on the detected object, much more readable on a phone
-- In **English** or **French**: Telegram messages (`LANGUAGE`) and the web interface (EN / FR switch) — other languages can be added with a single file, see [Translating](#translating)
+- In **English** or **French**: Telegram messages (chosen on the setup page) and the web interface (EN / FR switch) — other languages can be added with a single file, see [Translating](#translating)
 - **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
 - **Per-recipient settings**: e.g. you get everything, the family only people at night
 - After an MQTT outage, detections missed during the last hour are caught up from Frigate
@@ -123,53 +123,25 @@ What changes in each release is in the [changelog](CHANGELOG.md).
 
 To update: `docker compose pull && docker compose up -d`.
 
-## Environment variables
+## Configuration file
 
-Optional: the setup page needs none. They are for those who prefer to describe the
-installation in `docker-compose.yml` (an `environment:` section): as soon as one of
-the four required ones is set, the environment replaces the setup page and its
-*Connection* link.
+The setup page and the web interface cover a normal installation. A YAML file is
+there for the rest — to prepare per-camera settings in advance, keep them under
+version control, or reach the few settings the pages do not offer (presence, log
+level, `/metrics` protection). The service reads no environment variables.
 
-| Variable | Required | Description |
-|---|---|---|
-| `TELEGRAM_TOKEN` | ✅ | Bot token given by @BotFather |
-| `TELEGRAM_CHAT_ID` | ✅ | Recipient ID. Several: `me=123456789,family=-1001234567890` (names are free; a group ID is negative) |
-| `FRIGATE_URL` | ✅ | Frigate API, e.g. `http://192.168.1.10:5000` (5000 without auth, 8971 with auth) |
-| `MQTT_BROKER` | ✅ | MQTT broker used by Frigate: `host`, `host:port`, or `tcp://…` / `ssl://…` |
-| `TZ` | | Time zone, e.g. `Europe/Paris` (default: `UTC`) |
-| `LANGUAGE` | | Language of Telegram messages and error messages: `en` (default), `fr`, or any language added in `internal/i18n/locales/` (logs are always in English) |
-| `WEB_PASSWORD` | | Password for the web interface (empty = none) |
-| `TELEGRAM_ADMINS` | | User IDs allowed to control the bot (default: the private chats of `TELEGRAM_CHAT_ID`; with groups only, their members) |
-| `FRIGATE_EXTERNAL_URL` | | Frigate address used by the "Open in Frigate" links (default: `FRIGATE_URL`; also editable in the web interface) — set it to open Frigate from outside your network |
-| `FRIGATE_USERNAME` / `FRIGATE_PASSWORD` | | If Frigate authentication is enabled |
-| `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` for a self-signed certificate |
-| `MQTT_USERNAME` / `MQTT_PASSWORD` | | MQTT credentials |
-| `MQTT_TOPIC_PREFIX` | | Must match Frigate's `mqtt.topic_prefix` (default: `frigate`) |
-| `MQTT_CLIENT_ID` | | Default: `frigate-telegram-enhanced` |
-| `MQTT_INSECURE_SKIP_VERIFY` | | `true` for a self-signed certificate |
-| `MODE` | | `events` (one message per object, default) or `reviews` (Frigate ≥ 0.14 alerts) |
-| `WEB_ENABLED` | | `false` to disable the web interface |
-| `WEB_ALLOWED_HOSTS` | | Host names accepted without a password, e.g. `nas.lan` (see [Access and security](#access-and-security)) |
-| `WEB_PROTECT_METRICS` | | `true` so that `/metrics` requires the password too |
-| `PRESENCE_TOPICS` | | MQTT topics telling who is home, comma-separated, `+` and `#` wildcards allowed (see [Presence](#presence)) |
-| `PRESENCE_HOME_VALUES` | | Values meaning "home" (default: `home,on,true,1,present`) |
-| `LOG_LEVEL` | | `debug`, `info` (default), `warn`, `error` |
-
-### Advanced: configuration file
-
-Instead of the setup page or environment variables, everything can be set in a YAML file — useful to
-prepare per-camera settings in advance or to keep them under version control. Copy
-[`config.example.yml`](config.example.yml) to `config/config.yml`,
-edit it, and add this volume to the service:
+Copy [`config.example.yml`](config.example.yml) to `config/config.yml`, edit it, and
+add this volume to the service:
 
 ```yaml
     volumes:
       - ./config:/config:ro
 ```
 
-When `/config/config.yml` exists, it is the only source of configuration (before the
-environment variables, then the setup page); `${VAR}`
-values in it are read from the container's environment. Key points:
+When `/config/config.yml` exists, it is the only source of configuration (the setup
+page and its *Connection* link are then not used). Its values are taken as they are:
+`${VAR}` is not replaced. It holds the bot token and passwords, so keep it readable by
+you alone. Key points:
 
 - `notify` settings apply to every camera; an entry under `cameras` overrides them field by field.
 - `zones`: only notify when the object has **entered** one of the listed zones.
@@ -185,7 +157,7 @@ menu jumps to each section.
 
 - **Status**: one card at the top with the connections to Frigate, MQTT and Telegram,
   whether notifications are active, who is home and which cameras are muted. When a
-  connection fails, the cause in plain words and the variable to fix (wrong password,
+  connection fails, the cause in plain words and the setting to fix (wrong password,
   unreachable address, invalid token, `localhost` used inside Docker…). Pause for
   30 min, 1 h, 8 h or until resumed, and re-enable cameras muted from Telegram.
 - **Notification styles**: photo + video, photo only, photo + GIF or text only, each
@@ -216,8 +188,8 @@ menu jumps to each section.
 - **Advanced settings** (collapsed): every setting in detail, sorted by theme —
   recipients and filtering, media, pace, schedule and presence, links — globally, then
   camera by camera. The zones and objects offered come from Frigate's API. **Links**
-  holds the address used by "Open in Frigate" (default: `FRIGATE_URL`), with a button
-  to test it.
+  holds the address used by "Open in Frigate" (default: Frigate's address) and the one
+  of the 🏠 *Home Assistant* button (empty: no button), each with a button to test it.
 
 Every change is **saved by itself** and takes effect **immediately**, without a
 restart; the status at the top of the page confirms it. A change is only accepted if
@@ -233,7 +205,7 @@ cooldowns) and the recent activity, so they survive restarts and updates. With a
 
 ### Presence
 
-Set `PRESENCE_TOPICS` to one or more MQTT topics that tell whether someone is home.
+In `config.yml`, set `presence.topics` to one or more MQTT topics that tell whether someone is home.
 Someone is home as soon as one of them carries `home` (or `on`, `true`, `1`,
 `present`). While someone is home, each camera follows its *When someone is home*
 setting: nothing (default), silent, or as usual — handy to keep outdoor cameras on.
@@ -249,14 +221,20 @@ mqtt_statestream:
     domains: [person]
 ```
 
-then `PRESENCE_TOPICS: "homeassistant/person/+/state"`. `/status` in Telegram and the
-web interface show who is home.
+then, in `config.yml`:
+
+```yaml
+presence:
+  topics: ["homeassistant/person/+/state"]
+```
+
+`/status` in Telegram and the web interface show who is home.
 
 ### Access and security
 
 Without a password, the interface is open to anyone who can reach the port, and the
 provided `docker-compose.yml` publishes `8431` on the whole network. **Set a
-password** on the setup page (or `WEB_PASSWORD`), or restrict the port to the machine
+password** on the setup page (or `web.password` in a configuration file), or restrict the port to the machine
 itself with `"127.0.0.1:8431:8431"`. (In a configuration file: `web.password`,
 `web.allowed_hosts`, `web.protect_metrics`.) Until the setup is saved, the setup page
 has no password: do it right after starting the container.
@@ -265,7 +243,7 @@ Without a password, the interface also only accepts requests addressed to an IP
 address or to `localhost` (`http://192.168.1.10:8431/` works, `http://nas.lan:8431/` is
 rejected with a 403). This blocks *DNS rebinding*, where a malicious site open in your
 browser points its own domain at `127.0.0.1` to drive the interface behind your back.
-To use a host name, add it to `WEB_ALLOWED_HOSTS`, or set a password (which lifts this
+To use a host name, add it to `web.allowed_hosts` in a configuration file, or set a password (which lifts this
 check).
 
 With a password, the interface opens on a login page; the session then lasts 30
@@ -276,8 +254,8 @@ blocked for 5 minutes.
 Authentication only covers the interface: `/healthz` always stays open for the
 container probe, and so does `/metrics`, unless `protect_metrics: true`. Keep this in
 mind if the port is exposed to the network: per-camera and per-object counters reveal
-when there is activity at your place — `WEB_PROTECT_METRICS=true` protects them.
-Prometheus then authenticates with `basic_auth` (any user name, password `WEB_PASSWORD`).
+when there is activity at your place — `web.protect_metrics: true` protects them.
+Prometheus then authenticates with `basic_auth` (any user name, the interface's password).
 
 ## Telegram commands
 
@@ -299,21 +277,21 @@ group.
 
 - `GET /healthz`: 200 when MQTT is connected and Telegram is reachable (used by the Docker `HEALTHCHECK`)
 - `GET /metrics`: Prometheus metrics prefixed with `ft_`
-- `/healthz` is never protected; `/metrics` is protected by the password when `WEB_PROTECT_METRICS=true`
+- `/healthz` is never protected; `/metrics` is protected by the password when `web.protect_metrics: true`
 
 ## Troubleshooting
 
-- **The container stops right away**: `docker compose logs` names the missing or
-  invalid environment variables (or what is wrong in `config.yml`).
+- **The container stops right away**: `docker compose logs` says what is wrong
+  in `config.yml`.
 - **The setup page answers 403**: open it with the server's IP address
   (`http://192.168.1.10:8431/`), not its host name.
 - **No notifications**: open *recent activity* in the web interface, which gives the
-  reason for every ignored detection. Otherwise, set `LOG_LEVEL=debug`, then check
+  reason for every ignored detection. Otherwise, set `log_level: debug` in `config.yml`, then check
   `ft_events_received_total` and `ft_events_filtered_total{reason=...}` on `/metrics`.
 - **Missing clip**: increase `clip_delay` (Frigate hasn't finished writing the clip yet).
 - **Interface returns 403 "host not allowed"**: see
   [Access and security](#access-and-security) — add the host name to
-  `WEB_ALLOWED_HOSTS` or set a password.
+  `web.allowed_hosts` or set a password.
 - **`permission denied` on `/data`**: only happens if you replaced the named volume with
   a folder (`./data:/data`); give it to the container's user with
   `sudo chown 65532:65532 data`.
@@ -348,8 +326,8 @@ for Telegram messages, error messages and the web interface alike:
 
 To add a language, copy `fr.json` to `<code>.json` (`de.json`, `es.json`…), change
 `name` and translate the values, keeping the `%s` and `%d` in the same order. A text
-left out is shown in English. The new language is then accepted by `LANGUAGE` and
-offered by the web interface's language switch. `go test ./internal/i18n/` checks the
+left out is shown in English. The new language is then offered by the setup page, accepted by `language` in
+`config.yml`, and offered by the web interface's language switch. `go test ./internal/i18n/` checks the
 catalogs: `%s`/`%d` kept, and the French catalog in step with the code (every text
 translated, none left over).
 

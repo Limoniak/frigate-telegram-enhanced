@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net/url"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -45,6 +44,11 @@ type Frigate struct {
 	Username           string `yaml:"username,omitempty" json:"username"`
 	Password           string `yaml:"password,omitempty" json:"password"`
 	InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify"`
+}
+
+// HomeAssistant is the Home Assistant instance the notifications link to.
+type HomeAssistant struct {
+	URL string `yaml:"url,omitempty"` // address of the "Home Assistant" button; empty = no button
 }
 
 type MQTT struct {
@@ -151,25 +155,27 @@ func (n Notify) IgnoresSubLabel(sub string) bool {
 // be changed live by the web interface: they are only reachable through the
 // methods below, which guard them with a lock.
 type Config struct {
-	Timezone   string
-	Location   *time.Location
-	Mode       string
-	Frigate    Frigate
-	MQTT       MQTT
-	Telegram   Telegram
-	Web        Web
-	Presence   Presence
-	StateFile  string
-	HTTPListen string
-	LogLevel   string
-	Source     string    // file read, or "environment"
-	Language   i18n.Lang // language of Telegram messages and errors (en by default)
+	Timezone      string
+	Location      *time.Location
+	Mode          string
+	Frigate       Frigate
+	MQTT          MQTT
+	HomeAssistant HomeAssistant
+	Telegram      Telegram
+	Web           Web
+	Presence      Presence
+	StateFile     string
+	HTTPListen    string
+	LogLevel      string
+	Source        string    // file read, or "environment"
+	Language      i18n.Lang // language of Telegram messages and errors (en by default)
 
 	mu          sync.RWMutex
 	notify      Notify
 	cameras     map[string]Notify
 	recipients  map[string]Recipient
 	externalURL string // address of the "Open in Frigate" links; empty = the one of frigate.url
+	haURL       string // address of the "Home Assistant" button; empty = no button
 
 	// state from config.yml alone, kept to be able to go back when the web
 	// interface removes its overrides.
@@ -177,6 +183,7 @@ type Config struct {
 	fileCameras     map[string]Notify
 	fileRecipients  map[string]Recipient
 	fileExternalURL string
+	fileHAURL       string
 }
 
 // ForCamera returns the effective configuration of a camera (the global one if not listed).
@@ -190,7 +197,7 @@ func (c *Config) ForCamera(name string) Notify {
 }
 
 // ExternalURL returns the Frigate address used for the notification links: the
-// one set (FRIGATE_EXTERNAL_URL or web interface), otherwise frigate.url, the
+// one set (frigate.external_url or web interface), otherwise frigate.url, the
 // address the service reaches Frigate at.
 func (c *Config) ExternalURL() string {
 	c.mu.RLock()
@@ -199,6 +206,14 @@ func (c *Config) ExternalURL() string {
 		return c.Frigate.URL
 	}
 	return c.externalURL
+}
+
+// HomeAssistantURL returns the address of the "Home Assistant" button of the
+// notifications; empty, the button is not shown.
+func (c *Config) HomeAssistantURL() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.haURL
 }
 
 // Recipient returns the restrictions of a recipient (empty if it has none).
@@ -247,20 +262,21 @@ func (c *Config) CanControl(userID, chatID int64) bool {
 }
 
 type fileYAML struct {
-	Language   string                 `yaml:"language"`
-	Timezone   string                 `yaml:"timezone"`
-	Mode       string                 `yaml:"mode"`
-	Frigate    Frigate                `yaml:"frigate"`
-	MQTT       MQTT                   `yaml:"mqtt"`
-	Telegram   Telegram               `yaml:"telegram"`
-	Web        webYAML                `yaml:"web"`
-	Presence   Presence               `yaml:"presence"`
-	Recipients map[string]Recipient   `yaml:"recipients"`
-	Notify     NotifyPatch            `yaml:"notify"`
-	Cameras    map[string]NotifyPatch `yaml:"cameras"`
-	StateFile  string                 `yaml:"state_file"`
-	HTTPListen string                 `yaml:"http_listen"`
-	LogLevel   string                 `yaml:"log_level"`
+	Language      string                 `yaml:"language"`
+	Timezone      string                 `yaml:"timezone"`
+	Mode          string                 `yaml:"mode"`
+	Frigate       Frigate                `yaml:"frigate"`
+	MQTT          MQTT                   `yaml:"mqtt"`
+	HomeAssistant HomeAssistant          `yaml:"home_assistant"`
+	Telegram      Telegram               `yaml:"telegram"`
+	Web           webYAML                `yaml:"web"`
+	Presence      Presence               `yaml:"presence"`
+	Recipients    map[string]Recipient   `yaml:"recipients"`
+	Notify        NotifyPatch            `yaml:"notify"`
+	Cameras       map[string]NotifyPatch `yaml:"cameras"`
+	StateFile     string                 `yaml:"state_file"`
+	HTTPListen    string                 `yaml:"http_listen"`
+	LogLevel      string                 `yaml:"log_level"`
 }
 
 type webYAML struct {
@@ -427,22 +443,21 @@ func defaultNotify(chats map[string]int64) Notify {
 	}
 }
 
-// Load reads and validates the configuration file, resolving the ${VAR}.
-// Without a file at path, the configuration is read from the environment
-// variables (see FromEnv), otherwise from the connection saved by the setup page
-// at connectionPath; with none of the three, Load returns ErrNotConfigured.
+// Load reads and validates the configuration file. Without a file at path, the
+// configuration is the connection saved by the setup page at connectionPath; with
+// neither, Load returns ErrNotConfigured.
 func Load(path, connectionPath string) (*Config, error) {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		if envConfigured(os.LookupEnv) || connectionPath == "" {
-			return FromEnv(os.LookupEnv)
+		if connectionPath == "" {
+			return nil, ErrNotConfigured
 		}
 		return loadConnection(connectionPath)
 	}
 	if err != nil {
-		return nil, envLang(os.LookupEnv).Errorf("reading the configuration: %w", err)
+		return nil, i18n.EN.Errorf("reading the configuration: %w", err)
 	}
-	c, err := Parse(raw, os.LookupEnv)
+	c, err := Parse(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -450,46 +465,32 @@ func Load(path, connectionPath string) (*Config, error) {
 	return c, nil
 }
 
-// Parse builds the configuration from raw YAML. The language comes from the
-// language key, otherwise from the LANGUAGE variable.
-func Parse(raw []byte, lookup func(string) (string, bool)) (*Config, error) {
-	lang := envLang(lookup)
-	expanded, err := expandEnv(raw, lookup, lang)
-	if err != nil {
-		return nil, err
-	}
+// Parse builds the configuration from raw YAML. Its values are taken as they are:
+// ${VAR} is not replaced. Errors before the language key is read are in English.
+func Parse(raw []byte) (*Config, error) {
 	var f fileYAML
-	dec := yaml.NewDecoder(bytes.NewReader(expanded))
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
 	if err := dec.Decode(&f); err != nil {
 		if errors.Is(err, io.EOF) {
-			return nil, lang.Errorf("the configuration is empty")
+			return nil, i18n.EN.Errorf("the configuration is empty")
 		}
-		return nil, lang.Errorf("invalid configuration: %w", err)
-	}
-	if f.Language == "" {
-		f.Language, _ = lookup("LANGUAGE")
+		return nil, i18n.EN.Errorf("invalid configuration: %w", err)
 	}
 	return build(f)
 }
 
-// envLang reads LANGUAGE, for the errors that come before the configuration is decoded.
-func envLang(lookup func(string) (string, bool)) i18n.Lang {
-	v, _ := lookup("LANGUAGE")
-	l, _ := i18n.Parse(v)
-	return l
-}
-
-// build completes and validates a decoded configuration (file or environment).
+// build completes and validates a decoded configuration (file or setup page).
 func build(f fileYAML) (*Config, error) {
 	lang, langErr := i18n.Parse(f.Language)
 	c := &Config{
-		Language: lang,
-		Timezone: orDefault(f.Timezone, "UTC"),
-		Mode:     orDefault(f.Mode, ModeEvents),
-		Frigate:  f.Frigate,
-		MQTT:     f.MQTT,
-		Telegram: f.Telegram,
+		Language:      lang,
+		Timezone:      orDefault(f.Timezone, "UTC"),
+		Mode:          orDefault(f.Mode, ModeEvents),
+		Frigate:       f.Frigate,
+		MQTT:          f.MQTT,
+		HomeAssistant: f.HomeAssistant,
+		Telegram:      f.Telegram,
 		Web: Web{
 			Enabled:        f.Web.Enabled == nil || *f.Web.Enabled,
 			Password:       f.Web.Password,
@@ -503,6 +504,7 @@ func build(f fileYAML) (*Config, error) {
 	}
 	c.Frigate.URL = strings.TrimRight(c.Frigate.URL, "/")
 	c.Frigate.ExternalURL = strings.TrimRight(c.Frigate.ExternalURL, "/")
+	c.HomeAssistant.URL = strings.TrimRight(strings.TrimSpace(c.HomeAssistant.URL), "/")
 	c.MQTT.ClientID = orDefault(c.MQTT.ClientID, "frigate-telegram-enhanced")
 	c.MQTT.TopicPrefix = orDefault(c.MQTT.TopicPrefix, "frigate")
 	if c.Presence.Enabled() && len(c.Presence.HomeValues) == 0 {
@@ -515,6 +517,7 @@ func build(f fileYAML) (*Config, error) {
 	}
 	c.recipients = maps.Clone(f.Recipients)
 	c.externalURL, c.fileExternalURL = c.Frigate.ExternalURL, c.Frigate.ExternalURL
+	c.haURL, c.fileHAURL = c.HomeAssistant.URL, c.HomeAssistant.URL
 	c.fileNotify, c.fileCameras, c.fileRecipients = c.notify, maps.Clone(c.cameras), maps.Clone(c.recipients)
 	if err := errors.Join(langErr, c.validate()); err != nil {
 		return nil, err
@@ -527,54 +530,6 @@ func orDefault(v, def string) string {
 		return def
 	}
 	return v
-}
-
-var envRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`)
-
-// expandEnv replaces ${VAR} and ${VAR:-default} in the scalar values of the YAML
-// (never in comments or keys). It goes through a yaml.Node so that the substitution
-// applies to the decoded Go value, not to the raw text: a quote or a backslash in
-// the variable thus needs no re-escaping to stay valid.
-func expandEnv(raw []byte, lookup func(string) (string, bool), lang i18n.Lang) ([]byte, error) {
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return raw, nil
-	}
-	var root yaml.Node
-	if err := yaml.Unmarshal(raw, &root); err != nil {
-		return nil, lang.Errorf("invalid configuration: %w", err)
-	}
-	var missing []string
-	expandScalarNodes(&root, lookup, &missing)
-	if len(missing) > 0 {
-		return nil, lang.Errorf("missing environment variables: %s", strings.Join(missing, ", "))
-	}
-	out, err := yaml.Marshal(&root)
-	if err != nil {
-		return nil, lang.Errorf("invalid configuration: %w", err)
-	}
-	return out, nil
-}
-
-// expandScalarNodes applies the ${VAR} substitution to the value of each scalar node
-// of the tree (recursively: keys, values, list items).
-func expandScalarNodes(n *yaml.Node, lookup func(string) (string, bool), missing *[]string) {
-	if n.Kind == yaml.ScalarNode {
-		n.Value = envRe.ReplaceAllStringFunc(n.Value, func(m string) string {
-			sub := envRe.FindStringSubmatch(m)
-			name := sub[1]
-			if v, ok := lookup(name); ok {
-				return v
-			}
-			if sub[2] != "" {
-				return sub[3]
-			}
-			*missing = append(*missing, name)
-			return ""
-		})
-	}
-	for _, c := range n.Content {
-		expandScalarNodes(c, lookup, missing)
-	}
 }
 
 func (c *Config) validate() error {
@@ -615,6 +570,9 @@ func (c *Config) validate() error {
 	if err := validateExternalURL(c.externalURL, c.Language); err != nil {
 		errs = append(errs, err)
 	}
+	if err := validateHAURL(c.haURL, c.Language); err != nil {
+		errs = append(errs, err)
+	}
 	errs = append(errs, c.validateNotify("notify", c.notify, c.Language)...)
 	for _, name := range slices.Sorted(maps.Keys(c.cameras)) {
 		errs = append(errs, c.validateNotify("cameras."+name, c.cameras[name], c.Language)...)
@@ -630,6 +588,19 @@ func validateExternalURL(u string, l i18n.Lang) error {
 	p, err := url.Parse(u)
 	if err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Host == "" {
 		return l.Errorf("invalid Frigate external URL %q (e.g. https://frigate.example.com)", u)
+	}
+	return nil
+}
+
+// validateHAURL checks the address of the Home Assistant button: empty, or
+// http(s)://host[…] (Telegram refuses any other scheme in a button).
+func validateHAURL(u string, l i18n.Lang) error {
+	if u == "" {
+		return nil
+	}
+	p, err := url.Parse(u)
+	if err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Host == "" {
+		return l.Errorf("invalid Home Assistant URL %q (e.g. https://homeassistant.example.com)", u)
 	}
 	return nil
 }

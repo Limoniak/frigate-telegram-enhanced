@@ -71,7 +71,7 @@ func TestBuildCaptionTruncatesDescription(t *testing.T) {
 }
 
 func TestButtons(t *testing.T) {
-	kb := buttons("jardin", "abc", i18n.EN).InlineKeyboard
+	kb := buttons("jardin", "abc", "", i18n.EN).InlineKeyboard
 	if len(kb) != 2 {
 		t.Fatalf("want two rows: %+v", kb)
 	}
@@ -82,11 +82,15 @@ func TestButtons(t *testing.T) {
 	if len(quiet) != 2 || quiet[0].CallbackData != "m:jardin:3600" || quiet[1].CallbackData != "p:1800" {
 		t.Errorf("silence row = %+v", quiet)
 	}
-	if fr := buttons("jardin", "abc", i18n.FR).InlineKeyboard[0][0].Text; fr != "📷 Maintenant" {
+	if fr := buttons("jardin", "abc", "", i18n.FR).InlineKeyboard[0][0].Text; fr != "📷 Maintenant" {
 		t.Errorf("French wording = %q", fr)
 	}
 	long := strings.Repeat("x", 70)
-	if row := buttons("jardin", long, i18n.EN).InlineKeyboard[0]; len(row) != 1 || row[0].Text != "📷 Now" {
+	if row := buttons("jardin", long, "", i18n.EN).InlineKeyboard[0]; len(row) != 1 || row[0].Text != "📷 Now" {
 		t.Errorf("a callback_data > 64 bytes must be left out: %+v", row)
+	}
+	kb = buttons("jardin", "abc", "https://ha.example", i18n.EN).InlineKeyboard
+	if len(kb) != 3 || len(kb[2]) != 1 || kb[2][0].URL != "https://ha.example" || kb[2][0].CallbackData != "" {
+		t.Errorf("want a third row opening Home Assistant: %+v", kb)
 	}
 }

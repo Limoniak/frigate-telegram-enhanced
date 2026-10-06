@@ -22,9 +22,12 @@ type Overlay struct {
 	Notify     NotifyPatch            `yaml:"notify" json:"notify"`
 	Cameras    map[string]NotifyPatch `yaml:"cameras,omitempty" json:"cameras"`
 	Recipients map[string]Recipient   `yaml:"recipients,omitempty" json:"recipients"`
-	// ExternalURL replaces frigate.external_url (FRIGATE_EXTERNAL_URL); missing, the
+	// ExternalURL replaces frigate.external_url; missing, the
 	// configuration's value applies; empty, the links use frigate.url.
 	ExternalURL *string `yaml:"external_url,omitempty" json:"external_url,omitempty"`
+	// HomeAssistantURL replaces home_assistant.url; missing, the
+	// configuration's value applies; empty, the notifications have no Home Assistant button.
+	HomeAssistantURL *string `yaml:"home_assistant_url,omitempty" json:"home_assistant_url,omitempty"`
 }
 
 // settings is the set of settings that can be changed live.
@@ -33,6 +36,7 @@ type settings struct {
 	cameras     map[string]Notify
 	recipients  map[string]Recipient
 	externalURL string
+	haURL       string
 }
 
 const overlayHeader = `# Notification settings saved by the web interface of frigate-telegram-enhanced.
@@ -91,7 +95,7 @@ func SaveOverlay(path string, o Overlay) error {
 // A nil overlay gives back the notify and cameras sections of config.yml.
 func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
 	s := settings{notify: c.fileNotify, cameras: maps.Clone(c.fileCameras), recipients: maps.Clone(c.fileRecipients),
-		externalURL: c.fileExternalURL}
+		externalURL: c.fileExternalURL, haURL: c.fileHAURL}
 	if o != nil {
 		s.notify = o.Notify.ApplyTo(defaultNotify(c.Telegram.Chats))
 		s.cameras = make(map[string]Notify, len(o.Cameras))
@@ -100,6 +104,9 @@ func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
 		}
 		if o.ExternalURL != nil {
 			s.externalURL = strings.TrimRight(strings.TrimSpace(*o.ExternalURL), "/")
+		}
+		if o.HomeAssistantURL != nil {
+			s.haURL = strings.TrimRight(strings.TrimSpace(*o.HomeAssistantURL), "/")
 		}
 		s.recipients = make(map[string]Recipient, len(o.Recipients))
 		for name, r := range o.Recipients {
@@ -110,6 +117,9 @@ func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
 	}
 	errs := c.validateRecipients(s.recipients, lang)
 	if err := validateExternalURL(s.externalURL, lang); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateHAURL(s.haURL, lang); err != nil {
 		errs = append(errs, err)
 	}
 	errs = append(errs, c.validateNotify("notify", s.notify, lang)...)
@@ -137,7 +147,7 @@ func (c *Config) ApplyOverlay(o *Overlay) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.notify, c.cameras, c.recipients, c.externalURL = s.notify, s.cameras, s.recipients, s.externalURL
+	c.notify, c.cameras, c.recipients, c.externalURL, c.haURL = s.notify, s.cameras, s.recipients, s.externalURL, s.haURL
 	return nil
 }
 
@@ -154,6 +164,8 @@ func (c *Config) CurrentOverlay() Overlay {
 	}
 	ext := c.externalURL
 	o.ExternalURL = &ext
+	ha := c.haURL
+	o.HomeAssistantURL = &ha
 	for name, n := range c.cameras {
 		o.Cameras[name] = DiffPatch(c.notify, n)
 	}

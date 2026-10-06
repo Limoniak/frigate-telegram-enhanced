@@ -315,7 +315,7 @@ type harness struct {
 // MediaWorkers) without changing the many existing calls without options.
 func newHarness(t *testing.T, mode string, opts ...func(*Deps)) *harness {
 	t.Helper()
-	cfg, err := config.Parse([]byte(fmt.Sprintf(testConfig, mode)), func(string) (string, bool) { return "", false })
+	cfg, err := config.Parse([]byte(fmt.Sprintf(testConfig, mode)))
 	if err != nil {
 		t.Fatal(err)
 	}

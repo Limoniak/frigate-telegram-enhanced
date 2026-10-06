@@ -199,6 +199,35 @@ func TestExternalURLOverride(t *testing.T) {
 	}
 }
 
+func TestHomeAssistantURLOverride(t *testing.T) {
+	c := mustParse(t, minimal+"home_assistant:\n  url: https://ha.example/\n")
+	if c.HomeAssistantURL() != "https://ha.example" {
+		t.Fatalf("from the configuration = %q", c.HomeAssistantURL())
+	}
+	o := c.CurrentOverlay()
+	u := " https://maison.example:8123/ "
+	o.HomeAssistantURL = &u
+	if err := c.ApplyOverlay(&o); err != nil || c.HomeAssistantURL() != "https://maison.example:8123" {
+		t.Errorf("after the change = %q, %v", c.HomeAssistantURL(), err)
+	}
+	bad := "homeassistant://navigate/lovelace"
+	o.HomeAssistantURL = &bad
+	if err := c.ApplyOverlay(&o); err == nil || !strings.Contains(err.Error(), "Home Assistant URL") {
+		t.Errorf("address without http(s): %v", err)
+	}
+	empty := ""
+	o.HomeAssistantURL = &empty
+	if err := c.ApplyOverlay(&o); err != nil || c.HomeAssistantURL() != "" {
+		t.Errorf("empty = no button: %q, %v", c.HomeAssistantURL(), err)
+	}
+	if err := c.ApplyOverlay(nil); err != nil || c.HomeAssistantURL() != "https://ha.example" {
+		t.Errorf("back to the configuration: %q, %v", c.HomeAssistantURL(), err)
+	}
+	if _, err := Parse([]byte(minimal + "home_assistant:\n  url: ha.lan\n")); err == nil {
+		t.Error("an invalid address in the configuration must be refused")
+	}
+}
+
 func TestExternalURLDefaultsToFrigateURL(t *testing.T) {
 	if c := mustParse(t, minimal); c.ExternalURL() != "http://frigate:5000" {
 		t.Errorf("without an external address, the links use frigate.url: %q", c.ExternalURL())

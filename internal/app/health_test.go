@@ -54,7 +54,7 @@ func TestHealthAllGoodButMQTT(t *testing.T) {
 	if got[0].State != web.StateOK || !strings.Contains(got[0].Detail, "0.16.1-abc") {
 		t.Errorf("frigate = %+v", got[0])
 	}
-	if got[1].State != web.StateError || !strings.Contains(got[1].Detail, "connection refused") || !strings.Contains(got[1].Hint, "MQTT_BROKER") {
+	if got[1].State != web.StateError || !strings.Contains(got[1].Detail, "connection refused") || !strings.Contains(got[1].Hint, "mqtt.broker") {
 		t.Errorf("mqtt = %+v", got[1])
 	}
 	if got[2].State != web.StateOK || got[2].Detail != "@mon_bot" {
@@ -65,10 +65,10 @@ func TestHealthAllGoodButMQTT(t *testing.T) {
 func TestHealthExplainsFailures(t *testing.T) {
 	c := newChecker(t, http.StatusUnauthorized, `{"ok":false,"error_code":401,"description":"Unauthorized"}`)
 	got := c.check(context.Background(), i18n.FR)
-	if got[0].State != web.StateError || !strings.Contains(got[0].Hint, "FRIGATE_USERNAME") {
+	if got[0].State != web.StateError || !strings.Contains(got[0].Hint, "frigate.username") {
 		t.Errorf("frigate = %+v", got[0])
 	}
-	if got[2].State != web.StateError || !strings.Contains(got[2].Detail, "token") || !strings.Contains(got[2].Hint, "TELEGRAM_TOKEN") {
+	if got[2].State != web.StateError || !strings.Contains(got[2].Detail, "token") || !strings.Contains(got[2].Hint, "telegram.token") {
 		t.Errorf("telegram = %+v", got[2])
 	}
 	if !strings.Contains(got[1].Detail, "injoignable") {

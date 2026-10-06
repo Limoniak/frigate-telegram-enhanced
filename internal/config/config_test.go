@@ -7,31 +7,22 @@ import (
 	"time"
 )
 
-func env(vars map[string]string) func(string) (string, bool) {
-	return func(k string) (string, bool) {
-		v, ok := vars[k]
-		return v, ok
-	}
-}
-
 const minimal = `
 frigate:
   url: http://frigate:5000/
 mqtt:
   broker: tcp://mqtt:1883
 telegram:
-  token: ${TG_TOKEN}
+  token: abc
   admins: [42]
   chats:
     moi: 42
     famille: -100
 `
 
-var testEnv = env(map[string]string{"TG_TOKEN": "abc"})
-
 func mustParse(t *testing.T, raw string) *Config {
 	t.Helper()
-	c, err := Parse([]byte(raw), testEnv)
+	c, err := Parse([]byte(raw))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
@@ -76,21 +67,15 @@ func TestParseMinimalAppliesDefaults(t *testing.T) {
 	}
 }
 
-func TestMissingEnvVarIsAnError(t *testing.T) {
-	_, err := Parse([]byte(minimal), env(nil))
-	if err == nil || !strings.Contains(err.Error(), "TG_TOKEN") {
-		t.Fatalf("want an error mentioning TG_TOKEN, got %v", err)
-	}
-}
-
-func TestEnvDefaultValue(t *testing.T) {
-	raw := strings.Replace(minimal, "${TG_TOKEN}", "${TG_TOKEN:-fallback}", 1)
-	c, err := Parse([]byte(raw), env(nil))
+func TestEnvVarIsNotExpanded(t *testing.T) {
+	raw := strings.Replace(minimal, "token: abc", `token: "${TG_TOKEN}"`, 1)
+	t.Setenv("TG_TOKEN", "from-env")
+	c, err := Parse([]byte(raw))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Telegram.Token != "fallback" {
-		t.Errorf("token = %q", c.Telegram.Token)
+	if c.Telegram.Token != "${TG_TOKEN}" {
+		t.Errorf("token = %q, the environment must not be read", c.Telegram.Token)
 	}
 }
 
@@ -143,30 +128,11 @@ func TestValidationErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Parse([]byte(minimal+tc.extra), testEnv)
+			_, err := Parse([]byte(minimal + tc.extra))
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("want an error containing %q, got %v", tc.want, err)
 			}
 		})
-	}
-}
-
-func TestEnvVarInCommentIsIgnored(t *testing.T) {
-	raw := minimal + "# fallback address ${NOT_SET}\n"
-	if _, err := Parse([]byte(raw), testEnv); err != nil {
-		t.Fatalf("Parse: %v, a ${VAR} in a comment must not cause an error", err)
-	}
-}
-
-func TestEnvVarPreservesSpecialCharacters(t *testing.T) {
-	raw := strings.Replace(minimal, "token: ${TG_TOKEN}", `token: "${TG_TOKEN}"`, 1)
-	value := `a\nb"c#d`
-	c, err := Parse([]byte(raw), env(map[string]string{"TG_TOKEN": value}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c.Telegram.Token != value {
-		t.Errorf("token = %q, want %q (byte for byte)", c.Telegram.Token, value)
 	}
 }
 

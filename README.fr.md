@@ -20,12 +20,12 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - Filtres par caméra, objet, zone, score minimum et sévérité ; cooldown ; plages silencieuses et plages coupées
 - **Interface web** pour régler tout cela sans éditer de YAML, appliquée sans redémarrage
 - Plusieurs destinataires avec routage par caméra
-- Boutons sur chaque notification : 📷 *maintenant* (image en direct, pour voir si la personne est toujours là), 🎬 *clip*, 🔇 *couper la caméra 1 h*, ⏸ *pause 30 min*
+- Boutons sur chaque notification : 📷 *maintenant* (image en direct, pour voir si la personne est toujours là), 🎬 *clip*, 🔇 *couper la caméra 1 h*, ⏸ *pause 30 min*, et en option 🏠 *Home Assistant* pour ouvrir votre tableau de bord (adresse à renseigner dans l'interface web, *Liens*)
 - `/menu` : un tableau de contrôle avec des boutons pour mettre en pause, reprendre et couper chaque caméra
 - Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Regroupement des rafales** : les détections rapprochées s'ajoutent au premier message au lieu d'en envoyer de nouveaux
 - **Image recadrée** : le snapshot zoomé sur l'objet détecté, bien plus lisible sur un téléphone
-- En **anglais** ou en **français** : messages Telegram (`LANGUAGE`) et interface web (sélecteur EN / FR) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
+- En **anglais** ou en **français** : messages Telegram (choisie sur la page d'installation) et interface web (sélecteur EN / FR) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
 - **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
@@ -125,53 +125,26 @@ Le contenu de chaque version est décrit dans le [journal des modifications](CHA
 
 Pour mettre à jour : `docker compose pull && docker compose up -d`.
 
-## Variables d'environnement
+## Fichier de configuration
 
-Facultatives : la page d'installation n'en a besoin d'aucune. Elles servent à qui
-préfère décrire l'installation dans `docker-compose.yml` (section `environment:`) : dès
-que l'une des quatre obligatoires est définie, l'environnement remplace la page
-d'installation et son lien *Connexion*.
+La page d'installation et l'interface web suffisent pour une installation normale. Un
+fichier YAML sert pour le reste : préparer des réglages par caméra à l'avance, les
+versionner, ou atteindre les quelques réglages que les pages ne proposent pas
+(présence, niveau de journalisation, protection de `/metrics`). Le service ne lit
+aucune variable d'environnement.
 
-| Variable | Obligatoire | Description |
-|---|---|---|
-| `TELEGRAM_TOKEN` | ✅ | Token du bot donné par @BotFather |
-| `TELEGRAM_CHAT_ID` | ✅ | Identifiant du destinataire. Plusieurs : `moi=123456789,famille=-1001234567890` (noms libres ; un groupe a un identifiant négatif) |
-| `FRIGATE_URL` | ✅ | API de Frigate, ex. `http://192.168.1.10:5000` (5000 sans auth, 8971 avec auth) |
-| `MQTT_BROKER` | ✅ | Broker MQTT utilisé par Frigate : `hôte`, `hôte:port`, ou `tcp://…` / `ssl://…` |
-| `TZ` | | Fuseau horaire, ex. `Europe/Paris` (défaut : `UTC`) |
-| `LANGUAGE` | | Langue des messages Telegram et des erreurs : `en` (défaut), `fr`, ou toute langue ajoutée dans `internal/i18n/locales/` — **mettre `fr` pour du français** (les journaux restent en anglais) |
-| `WEB_PASSWORD` | | Mot de passe de l'interface web (vide = aucun) |
-| `TELEGRAM_ADMINS` | | Utilisateurs autorisés à piloter le bot (défaut : les chats privés de `TELEGRAM_CHAT_ID` ; avec seulement des groupes, leurs membres) |
-| `FRIGATE_EXTERNAL_URL` | | Adresse de Frigate utilisée par les liens « Ouvrir dans Frigate » (défaut : `FRIGATE_URL` ; modifiable aussi dans l'interface web) — à renseigner pour ouvrir Frigate hors de chez vous |
-| `FRIGATE_USERNAME` / `FRIGATE_PASSWORD` | | Si l'authentification de Frigate est activée |
-| `FRIGATE_INSECURE_SKIP_VERIFY` | | `true` pour un certificat auto-signé |
-| `MQTT_USERNAME` / `MQTT_PASSWORD` | | Identifiants MQTT |
-| `MQTT_TOPIC_PREFIX` | | Doit correspondre à `mqtt.topic_prefix` de Frigate (défaut : `frigate`) |
-| `MQTT_CLIENT_ID` | | Défaut : `frigate-telegram-enhanced` |
-| `MQTT_INSECURE_SKIP_VERIFY` | | `true` pour un certificat auto-signé |
-| `MODE` | | `events` (un message par objet, défaut) ou `reviews` (alertes Frigate ≥ 0.14) |
-| `WEB_ENABLED` | | `false` pour désactiver l'interface web |
-| `WEB_ALLOWED_HOSTS` | | Noms d'hôte acceptés sans mot de passe, ex. `nas.lan` (voir [Accès et sécurité](#accès-et-sécurité)) |
-| `WEB_PROTECT_METRICS` | | `true` pour que `/metrics` exige aussi le mot de passe |
-| `PRESENCE_TOPICS` | | Topics MQTT indiquant qui est à la maison, séparés par des virgules, jokers `+` et `#` acceptés (voir [Présence](#présence)) |
-| `PRESENCE_HOME_VALUES` | | Valeurs signifiant « à la maison » (défaut : `home,on,true,1,present`) |
-| `LOG_LEVEL` | | `debug`, `info` (défaut), `warn`, `error` |
-
-### Avancé : fichier de configuration
-
-À la place de la page d'installation ou des variables d'environnement, tout peut se régler dans un fichier YAML —
-pratique pour préparer des réglages par caméra à l'avance ou les versionner. Copier
-[`config.example.yml`](config.example.yml) (commentaires en anglais) vers `config/config.yml`, l'adapter, et
-ajouter ce volume au service :
+Copier [`config.example.yml`](config.example.yml) (commentaires en anglais) vers
+`config/config.yml`, l'adapter, et ajouter ce volume au service :
 
 ```yaml
     volumes:
       - ./config:/config:ro
 ```
 
-Quand `/config/config.yml` existe, il est seul pris en compte (avant les variables
-d'environnement, puis la page d'installation) ; ses valeurs `${VAR}`
-sont lues dans l'environnement du conteneur. Points clés :
+Quand `/config/config.yml` existe, il est seul pris en compte (la page d'installation
+et son lien *Connexion* ne servent alors plus). Ses valeurs sont prises telles quelles :
+`${VAR}` n'est pas remplacé. Il contient le token du bot et les mots de passe : ne le
+laissez lisible que par vous. Points clés :
 
 - Les réglages de `notify` s'appliquent à toutes les caméras ; une entrée dans `cameras` remplace champ par champ.
 - `zones` : ne notifie que si l'objet est **entré** dans une des zones listées.
@@ -187,7 +160,7 @@ un sommaire latéral mène à chaque section.
 
 - **État** : une carte en haut de page avec les connexions à Frigate, MQTT et Telegram,
   l'état des notifications, qui est à la maison et les caméras coupées. Quand une
-  connexion échoue, la cause en clair et la variable à corriger (mauvais mot de passe,
+  connexion échoue, la cause en clair et le réglage à corriger (mauvais mot de passe,
   adresse injoignable, token invalide, `localhost` utilisé dans Docker…). Pause de
   30 min, 1 h, 8 h ou jusqu'à reprise, et réactivation des caméras coupées depuis Telegram.
 - **Modèles de notification** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou
@@ -218,8 +191,9 @@ un sommaire latéral mène à chaque section.
 - **Réglages avancés** (repliés) : tous les réglages en détail, rangés par thème —
   destinataires et filtrage, médias, rythme, horaires et présence, liens — en global
   puis caméra par caméra. Les zones et les objets proposés viennent de l'API de Frigate.
-  **Liens** contient l'adresse utilisée par « Ouvrir dans Frigate » (défaut :
-  `FRIGATE_URL`), avec un bouton pour la tester.
+  **Liens** contient l'adresse utilisée par « Ouvrir dans Frigate » (défaut : l'adresse
+  de Frigate) et celle du bouton 🏠 *Home Assistant* (vide : pas de bouton), chacune avec
+  un bouton pour la tester.
 
 Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
 redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
@@ -235,7 +209,7 @@ qu'ils existent ; le bouton *Revenir aux réglages de config.yml* les supprime.
 
 ### Présence
 
-Renseignez `PRESENCE_TOPICS` avec un ou plusieurs topics MQTT qui indiquent si quelqu'un
+Dans `config.yml`, renseignez `presence.topics` avec un ou plusieurs topics MQTT qui indiquent si quelqu'un
 est à la maison. Quelqu'un est à la maison dès que l'un d'eux porte `home` (ou `on`,
 `true`, `1`, `present`). Pendant ce temps, chaque caméra suit son réglage *Quand
 quelqu'un est à la maison* : rien (par défaut), sans son, ou normalement — pratique pour
@@ -252,14 +226,20 @@ mqtt_statestream:
     domains: [person]
 ```
 
-puis `PRESENCE_TOPICS: "homeassistant/person/+/state"`. La commande `/status` de
-Telegram et l'interface web indiquent qui est à la maison.
+puis, dans `config.yml` :
+
+```yaml
+presence:
+  topics: ["homeassistant/person/+/state"]
+```
+
+La commande `/status` de Telegram et l'interface web indiquent qui est à la maison.
 
 ### Accès et sécurité
 
 Sans mot de passe, l'interface est ouverte à quiconque atteint le port, et le
 `docker-compose.yml` fourni publie `8431` sur tout le réseau. **Définissez un mot de
-passe** dans la page d'installation (ou `WEB_PASSWORD`), ou limitez le port à la
+passe** dans la page d'installation (ou `web.password` dans un fichier de configuration), ou limitez le port à la
 machine elle-même avec `"127.0.0.1:8431:8431"`. (Dans un fichier de configuration :
 `web.password`, `web.allowed_hosts`, `web.protect_metrics`.) Tant que l'installation
 n'est pas enregistrée, la page d'installation n'a pas de mot de passe : faites-la dès
@@ -270,7 +250,7 @@ adresse IP ou à `localhost` (`http://192.168.1.10:8431/` fonctionne,
 `http://nas.lan:8431/` est refusé en 403). Cela bloque le *rebinding DNS*, où un site
 malveillant ouvert dans votre navigateur fait pointer son propre domaine vers
 `127.0.0.1` pour piloter l'interface à votre insu. Pour passer par un nom d'hôte,
-l'ajouter à `WEB_ALLOWED_HOSTS`, ou définir un mot de passe (qui lève ce contrôle).
+l'ajouter à `web.allowed_hosts` dans un fichier de configuration, ou définir un mot de passe (qui lève ce contrôle).
 
 Avec un mot de passe, l'interface s'ouvre sur une page de connexion ; la session dure
 ensuite 30 jours, survit aux redémarrages et se ferme quand le mot de passe change
@@ -280,8 +260,8 @@ une minute, une adresse est bloquée 5 minutes.
 L'authentification ne couvre que l'interface : `/healthz` reste toujours libre pour la
 sonde du conteneur, et `/metrics` aussi, sauf avec `protect_metrics: true`. Si le port
 est exposé au réseau, pensez-y : les compteurs par caméra et par objet révèlent quand
-il y a de l'activité chez vous — `WEB_PROTECT_METRICS=true` les protège. Prometheus
-s'authentifie alors avec `basic_auth` (nom d'utilisateur libre, mot de passe `WEB_PASSWORD`).
+il y a de l'activité chez vous — `web.protect_metrics: true` les protège. Prometheus
+s'authentifie alors avec `basic_auth` (nom d'utilisateur libre, mot de passe de l'interface).
 
 ## Commandes Telegram
 
@@ -303,20 +283,20 @@ groupe.
 
 - `GET /healthz` : 200 si MQTT est connecté et Telegram joignable (utilisé par le `HEALTHCHECK` Docker)
 - `GET /metrics` : métriques Prometheus préfixées par `ft_`
-- `/healthz` n'est jamais protégée ; `/metrics` l'est par le mot de passe si `WEB_PROTECT_METRICS=true`
+- `/healthz` n'est jamais protégée ; `/metrics` l'est par le mot de passe si `web.protect_metrics: true`
 
 ## Dépannage
 
-- **Le conteneur s'arrête aussitôt** : `docker compose logs` indique les variables
-  d'environnement manquantes ou invalides (ou ce qui ne va pas dans `config.yml`).
+- **Le conteneur s'arrête aussitôt** : `docker compose logs` indique ce qui ne va
+  pas dans `config.yml`.
 - **La page d'installation répond 403** : l'ouvrir avec l'adresse IP du serveur
   (`http://192.168.1.10:8431/`), pas son nom d'hôte.
 - **Aucune notification** : ouvrir l'*Activité récente* de l'interface web, qui donne la
-  raison de chaque détection ignorée. Sinon, `LOG_LEVEL=debug`, puis vérifier
+  raison de chaque détection ignorée. Sinon, mettre `log_level: debug` dans `config.yml`, puis vérifier
   `ft_events_received_total` et `ft_events_filtered_total{reason=...}` sur `/metrics`.
 - **Clip manquant** : augmenter `clip_delay` (Frigate n'a pas encore fini d'écrire le clip).
 - **Interface en 403 « hôte non autorisé »** : voir [Accès et sécurité](#accès-et-sécurité)
-  — ajouter le nom d'hôte à `WEB_ALLOWED_HOSTS` ou définir un mot de passe.
+  — ajouter le nom d'hôte à `web.allowed_hosts` ou définir un mot de passe.
 - **`permission denied` sur `/data`** : n'arrive que si le volume nommé a été remplacé
   par un dossier (`./data:/data`) ; le donner à l'utilisateur du conteneur avec
   `sudo chown 65532:65532 data`.
@@ -352,8 +332,8 @@ pour les messages Telegram, les erreurs et l'interface web :
 
 Pour ajouter une langue, copier `fr.json` vers `<code>.json` (`de.json`, `es.json`…),
 changer `name` et traduire les valeurs, en gardant les `%s` et `%d` dans le même ordre. Un
-texte omis s'affiche en anglais. La nouvelle langue est alors acceptée par `LANGUAGE` et
-proposée par le sélecteur de langue de l'interface web. `go test ./internal/i18n/` vérifie
+texte omis s'affiche en anglais. La nouvelle langue est alors proposée par la page d'installation,
+acceptée par `language` dans `config.yml`, et proposée par le sélecteur de langue de l'interface web. `go test ./internal/i18n/` vérifie
 les catalogues : `%s`/`%d` conservés, et catalogue français à jour avec le code (tout
 texte traduit, aucun en trop).
 

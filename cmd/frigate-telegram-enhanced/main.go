@@ -52,10 +52,10 @@ func run(args []string, stderr io.Writer) int {
 	return 0
 }
 
-// healthURLFor derives the /healthz URL from the configured port (http_listen or
-// HTTP_LISTEN), so that the container probe follows a custom port.
+// healthURLFor derives the /healthz URL from the configured port (http_listen), so
+// that the container probe follows a custom port.
 func healthURLFor(configPath, connectionPath string) string {
-	listen := config.SetupListen()
+	listen := config.SetupListen
 	if cfg, err := config.Load(configPath, connectionPath); err == nil {
 		listen = cfg.HTTPListen
 	}

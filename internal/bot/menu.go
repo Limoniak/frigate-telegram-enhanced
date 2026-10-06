@@ -82,7 +82,11 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 	if len(row) > 0 {
 		rows = append(rows, row)
 	}
-	rows = append(rows, []telegram.InlineKeyboardButton{btn(l.T("🔄 Refresh"), actions.Refresh())})
+	last := []telegram.InlineKeyboardButton{btn(l.T("🔄 Refresh"), actions.Refresh())}
+	if ha := b.Config.HomeAssistantURL(); ha != "" {
+		last = append(last, telegram.InlineKeyboardButton{Text: "🏠 Home Assistant", URL: ha})
+	}
+	rows = append(rows, last)
 	// A button whose callback_data exceeds Telegram's limit would get the whole keyboard refused.
 	for i := range rows {
 		rows[i] = slices.DeleteFunc(rows[i], func(k telegram.InlineKeyboardButton) bool { return len(k.CallbackData) > 64 })

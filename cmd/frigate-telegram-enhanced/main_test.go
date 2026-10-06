@@ -32,8 +32,6 @@ func TestHealthURLFollowsTheConfiguredPort(t *testing.T) {
 }
 
 func TestHealthURLFallsBackToTheDefaultPort(t *testing.T) {
-	// Without a file, the configuration comes from the environment: incomplete here.
-	t.Setenv("TELEGRAM_TOKEN", "")
 	cases := map[string]string{
 		"configuration illisible": filepath.Join(t.TempDir(), "absent.yml"),
 		"port absent":             writeConfig(t, `http_listen: "127.0.0.1:"`+"\n"),

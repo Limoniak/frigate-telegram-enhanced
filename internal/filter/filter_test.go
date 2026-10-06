@@ -39,7 +39,7 @@ cameras:
 `
 
 func TestEvaluate(t *testing.T) {
-	cfg, err := config.Parse([]byte(cfgYAML), func(string) (string, bool) { return "", false })
+	cfg, err := config.Parse([]byte(cfgYAML))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ presence: {topics: ["homeassistant/person/+/state"]}
 cameras:
   jardin: {when_home: notify}
   garage: {when_home: silent}
-`), func(string) (string, bool) { return "", false })
+`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ cameras:
 		t.Errorf("nobody home: entree = %+v", d)
 	}
 	// Without presence topics configured, when_home has no effect.
-	cfg2, _ := config.Parse([]byte(cfgYAML), func(string) (string, bool) { return "", false })
+	cfg2, _ := config.Parse([]byte(cfgYAML))
 	if d := New(cfg2, home).Evaluate(in("entree"), noon); !d.Notify {
 		t.Errorf("presence not configured: %+v", d)
 	}
@@ -155,7 +155,7 @@ recipients:
     labels: [person]
     off_hours: [{from: "07:00", to: "22:00"}]
     quiet_hours: [{from: "23:00", to: "06:00"}]
-`), func(string) (string, bool) { return "", false })
+`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ telegram: {token: t, admins: [1], chats: {moi: 1}}
 notify: {ignore_sub_labels: ["Clio 3 Océane", ohana]}
 cameras:
   salon: {ignore_known: true}
-`), func(string) (string, bool) { return "", false })
+`))
 	if err != nil {
 		t.Fatal(err)
 	}

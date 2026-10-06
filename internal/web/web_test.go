@@ -57,7 +57,7 @@ func (f fakeCameras) CameraDetails(context.Context) ([]frigate.CameraInfo, error
 // the path of the override file and the server.
 func setup(t *testing.T, password string, cams fakeCameras, opts ...Option) (*config.Config, string, *httptest.Server) {
 	t.Helper()
-	cfg, err := config.Parse([]byte(testConfig), func(string) (string, bool) { return "", false })
+	cfg, err := config.Parse([]byte(testConfig))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
@@ -675,6 +675,19 @@ func TestExternalURLIsSavedAndValidated(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	if got := cfg.ExternalURL(); got != "http://192.168.1.10:5000" {
+		t.Errorf("address = %q", got)
+	}
+}
+
+func TestHomeAssistantURLIsSavedAndValidated(t *testing.T) {
+	cfg, _, ts := setup(t, "", fakeCameras{})
+	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{},"home_assistant_url":"ha.lan"}`); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("invalid address: status = %d", resp.StatusCode)
+	}
+	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{},"home_assistant_url":"http://192.168.1.20:8123/"}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if got := cfg.HomeAssistantURL(); got != "http://192.168.1.20:8123" {
 		t.Errorf("address = %q", got)
 	}
 }

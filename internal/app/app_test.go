@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
@@ -134,7 +135,7 @@ func TestRunRejectsInvalidConfig(t *testing.T) {
 }
 
 // freeAddr returns a local address nobody listens on (the setup page's address
-// comes from HTTP_LISTEN, it cannot be :0).
+// comes from config.SetupListen, it cannot be :0).
 func freeAddr(t *testing.T) string {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -169,7 +170,9 @@ func waitFor(t *testing.T, url string, want int) {
 func TestRunStartsFromTheSetupPage(t *testing.T) {
 	dir := t.TempDir()
 	addr := freeAddr(t)
-	t.Setenv("HTTP_LISTEN", addr)
+	prev := config.SetupListen
+	config.SetupListen = addr
+	t.Cleanup(func() { config.SetupListen = prev })
 	polled := make(chan struct{}, 1)
 	tg := fakeTelegram(t, polled)
 	frigate := httptest.NewServer(http.NotFoundHandler())

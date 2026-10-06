@@ -80,17 +80,3 @@ func TestLoadReadsTheSavedConnection(t *testing.T) {
 		t.Errorf("LoadConnection = %+v", back)
 	}
 }
-
-func TestEnvironmentTakesPrecedenceOverTheSavedConnection(t *testing.T) {
-	dir := t.TempDir()
-	conn := filepath.Join(dir, "connection.yml")
-	c := validConnection()
-	c.Normalize()
-	if err := SaveConnection(conn, c); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("FRIGATE_URL", "http://f:5000") // the others are missing: an error, not the saved connection
-	if _, err := Load(filepath.Join(dir, "absent.yml"), conn); err == nil || errors.Is(err, ErrNotConfigured) {
-		t.Errorf("err = %v, want the missing variables", err)
-	}
-}

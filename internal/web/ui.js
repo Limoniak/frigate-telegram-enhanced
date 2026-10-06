@@ -144,7 +144,7 @@ const FIELDS = () => [
    hint: T("Unchecked: no notifications at all (or none for this camera).")},
   {key: "chats", type: "chips", name: T("Recipients"), source: "chats",
    hint: data && data.can_connection ? T("Chats chosen on the Connection page (link at the bottom).")
-     : T("Chats declared in TELEGRAM_CHAT_ID (or telegram.chats).")},
+     : T("Chats declared in telegram.chats (config.yml).")},
   {key: "labels", type: "chips", name: T("Objects"), source: "labels", free: true,
    hint: T("No object selected = every object is reported.")},
   {key: "zones", type: "chips", name: T("Zones"), source: "zones", free: true,
@@ -197,7 +197,7 @@ const GROUPS = () => [
    keys: ["snapshot", "crop", "clip", "media_in_place", "gif", "compress_clips", "clip_delay", "genai_description"]},
   {title: T("Pace"), keys: ["cooldown", "group"]},
   {title: T("Schedule and presence"), keys: ["when_home", "quiet_hours", "off_hours"]},
-  {title: T("Links"), keys: [], extra: () => externalURLField(), globalOnly: true},
+  {title: T("Links"), keys: [], extra: () => [externalURLField(), haURLField()], globalOnly: true},
 ];
 
 let overlay = null;   // what will be saved
@@ -331,6 +331,7 @@ function preview(style) {
     first.append(photo);
   }
   first.append(caption, kb, kb2);
+  if (overlay && overlay.home_assistant_url) first.append(el("div", {class: "kb"}, el("span", {text: "🏠 Home Assistant"})));
   tg.append(first);
 
   if ((p.clip || p.gif) && !replaced) {
@@ -421,7 +422,7 @@ function renderStyles() {
 }
 
 // externalURLField: the Frigate address used by the "Open in Frigate" link of the
-// notifications. Empty, it is the one the service reaches Frigate at (FRIGATE_URL).
+// notifications. Empty, it is the one the service reaches Frigate at (frigate.url).
 function externalURLField() {
   const valid = (u) => u === "" || /^https?:\/\/[^\s/]+/i.test(u);
   const input = el("input", {type: "url", class: "url", placeholder: data.frigate_url || "https://frigate.example.com",
@@ -445,7 +446,35 @@ function externalURLField() {
   return el("div", {class: "field"},
     el("div", {class: "field-head"}, el("span", {class: "name", text: T("“Open in Frigate” link")})),
     el("div", {class: "control"}, input, test),
-    el("p", {class: "hint", text: T("Empty: Frigate's address (FRIGATE_URL). Set another one to open Frigate from outside.")}));
+    el("p", {class: "hint", text: T("Empty: the address the service reaches Frigate at. Set another one to open Frigate from outside.")}));
+}
+
+// haURLField: the Home Assistant address opened by the "🏠 Home Assistant" button of
+// the notifications and of /menu. Empty, there is no button.
+function haURLField() {
+  const valid = (u) => u === "" || /^https?:\/\/[^\s/]+/i.test(u);
+  const input = el("input", {type: "url", class: "url", placeholder: "https://homeassistant.example.com",
+    "aria-label": T("Home Assistant address")});
+  input.value = overlay.home_assistant_url || "";
+  const test = el("a", {class: "test", target: "_blank", rel: "noopener", text: T("Test ↗")});
+  const sync = () => {
+    const u = input.value.trim();
+    test.hidden = !u || !valid(u);
+    test.href = u || "#";
+  };
+  sync();
+  input.addEventListener("input", sync);
+  input.addEventListener("change", () => {
+    const u = input.value.trim().replace(/\/+$/, "");
+    if (!valid(u)) { input.setCustomValidity(T("Expected an address like https://homeassistant.example.com")); input.reportValidity(); return; }
+    input.setCustomValidity("");
+    overlay.home_assistant_url = u;
+    changed();
+  });
+  return el("div", {class: "field"},
+    el("div", {class: "field-head"}, el("span", {class: "name", text: T("“Home Assistant” button")})),
+    el("div", {class: "control"}, input, test),
+    el("p", {class: "hint", text: T("Adds a button that opens Home Assistant under each notification. Empty: no button.")}));
 }
 
 // renderFraming: image framing and video placement, for the styles concerned.
@@ -1020,7 +1049,7 @@ function renderGrouped(box, camera) {
       const node = renderField(byKey[k], camera);
       if (node) nodes.push(node);
     }
-    if (g.extra) nodes.push(g.extra());
+    if (g.extra) nodes.push(...g.extra());
     if (nodes.length) box.append(el("div", {class: "fgroup"}, el("h3", {text: g.title}), ...nodes));
   }
 }
@@ -1225,7 +1254,7 @@ function refusedBox() {
   }
   box.append(list, el("div", {class: "fix", text: "👉 " + (data && data.can_connection
     ? T("To allow someone, add their ID as a recipient with the Connection link at the bottom of the page.")
-    : T("To allow someone, add their ID to TELEGRAM_CHAT_ID (and to TELEGRAM_ADMINS if you set it), then restart the container."))}));
+    : T("To allow someone, add their ID to telegram.chats in config.yml (and to telegram.admins if you set it), then restart the container."))}));
   return box;
 }
 
@@ -1353,7 +1382,8 @@ function toSend() {
   for (const [name, patch] of Object.entries(overlay.cameras)) {
     if (Object.keys(patch).length) cameras[name] = patch;
   }
-  return {notify: overlay.notify, cameras, recipients: overlay.recipients, external_url: overlay.external_url};
+  return {notify: overlay.notify, cameras, recipients: overlay.recipients, external_url: overlay.external_url,
+    home_assistant_url: overlay.home_assistant_url};
 }
 
 async function load() {
@@ -1361,7 +1391,7 @@ async function load() {
   if (!resp.ok) throw new Error("HTTP " + resp.status + " : " + (await resp.text()));
   data = await resp.json();
   overlay = {notify: data.overlay.notify, cameras: data.overlay.cameras || {}, recipients: data.overlay.recipients || {},
-    external_url: data.overlay.external_url || ""};
+    external_url: data.overlay.external_url || "", home_assistant_url: data.overlay.home_assistant_url || ""};
   // Each known camera gets an entry (empty = follows the global level) before the
   // saved state is recorded, otherwise the page would think it was modified on opening.
   for (const c of data.cameras || []) if (!overlay.cameras[c.name]) overlay.cameras[c.name] = {};

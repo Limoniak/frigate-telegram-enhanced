@@ -5,10 +5,8 @@
 #
 # To use this file instead: copy it to config/config.yml, adapt it, and add the
 # volume "- ./config:/config:ro" to the service. When /config/config.yml exists,
-# it is the only one taken into account.
-#
-# ${VAR} values come from the container's environment variables (environment
-# section of the compose file); ${VAR:-default} uses "default" when it is not set.
+# it is the only one taken into account. It holds the bot token and passwords:
+# keep it readable by you alone.
 
 language: en                     # language of Telegram messages and errors: en, fr (see internal/i18n/locales)
 timezone: Europe/Paris
@@ -18,18 +16,21 @@ frigate:
   url: http://frigate:5000       # internal API URL (5000 without auth, 8971 with auth)
   external_url: ""               # address of the "Open in Frigate" links (empty: the one of url)
   username: ""                   # fill in if Frigate authentication is enabled
-  password: "${FRIGATE_PASSWORD:-}"
+  password: ""
   insecure_skip_verify: false    # true for a self-signed certificate
+
+home_assistant:
+  url: ""                        # adds a "🏠 Home Assistant" button opening this address (empty: no button)
 
 mqtt:
   broker: tcp://mosquitto:1883   # ssl://host:8883 for TLS
   username: ""
-  password: "${MQTT_PASSWORD:-}"
+  password: ""
   client_id: frigate-telegram-enhanced
   topic_prefix: frigate          # must match Frigate's mqtt.topic_prefix
 
 telegram:
-  token: "${TELEGRAM_TOKEN}"
+  token: "123456789:ABC..."      # from @BotFather
   admins: [123456789]            # users allowed to control the bot; empty: anyone in the chats below
   chats:                         # free names → chat IDs
     me: 123456789
@@ -37,7 +38,7 @@ telegram:
 
 web:                             # notification settings interface, on http_listen
   enabled: true
-  password: "${WEB_PASSWORD:-}"  # empty = no authentication (then only expose it on 127.0.0.1)
+  password: ""                   # empty = no authentication (then only expose it on 127.0.0.1)
   # Without a password, the interface only accepts IP addresses and localhost in the
   # URL (protection against DNS rebinding). To open it by a host name
   # (http://nas.lan:8431), add it here — or set a password.
@@ -46,7 +47,7 @@ web:                             # notification settings interface, on http_list
 
 # The notify and cameras sections below are the ones the web interface changes. From
 # the first save on, it writes /data/notify.yml, which replaces both of them; this
-# file stays the source of the secrets and the ${VAR}. The interface's "Back to the
+# file stays the source of the connection and the secrets. The interface's "Back to the
 # config.yml settings" button deletes /data/notify.yml.
 
 notify:                          # global settings, can be overridden per camera

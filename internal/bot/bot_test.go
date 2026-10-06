@@ -116,7 +116,7 @@ type env struct {
 
 func newEnv(t *testing.T) env {
 	t.Helper()
-	cfg, err := config.Parse([]byte(cfgYAML), func(string) (string, bool) { return "", false })
+	cfg, err := config.Parse([]byte(cfgYAML))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +467,7 @@ func TestUnauthorizedPrivateUserLearnsTheirID(t *testing.T) {
 	e := newEnv(t)
 	alice := telegram.User{ID: 999, FirstName: "Alice", Username: "alice"}
 	e.cmdIn("/start", alice, telegram.Chat{ID: 999, Type: "private"})
-	if len(e.tg.messages) != 1 || !strings.Contains(e.tg.last(), "<code>999</code>") || !strings.Contains(e.tg.last(), "TELEGRAM_CHAT_ID") {
+	if len(e.tg.messages) != 1 || !strings.Contains(e.tg.last(), "<code>999</code>") || !strings.Contains(e.tg.last(), "telegram.chats") {
 		t.Fatalf("reply = %q", e.tg.messages)
 	}
 	e.cmdIn("/pause", alice, telegram.Chat{ID: 999, Type: "private"})
@@ -517,7 +517,7 @@ timezone: Europe/Paris
 frigate: {url: "http://f"}
 mqtt: {broker: "tcp://m:1883"}
 telegram: {token: t, chats: {famille: -100}}
-`), func(string) (string, bool) { return "", false })
+`))
 	if err != nil {
 		t.Fatal(err)
 	}

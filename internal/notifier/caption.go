@@ -97,9 +97,10 @@ func truncate(s string, max int) string {
 }
 
 // buttons returns the buttons of a notification, on two rows: look (live image,
-// clip) then silence (camera 1 h, everything 30 min). A button whose callback_data
-// exceeds 64 bytes is left out.
-func buttons(camera, id string, lang i18n.Lang) *telegram.InlineKeyboardMarkup {
+// clip) then silence (camera 1 h, everything 30 min), plus a third one opening
+// Home Assistant when haURL is set. A button whose callback_data exceeds 64 bytes
+// is left out.
+func buttons(camera, id, haURL string, lang i18n.Lang) *telegram.InlineKeyboardMarkup {
 	var rows [][]telegram.InlineKeyboardButton
 	row := func(keys ...[2]string) {
 		var r []telegram.InlineKeyboardButton
@@ -114,5 +115,8 @@ func buttons(camera, id string, lang i18n.Lang) *telegram.InlineKeyboardMarkup {
 	}
 	row([2]string{lang.T("📷 Now"), actions.Snapshot(camera)}, [2]string{"🎬 Clip", actions.Clip(id)})
 	row([2]string{"🔇 1 h", actions.Mute(camera, time.Hour)}, [2]string{"⏸ 30 min", actions.Pause(30 * time.Minute)})
+	if haURL != "" {
+		rows = append(rows, []telegram.InlineKeyboardButton{{Text: "🏠 Home Assistant", URL: haURL}})
+	}
 	return &telegram.InlineKeyboardMarkup{InlineKeyboard: rows}
 }

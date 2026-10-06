@@ -13,7 +13,7 @@ import (
 )
 
 // ErrNotConfigured reports an installation with nothing to start from: no
-// config.yml, no environment variables and no connection saved by the setup page.
+// config.yml and no connection saved by the setup page.
 // The service then only serves the setup page.
 var ErrNotConfigured = errors.New("not configured")
 
@@ -23,7 +23,7 @@ const DefaultConnectionPath = "/data/connection.yml"
 
 // Connection is what the setup page asks for: how to reach Telegram, Frigate and
 // MQTT, and who receives the notifications. Saved by the page, it takes the place
-// of the environment variables; the notification settings stay in notify.yml.
+// of config.yml; the notification settings stay in notify.yml.
 type Connection struct {
 	Language string        `yaml:"language,omitempty" json:"language"`
 	Timezone string        `yaml:"timezone,omitempty" json:"timezone"`
@@ -46,7 +46,7 @@ const connectionHeader = `# Connection saved by the setup page of frigate-telegr
 
 // Normalize completes what the page leaves implicit: a bare broker address
 // ("mosquitto", "mosquitto:1883"), trailing slashes, and the admins — by default
-// the people of the private chats, as with TELEGRAM_ADMINS.
+// the people of the private chats.
 func (c *Connection) Normalize() {
 	c.Frigate.URL = strings.TrimRight(strings.TrimSpace(c.Frigate.URL), "/")
 	if b := strings.TrimSpace(c.MQTT.Broker); b != "" {
@@ -95,8 +95,7 @@ func LoadConnection(path string) (*Connection, error) {
 	return &c, nil
 }
 
-// loadConnection builds the configuration from the saved connection. Its values
-// are taken as they are: unlike config.yml, a ${VAR} in a password is not a variable.
+// loadConnection builds the configuration from the saved connection.
 func loadConnection(path string) (*Config, error) {
 	conn, err := LoadConnection(path)
 	if err != nil {
@@ -105,7 +104,7 @@ func loadConnection(path string) (*Config, error) {
 	// The state lives next to the connection, in the same volume.
 	f := conn.file()
 	f.StateFile = filepath.Join(filepath.Dir(path), "state.json")
-	f.HTTPListen = SetupListen()
+	f.HTTPListen = SetupListen
 	c, err := build(f)
 	if err != nil {
 		return nil, err
@@ -143,22 +142,18 @@ func SaveConnection(path string, c Connection) error {
 	return nil
 }
 
-// envConfigured reports whether the environment describes the connection: one of
-// the required variables is enough, FromEnv then reports the missing ones.
-func envConfigured(lookup func(string) (string, bool)) bool {
-	for _, name := range []string{"TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "FRIGATE_URL", "MQTT_BROKER"} {
-		if v, _ := lookup(name); strings.TrimSpace(v) != "" {
-			return true
-		}
-	}
-	return false
-}
+// SetupListen is the address of the setup page, before any configuration, and of
+// the service it sets up. Tests change it.
+var SetupListen = DefaultHTTPListen
 
-// SetupListen is the address of the setup page, before any configuration:
-// HTTP_LISTEN if set, otherwise the default one.
-func SetupListen() string {
-	if v := strings.TrimSpace(os.Getenv("HTTP_LISTEN")); v != "" {
-		return v
+// brokerURL accepts "mosquitto", "mosquitto:1883" or a full URL ("tcp://…",
+// "ssl://…") and returns a full URL.
+func brokerURL(s string) string {
+	if strings.Contains(s, "://") {
+		return s
 	}
-	return DefaultHTTPListen
+	if !strings.Contains(s, ":") {
+		s += ":1883"
+	}
+	return "tcp://" + s
 }
