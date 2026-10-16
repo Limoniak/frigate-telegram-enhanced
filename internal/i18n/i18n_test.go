@@ -234,29 +234,29 @@ var (
 // data-t and data-t-placeholder in its pages.
 func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[string]bool) {
 	t.Helper()
-	for _, name := range []string{"ui.js", "setup.js"} {
+	unquote := func(name, s string) string {
+		u, err := strconv.Unquote(`"` + s + `"`)
+		if err != nil {
+			t.Fatalf("%s: cannot read the string %q: %v", name, s, err)
+		}
+		return u
+	}
+	for _, name := range []string{"ui.js"} {
 		js, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		unquote := func(s string) string {
-			u, err := strconv.Unquote(`"` + s + `"`)
-			if err != nil {
-				t.Fatalf("%s: cannot read the string %q: %v", name, s, err)
-			}
-			return u
-		}
 		for _, m := range jsString.FindAllStringSubmatch(string(js), -1) {
-			literals[unquote(m[1])] = true
+			literals[unquote(name, m[1])] = true
 		}
 		for _, m := range jsCall.FindAllStringSubmatch(string(js), -1) {
-			keys[unquote(m[1])] = name
+			keys[unquote(name, m[1])] = name
 		}
 		for _, m := range jsBilingual.FindAllString(string(js), -1) {
 			t.Errorf("%s: %q: T takes one English text; use Tf for a text with values", name, m)
 		}
 	}
-	for _, name := range []string{"ui.html", "setup.html"} {
+	for _, name := range []string{"ui.html"} {
 		page, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			t.Fatal(err)
@@ -265,5 +265,32 @@ func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[stri
 			s := html.UnescapeString(m[1])
 			keys[s], literals[s] = name, true
 		}
+	}
+
+	// The new front end: T("…") in its Svelte components and scripts.
+	src := filepath.Join(dir, "..", "..", "web", "src")
+	err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || strings.HasSuffix(path, ".test.js") ||
+			!(strings.HasSuffix(path, ".svelte") || strings.HasSuffix(path, ".js")) {
+			return err
+		}
+		code, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		name, _ := filepath.Rel(src, path)
+		for _, m := range jsString.FindAllStringSubmatch(string(code), -1) {
+			literals[unquote(name, m[1])] = true
+		}
+		for _, m := range jsCall.FindAllStringSubmatch(string(code), -1) {
+			keys[unquote(name, m[1])] = name
+		}
+		for _, m := range jsBilingual.FindAllString(string(code), -1) {
+			t.Errorf("%s: %q: T takes one English text; use Tf for a text with values", name, m)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

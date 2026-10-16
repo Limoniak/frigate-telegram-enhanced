@@ -29,10 +29,10 @@ import (
 )
 
 // The interface: the main page, its style sheet and its script (no build step yet),
-// the setup page (until it moves to dist/, Task 4), the login page, and dist/, the
+// the login page, and dist/, the
 // front end built from web/ (npm run build), committed so that go build needs no Node.
 //
-//go:embed ui.html ui.css ui.js setup.html setup.js login.html dist
+//go:embed ui.html ui.css ui.js login.html dist
 var assets embed.FS
 
 // distFS is the built front end.

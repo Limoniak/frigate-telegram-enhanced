@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -97,14 +99,15 @@ func TestSetupAloneLeadsToTheSetupPage(t *testing.T) {
 	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/setup" {
 		t.Errorf("GET / = %d to %q, want a redirect to setup", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	for _, path := range []string{"/setup", "/setup.js", "/ui.css", "/i18n.js"} {
-		resp, err := http.Get(ts.URL + path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET %s = %d", path, resp.StatusCode)
+	c := ts.Client()
+	page, _ := io.ReadAll(get(t, c, ts.URL+"/setup").Body)
+	refs := regexp.MustCompile(`(?:src|href)="(?:./)?([a-z0-9][^":]*)"`).FindAllStringSubmatch(string(page), -1)
+	if len(refs) < 3 {
+		t.Fatalf("the setup page references too few files: %.400s", page)
+	}
+	for _, ref := range refs {
+		if resp := get(t, c, ts.URL+"/"+ref[1]); resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: %d", ref[1], resp.StatusCode)
 		}
 	}
 }

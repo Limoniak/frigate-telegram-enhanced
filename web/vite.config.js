@@ -18,7 +18,7 @@ export default defineConfig({
     outDir: here("../internal/web/dist"),
     emptyOutDir: true,
     rollupOptions: {
-      input: { login: here("src/login.css") },
+      input: { login: here("src/login.css"), setup: here("src/setup.html") },
       output: {
         entryFileNames: "[name].js",
         chunkFileNames: "assets/[name]-[hash].js",

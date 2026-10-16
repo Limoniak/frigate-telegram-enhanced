@@ -57,7 +57,7 @@ func TestBrowserSmoke(t *testing.T) {
 		chromedp.Click(`details.camera[data-name="salon"] label.toggle`),
 		chromedp.WaitVisible(`#status.saved`), // saved by itself, no button
 		// The language menu comes from the catalogs; in French, the page is translated.
-		chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "fr"; m.dispatchEvent(new Event("change")); 0`),
+		chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "fr"; m.dispatchEvent(new Event("change", {bubbles: true})); 0`),
 		into(chromedp.Text(`#sec-when h2`), &title),
 	)
 	if err != nil {
@@ -94,7 +94,7 @@ func TestBrowserLanguageAuto(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
 	ctx, jsErrors := browser(t)
 	choose := func(code string) chromedp.Action[chromedp.Void] {
-		return chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "` + code + `"; m.dispatchEvent(new Event("change")); 0`)
+		return chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "` + code + `"; m.dispatchEvent(new Event("change", {bubbles: true})); 0`)
 	}
 	// menu value, page language, saved choice
 	const state = `[document.querySelector(".lang select").value, document.documentElement.lang, localStorage.getItem("frigate-telegram-enhanced-lang") || "-"].join(" ")`
@@ -388,6 +388,43 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 	}
 	if c.Web.Password != "" || c.MQTT.Password != "mqtt-secret" {
 		t.Errorf("web password %q (want removed), mqtt password %q (want kept)", c.Web.Password, c.MQTT.Password)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// On a phone, in German (the longest texts), the setup page does not scroll sideways.
+func TestBrowserSetupFitsAPhone(t *testing.T) {
+	s := NewSetup(filepath.Join(t.TempDir(), "connection.yml"), nil, &fakeProber{}, slog.New(slog.DiscardHandler), func() {})
+	mux := http.NewServeMux()
+	s.MountAlone(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ctx, jsErrors := browser(t)
+	var width int
+	var heading string
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		chromedp.Navigate(ts.URL+"/"),
+		chromedp.WaitVisible(`#intro-first`),
+		chromedp.Evaluate[chromedp.Void](`const m = document.querySelector("header select"); m.value = "de"; m.dispatchEvent(new Event("change", {bubbles: true})); 0`),
+		chromedp.SendKeys(`#token`, "123:abc"),
+		chromedp.Click(`#check-token`),
+		chromedp.WaitVisible(`#chats .chip`),
+		chromedp.Click(`#manual summary`),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+		into(chromedp.Evaluate[string](`document.querySelector("#sec-telegram h2").textContent`), &heading),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if width > 360 {
+		t.Errorf("the page is %d px wide on a 360 px screen", width)
+	}
+	if heading != "Telegram-Bot" {
+		t.Errorf("the Telegram card heading is %q in German, want \"Telegram-Bot\"", heading)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

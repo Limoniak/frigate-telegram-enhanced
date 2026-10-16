@@ -104,8 +104,9 @@ func (s *Setup) MountAlone(mux *http.ServeMux) {
 const setupHostRefused = "open this page with the server's IP address (for example http://192.168.1.10:8431): the name will be accepted once the setup is saved"
 
 func (s *Setup) mount(mux *http.ServeMux, guard func(http.Handler) http.Handler) {
-	mux.Handle("GET /setup", guard(asset("setup.html", "text/html; charset=utf-8")))
-	mux.Handle("GET /setup.js", guard(asset("setup.js", "text/javascript; charset=utf-8")))
+	mux.Handle("GET /setup", guard(distAsset("setup.html", "text/html; charset=utf-8")))
+	mux.Handle("GET /setup.js", guard(distAsset("setup.js", "text/javascript; charset=utf-8")))
+	mux.Handle("GET /setup.css", guard(distAsset("setup.css", "text/css; charset=utf-8")))
 	mux.Handle("GET /api/connection", guard(http.HandlerFunc(s.get)))
 	mux.Handle("POST /api/connection/telegram", guard(sameOrigin(http.HandlerFunc(s.telegram))))
 	mux.Handle("POST /api/connection/frigate", guard(sameOrigin(http.HandlerFunc(s.frigate))))
