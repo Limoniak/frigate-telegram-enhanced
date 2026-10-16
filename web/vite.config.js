@@ -10,6 +10,8 @@ const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
   root: here("src"),
+  // Vitest's cache lives under web/node_modules, not under src/ (the root above).
+  cacheDir: here("node_modules/.vite"),
   base: "./",
   plugins: [tailwindcss(), svelte()],
   build: {
