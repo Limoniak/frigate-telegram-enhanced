@@ -60,8 +60,8 @@ Conventions:
   (`feat!:`).
 - A change users can notice gets a line under *Unreleased* in
   [CHANGELOG.md](CHANGELOG.md).
-- New behavior comes with tests. The web interface has no build step: `ui.html`,
-  `ui.css` and `ui.js` are embedded as they are.
+- New behavior comes with tests. The main web interface has no build step: `ui.html`,
+  `ui.css` and `ui.js` are embedded as they are. Only the setup and login pages come from `web/`.
 
 ## Pull requests
 

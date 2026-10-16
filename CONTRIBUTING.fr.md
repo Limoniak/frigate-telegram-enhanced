@@ -62,8 +62,9 @@ Conventions :
   (`feat!:`).
 - Un changement visible par les utilisateurs a sa ligne sous *Unreleased* dans
   [CHANGELOG.md](CHANGELOG.md) (en anglais).
-- Un nouveau comportement arrive avec ses tests. L'interface web n'a pas d'étape de
-  build : `ui.html`, `ui.css` et `ui.js` sont intégrés tels quels.
+- Un nouveau comportement arrive avec ses tests. L'interface web principale n'a pas
+  d'étape de build : `ui.html`, `ui.css` et `ui.js` sont intégrés tels quels. Seules les
+  pages d'installation et de connexion viennent de `web/`.
 
 ## Pull requests
 
