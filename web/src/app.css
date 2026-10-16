@@ -15,6 +15,7 @@
   --glass: rgba(255, 255, 255, 0.035); --glass-hi: rgba(255, 255, 255, 0.08);
   --shell: rgba(255, 255, 255, 0.025); --ring: rgba(255, 255, 255, 0.08);
   --field: rgba(0, 0, 0, 0.4); --accent: #2aabee; --accent-ink: #7cc8f5;
+  --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
   --ok: #7cc8f5; --err: #fca5a5; --warn: #fcd34d;
   --halo-a: rgba(42, 171, 238, 0.22); --halo-b: rgba(79, 70, 229, 0.18);
   color-scheme: dark;
@@ -25,6 +26,7 @@
     --glass: rgba(255, 255, 255, 0.72); --glass-hi: rgba(255, 255, 255, 0.9);
     --shell: rgba(15, 23, 42, 0.03); --ring: rgba(15, 23, 42, 0.08);
     --field: rgba(255, 255, 255, 0.95); --accent: #1e96c8; --accent-ink: #0b6fa0;
+    --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
     --ok: #0b6fa0; --err: #b91c1c; --warn: #a16207;
     --halo-a: rgba(42, 171, 238, 0.18); --halo-b: rgba(99, 102, 241, 0.12);
     color-scheme: light;
@@ -35,6 +37,7 @@
   --glass: rgba(255, 255, 255, 0.72); --glass-hi: rgba(255, 255, 255, 0.9);
   --shell: rgba(15, 23, 42, 0.03); --ring: rgba(15, 23, 42, 0.08);
   --field: rgba(255, 255, 255, 0.95); --accent: #1e96c8; --accent-ink: #0b6fa0;
+  --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
   --ok: #0b6fa0; --err: #b91c1c; --warn: #a16207;
   --halo-a: rgba(42, 171, 238, 0.18); --halo-b: rgba(99, 102, 241, 0.12);
   color-scheme: light;
@@ -71,7 +74,7 @@ select.field { appearance: auto; }
 }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.5; cursor: default; }
-.btn-primary { background: var(--accent); color: #fff; box-shadow: none; }
+.btn-primary { background: var(--accent-strong); color: #fff; box-shadow: none; }
 .btn-link { background: none; box-shadow: none; padding: 0; color: var(--accent-ink); text-decoration: underline; }
 .result { font-size: 12.5px; color: var(--muted); }
 .result.ok { color: var(--ok); }
