@@ -47,7 +47,11 @@ npm run build      # updates internal/web/dist/, commit it with your change
 npm run dev        # live reload, with the API of a service running on port 8431
 ```
 
-The CI fails when `internal/web/dist/` does not match `web/`.
+`npm run dev` serves the setup page at <http://localhost:5173/setup.html>.
+
+The CI fails when `internal/web/dist/` does not match `web/`. Dependabot's npm pull
+requests do not rebuild `dist/`: when the check fails on one, a maintainer runs
+`npm run build` on its branch and pushes the result.
 
 Conventions:
 

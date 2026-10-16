@@ -48,7 +48,11 @@ npm run build      # met à jour internal/web/dist/, à committer avec votre cha
 npm run dev        # rechargement à chaud, avec l'API d'un service sur le port 8431
 ```
 
-La CI échoue quand `internal/web/dist/` ne correspond pas à `web/`.
+`npm run dev` sert la page d'installation sur <http://localhost:5173/setup.html>.
+
+La CI échoue quand `internal/web/dist/` ne correspond pas à `web/`. Les pull requests npm
+de Dependabot ne reconstruisent pas `dist/` : quand la vérification échoue sur l'une
+d'elles, un mainteneur lance `npm run build` sur sa branche et pousse le résultat.
 
 Conventions :
 

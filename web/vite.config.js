@@ -28,6 +28,6 @@ export default defineConfig({
     },
   },
   // npm run dev: the API and i18n.js come from a service running on 8431.
-  server: { proxy: { "/api": "http://localhost:8431", "/i18n.js": "http://localhost:8431" } },
+  server: { proxy: { "/login": "http://localhost:8431", "/api": "http://localhost:8431", "/i18n.js": "http://localhost:8431" } },
   test: { root: here("src"), environment: "node" },
 });
