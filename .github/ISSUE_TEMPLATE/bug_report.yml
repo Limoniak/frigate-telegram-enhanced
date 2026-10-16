@@ -19,8 +19,8 @@ body:
     id: version
     attributes:
       label: Version of the service / Version du service
-      description: Shown at the bottom of the web interface, or the Docker tag. / Affichée en bas de l'interface web, ou le tag Docker.
-      placeholder: "2.0.0, :latest…"
+      description: The Docker tag you run, and when you last pulled it. / Le tag Docker utilisé, et la date du dernier pull.
+      placeholder: ":2.0.0, :latest pulled on 2026-10-16…"
     validations:
       required: true
   - type: input

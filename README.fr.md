@@ -115,8 +115,8 @@ L'image est construite par GitHub Actions et publiée sur GitHub Container Regis
 
 - `:latest` et `:main` — le dernier commit de `main`, utilisés par le
   `docker-compose.yml` fourni
-- `:1` — la dernière version 1.x : correctifs et nouveautés, jamais de changement
-  incompatible (ce serait une 2.0) ; pour ne recevoir que les versions, la mettre dans
+- `:2` — la dernière version 2.x : correctifs et nouveautés, jamais de changement
+  incompatible (ce serait une 3.0) ; pour ne recevoir que les versions, la mettre dans
   `docker-compose.yml`
 - `:X.Y` et `:X.Y.Z` — une version précise, publiées à chaque tag `v*`
 - `:dev` — la branche `dev`, pour essayer les changements en cours

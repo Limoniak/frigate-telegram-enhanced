@@ -114,8 +114,8 @@ The image is built by GitHub Actions and published to GitHub Container Registry:
 
 - `:latest` and `:main` — the latest commit of `main`, used by the provided
   `docker-compose.yml`
-- `:1` — the latest 1.x release: fixes and new features, never a breaking change
-  (that would be a 2.0); to only get releases, use it in `docker-compose.yml`
+- `:2` — the latest 2.x release: fixes and new features, never a breaking change
+  (that would be a 3.0); to only get releases, use it in `docker-compose.yml`
 - `:X.Y` and `:X.Y.Z` — a precise release, published on every `v*` tag
 - `:dev` — the `dev` branch, to try changes in progress
 - `:sha-<short>` — a specific commit

@@ -2,10 +2,12 @@
 
 All notable changes to this project are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/): the `:1` image gets every 1.x release but
-never a breaking 2.0, while `:latest` follows `main`.
+[Semantic Versioning](https://semver.org/): the `:2` image gets every 2.x release but
+never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
+
+## [2.0.0] - 2026-10-16
 
 ### Added
 
@@ -108,6 +110,7 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Limoniak/frigate-telegram-enhanced/releases/tag/v1.0.0
