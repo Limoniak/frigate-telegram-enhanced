@@ -741,3 +741,17 @@ func TestBuiltAssetsServed(t *testing.T) {
 		t.Errorf("%s: %d, Cache-Control %q", font[1], resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 }
+
+// dist/assets/ serves existing files only: no directory listing, and no long cache on a 404.
+func TestBuiltAssetsOnlyFiles(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	resp := do(t, ts, "GET", "/assets/", "")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusNotFound || strings.Contains(string(body), ".woff2") {
+		t.Errorf("/assets/: %d, body %.100q, want 404 without a listing", resp.StatusCode, body)
+	}
+	resp = do(t, ts, "GET", "/assets/nope.woff2", "")
+	if resp.StatusCode != http.StatusNotFound || strings.Contains(resp.Header.Get("Cache-Control"), "immutable") {
+		t.Errorf("/assets/nope.woff2: %d, Cache-Control %q, want 404 not cached", resp.StatusCode, resp.Header.Get("Cache-Control"))
+	}
+}

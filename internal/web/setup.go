@@ -94,7 +94,6 @@ func (s *Setup) MountAlone(mux *http.ServeMux) {
 		return checkHost(nil, i18n.Default, setupHostRefused, next)
 	}
 	mux.Handle("GET /{$}", guard(http.RedirectHandler("setup", http.StatusFound)))
-	mux.Handle("GET /ui.css", guard(asset("ui.css", "text/css; charset=utf-8")))
 	mux.Handle("GET /assets/", guard(staticAssets()))
 	mux.Handle("GET /i18n.js", guard(serve(i18nScript, "text/javascript; charset=utf-8")))
 	s.mount(mux, guard)

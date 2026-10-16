@@ -32,7 +32,7 @@ import (
 // the login page, and dist/, the
 // front end built from web/ (npm run build), committed so that go build needs no Node.
 //
-//go:embed ui.html ui.css ui.js login.html dist
+//go:embed ui.html ui.css ui.js login.html all:dist
 var assets embed.FS
 
 // distFS is the built front end.
@@ -62,6 +62,12 @@ func staticAssets() http.Handler {
 	}
 	files := http.StripPrefix("/assets/", http.FileServerFS(sub))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Existing regular files only: no directory listing, and no long cache on a 404.
+		name := strings.TrimPrefix(r.URL.Path, "/assets/")
+		if info, err := fs.Stat(sub, name); err != nil || !info.Mode().IsRegular() {
+			http.NotFound(w, r)
+			return
+		}
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		files.ServeHTTP(w, r)
 	})
@@ -208,8 +214,7 @@ func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.WrapBa
 // and the Prometheus scrape do not authenticate (see web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
-	// The style sheet holds nothing private: the login page needs it before the password.
-	mux.Handle("GET /ui.css", asset("ui.css", "text/css; charset=utf-8"))
+	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
 	// The login page's sheet and the fonts hold nothing private: needed before the password.
 	mux.Handle("GET /login.css", distAsset("login.css", "text/css; charset=utf-8"))
 	mux.Handle("GET /assets/", staticAssets())
