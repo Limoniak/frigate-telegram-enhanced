@@ -332,6 +332,7 @@ go build ./cmd/frigate-telegram-enhanced
 
 The web interface is `internal/web/ui.html`, `ui.css` and `ui.js`, and the setup page
 `setup.html` and `setup.js`, embedded in the binary as is: no build step.
+The setup and login pages are built from `web/`, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Translating
 

@@ -7,6 +7,12 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Changed
+
+- New look for the setup and login pages: "Nocturne", dark glass on a blue night with
+  a light variant that follows the system. They are built with Svelte and Tailwind
+  (`web/`); the rest of the interface follows in the next versions.
+
 ## [2.0.0] - 2026-10-16
 
 ### Added

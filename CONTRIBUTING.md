@@ -35,6 +35,20 @@ go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
 The CI runs the same checks on every pull request.
 
+The setup and login pages are built from `web/` (Svelte and Tailwind). `go build` and
+`go test` need no Node: the build output, `internal/web/dist/`, is committed. After a
+change in `web/`:
+
+```bash
+cd web
+npm ci
+npm test
+npm run build      # updates internal/web/dist/, commit it with your change
+npm run dev        # live reload, with the API of a service running on port 8431
+```
+
+The CI fails when `internal/web/dist/` does not match `web/`.
+
 Conventions:
 
 - **English** in the code, comments, tests and commit messages. Texts shown to users go
