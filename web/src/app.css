@@ -1,0 +1,89 @@
+/* Nocturne: dark glass on a blue night, the look of the whole interface. The light
+   theme derives from it (frosted glass on a pale blue) when the system is light. */
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@theme {
+  --font-sans: "Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, Consolas, monospace;
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root {
+  --bg: #05070a; --ink: #e4e4e7; --muted: #a1a1aa; --faint: #71717a;
+  --glass: rgba(255, 255, 255, 0.035); --glass-hi: rgba(255, 255, 255, 0.08);
+  --shell: rgba(255, 255, 255, 0.025); --ring: rgba(255, 255, 255, 0.08);
+  --field: rgba(0, 0, 0, 0.4); --accent: #2aabee; --accent-ink: #7cc8f5;
+  --ok: #7cc8f5; --err: #fca5a5; --warn: #fcd34d;
+  --halo-a: rgba(42, 171, 238, 0.22); --halo-b: rgba(79, 70, 229, 0.18);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef4fa; --ink: #0f172a; --muted: #475569; --faint: #64748b;
+    --glass: rgba(255, 255, 255, 0.72); --glass-hi: rgba(255, 255, 255, 0.9);
+    --shell: rgba(15, 23, 42, 0.03); --ring: rgba(15, 23, 42, 0.08);
+    --field: rgba(255, 255, 255, 0.95); --accent: #1e96c8; --accent-ink: #0b6fa0;
+    --ok: #0b6fa0; --err: #b91c1c; --warn: #a16207;
+    --halo-a: rgba(42, 171, 238, 0.18); --halo-b: rgba(99, 102, 241, 0.12);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eef4fa; --ink: #0f172a; --muted: #475569; --faint: #64748b;
+  --glass: rgba(255, 255, 255, 0.72); --glass-hi: rgba(255, 255, 255, 0.9);
+  --shell: rgba(15, 23, 42, 0.03); --ring: rgba(15, 23, 42, 0.08);
+  --field: rgba(255, 255, 255, 0.95); --accent: #1e96c8; --accent-ink: #0b6fa0;
+  --ok: #0b6fa0; --err: #b91c1c; --warn: #a16207;
+  --halo-a: rgba(42, 171, 238, 0.18); --halo-b: rgba(99, 102, 241, 0.12);
+  color-scheme: light;
+}
+
+html { -webkit-font-smoothing: antialiased; }
+body {
+  margin: 0; min-height: 100dvh; color: var(--ink); font-family: var(--font-sans); font-size: 14px; line-height: 1.55;
+  background:
+    radial-gradient(40% 60% at 10% 0%, var(--halo-a), transparent 70%),
+    radial-gradient(45% 55% at 96% 8%, var(--halo-b), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent-ink); }
+
+/* Shared building blocks, used by the Svelte pages and by login.html. */
+.lbl { font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
+.field {
+  width: 100%; min-width: 0; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; color: var(--ink);
+  background: var(--field); box-shadow: inset 0 0 0 1px var(--ring);
+}
+.field::placeholder { color: var(--faint); }
+.field:disabled { opacity: 0.5; }
+select.field { appearance: auto; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 999px;
+  padding: 8px 16px; font: inherit; font-weight: 500; cursor: pointer; color: var(--ink);
+  background: var(--glass); box-shadow: inset 0 0 0 1px var(--ring);
+  transition: transform 0.5s var(--ease-spring), background 0.5s var(--ease-spring);
+}
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn-primary { background: var(--accent); color: #fff; box-shadow: none; }
+.btn-link { background: none; box-shadow: none; padding: 0; color: var(--accent-ink); text-decoration: underline; }
+.result { font-size: 12.5px; color: var(--muted); }
+.result.ok { color: var(--ok); }
+.result.err { color: var(--err); }
+.result.warn { color: var(--warn); }
+.chip {
+  border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; color: var(--muted);
+  background: var(--glass); box-shadow: inset 0 0 0 1px var(--ring);
+  transition: box-shadow 0.5s var(--ease-spring), color 0.5s var(--ease-spring);
+}
+.chip[aria-pressed="true"] { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--accent); }
+details.more > summary { cursor: pointer; color: var(--accent-ink); list-style: none; }
+details.more > summary::before { content: "▸ "; }
+details.more[open] > summary::before { content: "▾ "; }
+.notice { border-radius: 17px; padding: 12px 16px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--ring); }
+.notice.err { color: var(--err); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
