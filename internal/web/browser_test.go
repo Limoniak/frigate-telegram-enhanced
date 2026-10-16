@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
 
@@ -46,20 +45,20 @@ func TestBrowserSmoke(t *testing.T) {
 	ctx, jsErrors := browser(t)
 
 	var cameras, activity, health2, title string
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#cameras .cam-name`),
-		chromedp.Text(`#cameras`, &cameras),
+		into(chromedp.Text(`#cameras`), &cameras),
 		chromedp.WaitVisible(`#activity li, #activity > *`),
-		chromedp.Text(`#activity`, &activity),
+		into(chromedp.Text(`#activity`), &activity),
 		chromedp.WaitVisible(`#health-errors`),
-		chromedp.Text(`#health-errors`, &health2),
+		into(chromedp.Text(`#health-errors`), &health2),
 		// Muting a camera is saved by itself, shortly after.
 		chromedp.Click(`details.camera[data-name="salon"] label.toggle`),
 		chromedp.WaitVisible(`#status.saved`), // saved by itself, no button
 		// The language selector comes from the catalogs; in French, the page is translated.
 		chromedp.Click(`.lang button[data-lang="fr"]`),
-		chromedp.Text(`#sec-when h2`, &title),
+		into(chromedp.Text(`#sec-when h2`), &title),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -109,17 +108,32 @@ func browser(t *testing.T) (ctx context.Context, jsErrors func() []string) {
 
 	var mu sync.Mutex
 	var errs []string
-	chromedp.ListenTarget(ctx, func(ev any) {
-		if e, ok := ev.(*runtime.EventExceptionThrown); ok {
-			mu.Lock()
-			errs = append(errs, e.ExceptionDetails.Error())
-			mu.Unlock()
+	messages := chromedp.Console(ctx) // subscribes now, before the page loads
+	go func() {
+		for m, err := range messages {
+			if err != nil {
+				return
+			}
+			if m.IsException() {
+				mu.Lock()
+				errs = append(errs, m.Text)
+				mu.Unlock()
+			}
 		}
-	})
+	}()
 	return ctx, func() []string {
 		mu.Lock()
 		defer mu.Unlock()
 		return slices.Clone(errs)
+	}
+}
+
+// into runs a and stores its result in dst, so that it can be a step of chromedp.Do.
+func into[T any](a chromedp.Action[T], dst *T) chromedp.Action[chromedp.Void] {
+	return func(ctx context.Context, t *chromedp.Target) (chromedp.Void, error) {
+		v, err := a(ctx, t)
+		*dst = v
+		return chromedp.Void{}, err
 	}
 }
 
@@ -136,7 +150,7 @@ func TestBrowserSetup(t *testing.T) {
 
 	ctx, jsErrors := browser(t)
 	var chats, broker string
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#intro-first`),
 		chromedp.SendKeys(`#token`, "123:abc"),
@@ -146,15 +160,15 @@ func TestBrowserSetup(t *testing.T) {
 		chromedp.Click(`#manual summary`),
 		chromedp.SendKeys(`#manual-id`, "abc"+kb.Enter),
 		chromedp.WaitVisible(`#manual-result.err`),
-		chromedp.Evaluate(`document.getElementById("manual-id").value = ""`, nil),
+		chromedp.Evaluate[chromedp.Void](`document.getElementById("manual-id").value = ""`),
 		chromedp.SendKeys(`#manual-id`, "-100 123"),
 		chromedp.SendKeys(`#manual-name`, "Family"+kb.Enter),
 		chromedp.WaitVisible(`#manual-result.ok`),
-		chromedp.Text(`#chats`, &chats),
+		into(chromedp.Text(`#chats`), &chats),
 		chromedp.SendKeys(`#frigate-url`, "http://192.168.1.10:5000"),
 		chromedp.Click(`#check-frigate`),
 		chromedp.WaitVisible(`#frigate-result.ok`),
-		chromedp.Value(`#mqtt-broker`, &broker),
+		into(chromedp.Value(`#mqtt-broker`), &broker),
 		chromedp.Click(`#check-mqtt`),
 		chromedp.WaitVisible(`#mqtt-result.ok`),
 		chromedp.Click(`#save`),
@@ -198,13 +212,13 @@ func TestBrowserSetupFindsFrigate(t *testing.T) {
 
 	ctx, jsErrors := browser(t)
 	var url, broker, status string
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#frigate-result.ok`),
-		chromedp.Value(`#frigate-url`, &url),
-		chromedp.Value(`#mqtt-broker`, &broker),
+		into(chromedp.Value(`#frigate-url`), &url),
+		into(chromedp.Value(`#mqtt-broker`), &broker),
 		chromedp.WaitVisible(`#mqtt-pass`),
-		chromedp.Text(`#broker-status`, &status),
+		into(chromedp.Text(`#broker-status`), &status),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -225,10 +239,10 @@ func TestBrowserSampleSavesFirst(t *testing.T) {
 		WithTester(tester))
 	ctx, jsErrors := browser(t)
 	var folded bool
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#messages .notice.info`), // first visit: welcome
-		chromedp.Evaluate(`!document.querySelector("#questions details.more").open`, &folded),
+		into(chromedp.Evaluate[bool](`!document.querySelector("#questions details.more").open`), &folded),
 		chromedp.Click(`.style-card:nth-child(2)`), // "Photo only", then the sample at once
 		chromedp.Click(`#try button`),
 		chromedp.WaitVisible(`#try .result.ok`),
@@ -256,13 +270,13 @@ func TestBrowserLogin(t *testing.T) {
 	_, _, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
 	ctx, jsErrors := browser(t)
 	var errText string
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`.login-card input[type=password]`),
 		chromedp.SendKeys(`#password`, "wrong"),
 		chromedp.Submit(`.login-card`),
 		chromedp.WaitVisible(`.login-error`),
-		chromedp.Text(`.login-error`, &errText),
+		into(chromedp.Text(`.login-error`), &errText),
 		chromedp.SendKeys(`#password`, "s3cret"),
 		chromedp.Submit(`.login-card`),
 		chromedp.WaitVisible(`#cameras .cam-name`),
@@ -299,26 +313,27 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 	defer ts.Close()
 
 	ctx, jsErrors := browser(t)
-	var before, after, unchanged string
+	var before, after chromedp.AttributeResult
+	var unchanged string
 	var webDisabled bool
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#clear-web-pass-row`),
-		chromedp.AttributeValue(`#mqtt-pass`, "placeholder", &before, nil),
-		chromedp.Evaluate(`T("unchanged")`, &unchanged), // in the browser's language
-		chromedp.Evaluate(`document.getElementById("mqtt-broker").value = "192.168.1.99"; document.getElementById("mqtt-broker").dispatchEvent(new Event("input")); 0`, nil),
-		chromedp.AttributeValue(`#mqtt-pass`, "placeholder", &after, nil),
+		into(chromedp.AttributeValue(`#mqtt-pass`, "placeholder"), &before),
+		into(chromedp.Evaluate[string](`T("unchanged")`), &unchanged), // in the browser's language
+		chromedp.Evaluate[chromedp.Void](`document.getElementById("mqtt-broker").value = "192.168.1.99"; document.getElementById("mqtt-broker").dispatchEvent(new Event("input")); 0`),
+		into(chromedp.AttributeValue(`#mqtt-pass`, "placeholder"), &after),
 		chromedp.Click(`#clear-web-pass`),
-		chromedp.Evaluate(`document.getElementById("web-pass").disabled`, &webDisabled),
-		chromedp.Evaluate(`document.getElementById("mqtt-broker").value = "192.168.1.10"; 0`, nil),
+		into(chromedp.Evaluate[bool](`document.getElementById("web-pass").disabled`), &webDisabled),
+		chromedp.Evaluate[chromedp.Void](`document.getElementById("mqtt-broker").value = "192.168.1.10"; 0`),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#save-result.ok`),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if before != unchanged || after == unchanged {
-		t.Errorf("MQTT password placeholder: %q, then %q after changing the broker", before, after)
+	if before.Value != unchanged || after.Value == unchanged {
+		t.Errorf("MQTT password placeholder: %q, then %q after changing the broker", before.Value, after.Value)
 	}
 	if !webDisabled {
 		t.Error("removing the interface password must disable its field")
