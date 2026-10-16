@@ -31,7 +31,11 @@ jobs:
         working-directory: web
       - run: npm test
         working-directory: web
-      - run: npm run build && git -C .. diff --exit-code -- internal/web/dist
+      # Fails on any change or new file under dist/, and shows which.
+      - run: |
+          npm run build
+          git -C .. status --porcelain -- internal/web/dist
+          test -z "$(git -C .. status --porcelain -- internal/web/dist)"
         working-directory: web
       - run: go vet ./...
       - run: go test -race ./...
