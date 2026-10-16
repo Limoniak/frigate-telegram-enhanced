@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -310,5 +311,27 @@ func TestRecordings(t *testing.T) {
 	}
 	if want := "/api/jardin/recordings?after=1791284189.335&before=1791284200.000"; query != want {
 		t.Errorf("request = %q, want %q", query, want)
+	}
+}
+
+// The sounds a camera listens to are among its labels, like its tracked objects;
+// a camera whose audio detection is off has none.
+func TestCameraDetailsListAudioLabels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"objects":{"track":["person"]},"cameras":{
+			"garage":{"objects":{"track":["cat","person"]},"audio":{"enabled":true,"listen":["speech","bark"]}},
+			"jardin":{"audio":{"enabled":false,"listen":["bark"]}}}}`))
+	}))
+	defer srv.Close()
+	cams, err := newTestClient(t, srv.URL, "", "").CameraDetails(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, c := range cams {
+		got[c.Name] = c.Labels
+	}
+	if !slices.Equal(got["garage"], []string{"bark", "cat", "person", "speech"}) || !slices.Equal(got["jardin"], []string{"person"}) {
+		t.Errorf("labels = %v", got)
 	}
 }

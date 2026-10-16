@@ -22,6 +22,7 @@ import (
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/frigate"
 	"frigate-telegram-enhanced/internal/i18n"
+	"frigate-telegram-enhanced/internal/labels"
 	"frigate-telegram-enhanced/internal/notifier"
 	"frigate-telegram-enhanced/internal/state"
 )
@@ -276,7 +277,8 @@ func serve(body []byte, contentType string) http.Handler {
 	})
 }
 
-// i18nScript is i18n.js: the languages and their catalogs, for the page's T().
+// i18nScript is i18n.js: the languages and their catalogs, for the page's T(), and
+// the emoji and name of each label, shared with the notifications.
 var i18nScript = func() []byte {
 	type language struct {
 		Code i18n.Lang `json:"code"`
@@ -298,7 +300,11 @@ var i18nScript = func() []byte {
 	if err != nil {
 		panic(err)
 	}
-	return []byte("\"use strict\";\nconst LANGUAGES = " + string(lj) + ";\nconst CATALOGS = " + string(cj) + ";\n")
+	labj, err := json.Marshal(labels.Known)
+	if err != nil {
+		panic(err)
+	}
+	return []byte("\"use strict\";\nconst LANGUAGES = " + string(lj) + ";\nconst CATALOGS = " + string(cj) + ";\nconst LABELS = " + string(labj) + ";\n")
 }()
 
 // settings is the view the interface loads at startup.

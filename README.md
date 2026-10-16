@@ -14,6 +14,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 
 - **reviews** mode (grouped alerts, Frigate ≥ 0.14, the default) or **events** mode (one message per detected object)
 - Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, a link to the clip instead, or the clip re-encoded under 50 MB (*Compress clips over 50 MB*, off by default)
+- **Sounds** (reviews mode): barking, smoke alarm, speech… heard by Frigate's audio detection, notified like objects — `🐕 Barking — garage`, see [Sounds](#sounds)
 - Frigate's GenAI description added to the caption as soon as it is available
 - Frigate's labels (custom classification such as your car's name, faces, license plates) added to the caption as soon as Frigate knows them — `🏷 clio 3`
 - **Label filter**: don't get notified for your own car or cat, or only for unknown objects (waits up to 5 s for Frigate to recognize the object, only when this filter is on)
@@ -147,6 +148,27 @@ you alone. Key points:
 - `zones`: only notify when the object has **entered** one of the listed zones.
 - `quiet_hours`: notifications without sound; `off_hours`: no notifications at all.
 - `reviews` mode: `severity: [alert]` follows Frigate's `review.alerts` configuration.
+
+### Sounds
+
+In `reviews` mode, the sounds of Frigate's [audio detection](https://docs.frigate.video/configuration/audio_detectors)
+are notified like objects: the sound in the caption (`🐕 Barking — garage`), the camera's
+image when it was heard, then the recording. They follow the same filters: a sound left
+out of the notified objects is not notified, and the web interface offers the sounds
+each camera listens to (`audio.listen`).
+
+Frigate files a sound as a *detection*, not an *alert*, unless it is among the alert
+labels. To be notified with the default settings, add the sounds to `review.alerts.labels`
+in Frigate's configuration:
+
+```yaml
+review:
+  alerts:
+    labels: [person, car, bark, fire_alarm]
+```
+
+Or keep Frigate as it is and choose *Alerts and detections* in the web interface. The
+`events` mode has no sounds: Frigate does not publish them on `frigate/events`.
 
 ## Web interface
 

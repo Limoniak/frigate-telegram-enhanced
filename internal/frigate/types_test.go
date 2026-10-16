@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -117,5 +118,17 @@ func TestAPIEventScore(t *testing.T) {
 func TestUnixTime(t *testing.T) {
 	if got := UnixTime(1727520000.5).UnixMilli(); got != 1727520000500 {
 		t.Errorf("UnixTime = %d", got)
+	}
+}
+
+// An audio review: no object, no detection, the sounds in data.audio.
+func TestParseAudioReview(t *testing.T) {
+	m, err := ParseReviewMessage([]byte(`{"type":"update","after":{"id":"r1","camera":"garage","severity":"detection","start_time":1.0,"end_time":null,
+		"data":{"detections":[],"objects":[],"sub_labels":[],"zones":[],"audio":["speech"]}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.After.Data.Objects) != 0 || !slices.Equal(m.After.Data.Audio, []string{"speech"}) {
+		t.Errorf("data = %+v", m.After.Data)
 	}
 }

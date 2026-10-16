@@ -9,32 +9,11 @@ import (
 
 	"frigate-telegram-enhanced/internal/actions"
 	"frigate-telegram-enhanced/internal/i18n"
+	"frigate-telegram-enhanced/internal/labels"
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
 const maxCaption = 1024
-
-// labelNames: emoji and name (English, translated by the catalog) of common objects.
-var labelNames = map[string]struct{ emoji, name string }{
-	"person":     {"🚶", "Person"},
-	"car":        {"🚗", "Car"},
-	"dog":        {"🐕", "Dog"},
-	"cat":        {"🐈", "Cat"},
-	"bicycle":    {"🚲", "Bicycle"},
-	"motorcycle": {"🏍️", "Motorcycle"},
-	"bird":       {"🐦", "Bird"},
-	"package":    {"📦", "Package"},
-}
-
-func labelText(label string, lang i18n.Lang) string {
-	if l, ok := labelNames[label]; ok {
-		return l.emoji + " " + lang.T(l.name)
-	}
-	if label == "" {
-		return "🔔 " + lang.T("Detection")
-	}
-	return "🔔 " + label
-}
 
 // openInFrigate is the "open in Frigate" link of a caption.
 func openInFrigate(link string, lang i18n.Lang) string {
@@ -43,6 +22,7 @@ func openInFrigate(link string, lang i18n.Lang) string {
 
 type captionData struct {
 	Label, SubLabel, Camera string
+	Sound                   bool // Label is a sound of the audio detection
 	Zones                   []string
 	Score                   float64
 	HasScore                bool
@@ -56,7 +36,7 @@ type captionData struct {
 func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	esc := html.EscapeString
 	var b strings.Builder
-	b.WriteString("<b>" + esc(labelText(d.Label, lang)) + "</b> — " + esc(d.Camera))
+	b.WriteString("<b>" + esc(labels.Text(d.Label, d.Sound, lang)) + "</b> — " + esc(d.Camera))
 	if d.SubLabel != "" {
 		// Frigate's label: classification ("clio 3 océane"), face, plate.
 		b.WriteString("\n🏷 " + esc(d.SubLabel))

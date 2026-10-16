@@ -1275,16 +1275,16 @@ function refusedBox() {
 
 // ---- recent activity ------------------------------------------------------------
 
-const LABELS = {
-  person: ["🚶", "Person"], car: ["🚗", "Car"], dog: ["🐕", "Dog"],
-  cat: ["🐈", "Cat"], bicycle: ["🚲", "Bicycle"], motorcycle: ["🏍️", "Motorcycle"],
-  bird: ["🐦", "Bird"], package: ["📦", "Package"],
-};
-
-function labelText(l) {
+// labelText is a label as the notifications show it: LABELS (from i18n.js, shared with
+// them) gives its emoji and name; a label missing there keeps its name, after 🔊 for
+// a sound and 🔔 for an object. A brand's name is in no catalog, so T keeps it.
+function labelText(l, sound) {
   const x = LABELS[l];
-  return x ? x[0] + " " + T(x[1]) : "🔔 " + (l || T("Detection"));
+  if (x) return x.emoji + " " + T(x.name);
+  return (sound ? "🔊 " : "🔔 ") + (l || T("Detection"));
 }
+
+const labelEmoji = (e) => (LABELS[e.label] ? LABELS[e.label].emoji : e.sound ? "🔊" : "🔔");
 
 // Reason for a filtering in plain words; `fix` tells whether a camera setting can do something about it.
 const REASONS = () => ({
@@ -1351,9 +1351,9 @@ function renderHistory() {
     let thumb;
     if (e.has_thumb) {
       thumb = el("img", {class: "thumb", loading: "lazy", alt: "", src: "api/history/" + encodeURIComponent(e.id) + "/thumb"});
-      thumb.addEventListener("error", () => thumb.replaceWith(el("span", {class: "thumb", text: (LABELS[e.label] || ["🔔"])[0]})));
+      thumb.addEventListener("error", () => thumb.replaceWith(el("span", {class: "thumb", text: labelEmoji(e)})));
     } else {
-      thumb = el("span", {class: "thumb", text: (LABELS[e.label] || ["🔔"])[0]});
+      thumb = el("span", {class: "thumb", text: labelEmoji(e)});
     }
     const details = [e.camera];
     if (e.zones && e.zones.length) details.push("📍 " + e.zones.join(", "));
@@ -1372,7 +1372,7 @@ function renderHistory() {
       }
     }
     list.append(el("li", {}, thumb,
-      el("div", {class: "what"}, el("div", {class: "t", text: labelText(e.label) + (e.sub_label ? " · 🏷 " + e.sub_label : "")}), el("div", {class: "d", text: details.join(" · ")})),
+      el("div", {class: "what"}, el("div", {class: "t", text: labelText(e.label, e.sound) + (e.sub_label ? " · 🏷 " + e.sub_label : "")}), el("div", {class: "d", text: details.join(" · ")})),
       out));
   }
   const foot = $("activity-foot");

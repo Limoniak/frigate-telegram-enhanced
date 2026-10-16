@@ -14,6 +14,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 
 - Mode **reviews** (alertes regroupées, Frigate ≥ 0.14, par défaut) ou **events** (un message par objet détecté)
 - Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, un lien vers le clip, ou le clip ré-encodé sous 50 Mo (*Compresser les clips de plus de 50 Mo*, désactivé par défaut)
+- **Sons** (mode reviews) : aboiement, alarme incendie, parole… entendus par la détection audio de Frigate, notifiés comme les objets — `🐕 Aboiement — garage`, voir [Sons](#sons)
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
 - Étiquettes de Frigate (classification personnalisée comme le nom de ta voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
 - **Filtre sur les étiquettes** : ne pas être prévenu pour ta voiture ou ton chat, ou seulement pour les inconnus (attend jusqu'à 5 s que Frigate reconnaisse l'objet, seulement avec ce filtre)
@@ -150,6 +151,27 @@ laissez lisible que par vous. Points clés :
 - `zones` : ne notifie que si l'objet est **entré** dans une des zones listées.
 - `quiet_hours` : notification sans son ; `off_hours` : aucune notification.
 - Mode `reviews` : `severity: [alert]` suit la configuration `review.alerts` de Frigate.
+
+### Sons
+
+En mode `reviews`, les sons de la [détection audio](https://docs.frigate.video/configuration/audio_detectors)
+de Frigate sont notifiés comme les objets : le son dans la légende (`🐕 Aboiement — garage`),
+l'image de la caméra au moment où il a été entendu, puis l'enregistrement. Ils suivent
+les mêmes filtres : un son absent des objets notifiés n'est pas notifié, et l'interface
+web propose les sons qu'écoute chaque caméra (`audio.listen`).
+
+Frigate classe un son en *détection*, pas en *alerte*, sauf s'il fait partie des
+étiquettes d'alerte. Pour être prévenu avec les réglages par défaut, ajoutez les sons à
+`review.alerts.labels` dans la configuration de Frigate :
+
+```yaml
+review:
+  alerts:
+    labels: [person, car, bark, fire_alarm]
+```
+
+Ou laissez Frigate tel quel et choisissez *Alertes et détections* dans l'interface web.
+Le mode `events` n'a pas de sons : Frigate ne les publie pas sur `frigate/events`.
 
 ## Interface web
 
