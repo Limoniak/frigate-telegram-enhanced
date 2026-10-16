@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
@@ -27,11 +28,50 @@ import (
 	"frigate-telegram-enhanced/internal/state"
 )
 
-// The interface: the page, its style sheet and its script, with no build step,
-// and the setup page.
+// The interface: the main page, its style sheet and its script (no build step yet),
+// the login page, and dist/, the
+// front end built from web/ (npm run build), committed so that go build needs no Node.
 //
-//go:embed ui.html ui.css ui.js setup.html setup.js login.html
+//go:embed ui.html ui.css ui.js login.html all:dist
 var assets embed.FS
+
+// distFS is the built front end.
+var distFS = func() fs.FS {
+	sub, err := fs.Sub(assets, "dist")
+	if err != nil {
+		panic(err)
+	}
+	return sub
+}()
+
+// distAsset serves a file of the built front end, by its fixed name.
+func distAsset(name, contentType string) http.Handler {
+	body, err := fs.ReadFile(distFS, name)
+	if err != nil {
+		panic(err) // embedded: missing only if dist/ was not built
+	}
+	return serve(body, contentType)
+}
+
+// staticAssets serves dist/assets/: fonts and chunks whose names carry a hash, so
+// they can be cached for good. Nothing private: the login page needs them.
+func staticAssets() http.Handler {
+	sub, err := fs.Sub(distFS, "assets")
+	if err != nil {
+		panic(err)
+	}
+	files := http.StripPrefix("/assets/", http.FileServerFS(sub))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Existing regular files only: no directory listing, and no long cache on a 404.
+		name := strings.TrimPrefix(r.URL.Path, "/assets/")
+		if info, err := fs.Stat(sub, name); err != nil || !info.Mode().IsRegular() {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		files.ServeHTTP(w, r)
+	})
+}
 
 // maxBody bounds the size of a save: the override of a realistic installation
 // weighs a few kilobytes.
@@ -174,8 +214,10 @@ func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.WrapBa
 // and the Prometheus scrape do not authenticate (see web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
-	// The style sheet holds nothing private: the login page needs it before the password.
-	mux.Handle("GET /ui.css", asset("ui.css", "text/css; charset=utf-8"))
+	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
+	// The login page's sheet and the fonts hold nothing private: needed before the password.
+	mux.Handle("GET /login.css", distAsset("login.css", "text/css; charset=utf-8"))
+	mux.Handle("GET /assets/", staticAssets())
 	mux.HandleFunc("GET /login", h.loginPage)
 	mux.HandleFunc("POST /login", h.login)
 	mux.Handle("POST /logout", sameOrigin(http.HandlerFunc(h.logout)))

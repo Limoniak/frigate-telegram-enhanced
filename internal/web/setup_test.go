@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -17,13 +19,14 @@ import (
 )
 
 type fakeProber struct {
-	mqttErr     error
-	tokens      []string
-	discover    bool   // Discover finds a Frigate
-	brokerState string // state of the broker found through Frigate
-	hosts       []string
-	mqtt        config.MQTT    // the last broker tried
-	frigate     config.Frigate // the last Frigate tried
+	mqttErr      error
+	tokens       []string
+	discover     bool          // Discover finds a Frigate
+	discoverWait chan struct{} // when set, Discover waits for it to close (or for its context) before answering
+	brokerState  string        // state of the broker found through Frigate
+	hosts        []string
+	mqtt         config.MQTT    // the last broker tried
+	frigate      config.Frigate // the last Frigate tried
 }
 
 func (f *fakeProber) Telegram(_ context.Context, token string, _ i18n.Lang) (string, []FoundChat, error) {
@@ -37,8 +40,15 @@ func (f *fakeProber) Frigate(_ context.Context, fr config.Frigate, _ i18n.Lang) 
 		BrokerState: f.brokerState}, nil
 }
 
-func (f *fakeProber) Discover(_ context.Context, hosts []string, l i18n.Lang) *FoundFrigate {
+func (f *fakeProber) Discover(ctx context.Context, hosts []string, l i18n.Lang) *FoundFrigate {
 	f.hosts = hosts
+	if f.discoverWait != nil {
+		select {
+		case <-f.discoverWait:
+		case <-ctx.Done():
+			return nil
+		}
+	}
 	if !f.discover {
 		return nil
 	}
@@ -97,14 +107,15 @@ func TestSetupAloneLeadsToTheSetupPage(t *testing.T) {
 	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/setup" {
 		t.Errorf("GET / = %d to %q, want a redirect to setup", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	for _, path := range []string{"/setup", "/setup.js", "/ui.css", "/i18n.js"} {
-		resp, err := http.Get(ts.URL + path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET %s = %d", path, resp.StatusCode)
+	c := ts.Client()
+	page, _ := io.ReadAll(get(t, c, ts.URL+"/setup").Body)
+	refs := regexp.MustCompile(`(?:src|href)="(?:\./)?([a-z0-9][^":]*)"`).FindAllStringSubmatch(string(page), -1)
+	if len(refs) < 3 {
+		t.Fatalf("the setup page references too few files: %.400s", page)
+	}
+	for _, ref := range refs {
+		if resp := get(t, c, ts.URL+"/"+ref[1]); resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: %d", ref[1], resp.StatusCode)
 		}
 	}
 }

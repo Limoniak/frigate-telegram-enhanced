@@ -393,3 +393,122 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 		t.Errorf("JavaScript errors: %q", errs)
 	}
 }
+
+// On a phone, in German (the longest texts), the setup page does not scroll sideways.
+func TestBrowserSetupFitsAPhone(t *testing.T) {
+	s := NewSetup(filepath.Join(t.TempDir(), "connection.yml"), nil, &fakeProber{}, slog.New(slog.DiscardHandler), func() {})
+	mux := http.NewServeMux()
+	s.MountAlone(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ctx, jsErrors := browser(t)
+	var width int
+	var heading string
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		chromedp.Navigate(ts.URL+"/"),
+		chromedp.WaitVisible(`#intro-first`),
+		chromedp.Evaluate[chromedp.Void](`const m = document.querySelector("header select"); m.value = "de"; m.dispatchEvent(new Event("change", {bubbles: true})); 0`),
+		chromedp.SendKeys(`#token`, "123:abc"),
+		chromedp.Click(`#check-token`),
+		chromedp.WaitVisible(`#chats .chip`),
+		chromedp.Click(`#manual summary`),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+		into(chromedp.Evaluate[string](`document.querySelector("#sec-telegram h2").textContent`), &heading),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if width > 360 {
+		t.Errorf("the page is %d px wide on a 360 px screen", width)
+	}
+	if heading != "Telegram-Bot" {
+		t.Errorf("the Telegram card heading is %q in German, want \"Telegram-Bot\"", heading)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// A manual check of Frigate shows its answer at once, even while the automatic
+// search on opening is still running.
+func TestBrowserSetupCheckDuringSearch(t *testing.T) {
+	wait := make(chan struct{})
+	s := NewSetup(filepath.Join(t.TempDir(), "connection.yml"), nil, &fakeProber{discover: true, discoverWait: wait},
+		slog.New(slog.DiscardHandler), func() {})
+	mux := http.NewServeMux()
+	s.MountAlone(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	defer close(wait) // runs first: lets the blocked search end, so ts.Close does not wait for it
+
+	ctx, jsErrors := browser(t)
+	var text string
+	err := chromedp.Do(ctx, chromedp.Navigate(ts.URL+"/"), chromedp.WaitVisible(`#frigate-result`)) // "Looking for Frigate on your network…"
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The search lasts up to 20 s: the answer must come well before.
+	quick, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	err = chromedp.Do(quick,
+		chromedp.SendKeys(`#frigate-url`, "http://192.168.1.20:5000"),
+		chromedp.Click(`#check-frigate`),
+		chromedp.WaitVisible(`#frigate-result.ok`),
+		into(chromedp.Text(`#frigate-result`), &text),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(text, "0.16.0") {
+		t.Errorf("result %q, want the Frigate checked", text)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The setup page's language menu: a choice is saved and kept after a reload, and
+// Auto removes it so that the page follows the browser again.
+func TestBrowserSetupLanguageMenu(t *testing.T) {
+	s := NewSetup(filepath.Join(t.TempDir(), "connection.yml"), nil, &fakeProber{}, slog.New(slog.DiscardHandler), func() {})
+	mux := http.NewServeMux()
+	s.MountAlone(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ctx, jsErrors := browser(t)
+	choose := func(code string) chromedp.Action[chromedp.Void] {
+		return chromedp.Evaluate[chromedp.Void](`const m = document.querySelector("header select"); m.value = "` + code + `"; m.dispatchEvent(new Event("change", {bubbles: true})); 0`)
+	}
+	// menu value, page language, saved choice
+	const state = `[document.querySelector("header select").value, document.documentElement.lang, localStorage.getItem("frigate-telegram-enhanced-lang") || "-"].join(" ")`
+	var first, forced, back string
+	err := chromedp.Do(ctx,
+		chromedp.Navigate(ts.URL+"/"),
+		chromedp.WaitVisible(`#intro-first`),
+		into(chromedp.Evaluate[string](state), &first),
+		choose("de"),
+		chromedp.Reload(),
+		chromedp.WaitVisible(`#intro-first`),
+		into(chromedp.Evaluate[string](state), &forced),
+		choose("auto"),
+		into(chromedp.Evaluate[string](state), &back),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(first, "auto ") || !strings.HasSuffix(first, " -") {
+		t.Errorf("on arrival: %q, want auto and nothing saved", first)
+	}
+	if forced != "de de de" {
+		t.Errorf("after choosing German and reloading: %q, want \"de de de\"", forced)
+	}
+	if back != first {
+		t.Errorf("back to Auto: %q, want %q as on arrival", back, first)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}

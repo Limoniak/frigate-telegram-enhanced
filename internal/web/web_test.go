@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -719,5 +720,38 @@ func TestHealthListsRefusedUsers(t *testing.T) {
 	json.NewDecoder(do(t, ts, "GET", "/api/health", "").Body).Decode(&bare)
 	if string(bare["refused"]) != "[]" {
 		t.Errorf("refused without a source = %s, want []", bare["refused"])
+	}
+}
+
+// The built front end is embedded and served: the login page's sheet before any
+// session, and the fonts it points to, with a long cache since their names carry a hash.
+func TestBuiltAssetsServed(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	resp := do(t, ts, "GET", "/login.css", "")
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "text/css; charset=utf-8" {
+		t.Fatalf("login.css: %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	css, _ := io.ReadAll(resp.Body)
+	font := regexp.MustCompile(`url\(\./(assets/[^)]+\.woff2)\)`).FindSubmatch(css)
+	if font == nil {
+		t.Fatalf("login.css points to no font: %.200s", css)
+	}
+	resp = do(t, ts, "GET", "/"+string(font[1]), "")
+	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Header.Get("Cache-Control"), "immutable") {
+		t.Errorf("%s: %d, Cache-Control %q", font[1], resp.StatusCode, resp.Header.Get("Cache-Control"))
+	}
+}
+
+// dist/assets/ serves existing files only: no directory listing, and no long cache on a 404.
+func TestBuiltAssetsOnlyFiles(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	resp := do(t, ts, "GET", "/assets/", "")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusNotFound || strings.Contains(string(body), ".woff2") {
+		t.Errorf("/assets/: %d, body %.100q, want 404 without a listing", resp.StatusCode, body)
+	}
+	resp = do(t, ts, "GET", "/assets/nope.woff2", "")
+	if resp.StatusCode != http.StatusNotFound || strings.Contains(resp.Header.Get("Cache-Control"), "immutable") {
+		t.Errorf("/assets/nope.woff2: %d, Cache-Control %q, want 404 not cached", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 }

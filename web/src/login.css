@@ -1,0 +1,3 @@
+/* The login page: a Go template (no script), styled with the shared sheet. */
+@import "./app.css";
+@source "../../internal/web/login.html";

@@ -335,9 +335,10 @@ go test -tags browser ./internal/web/   # test de fumée de l'interface web, ave
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-L'interface web se compose de `internal/web/ui.html`, `ui.css` et `ui.js`, et la page
-d'installation de `setup.html` et `setup.js`, intégrés tels quels au binaire : aucune
-étape de build.
+L'interface web se compose de `internal/web/ui.html`, `ui.css` et `ui.js`, intégrés tels quels
+au binaire : aucune étape de build. Les pages d'installation et de connexion sont construites
+à partir de `web/` (Svelte et Tailwind) dans `internal/web/dist/`, qui est versionné ; voir
+[CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
 
 ### Traduire
 

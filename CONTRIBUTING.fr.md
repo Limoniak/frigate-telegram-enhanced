@@ -36,6 +36,24 @@ go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
 La CI lance les mêmes vérifications sur chaque pull request.
 
+Les pages d'installation et de connexion sont construites à partir de `web/` (Svelte et
+Tailwind). `go build` et `go test` n'ont pas besoin de Node : le résultat du build,
+`internal/web/dist/`, est versionné. Après une modification dans `web/` :
+
+```bash
+cd web
+npm ci
+npm test
+npm run build      # met à jour internal/web/dist/, à committer avec votre changement
+npm run dev        # rechargement à chaud, avec l'API d'un service sur le port 8431
+```
+
+`npm run dev` sert la page d'installation sur <http://localhost:5173/setup.html>.
+
+La CI échoue quand `internal/web/dist/` ne correspond pas à `web/`. Les pull requests npm
+de Dependabot ne reconstruisent pas `dist/` : quand la vérification échoue sur l'une
+d'elles, un mainteneur lance `npm run build` sur sa branche et pousse le résultat.
+
 Conventions :
 
 - **Anglais** dans le code, les commentaires, les tests et les messages de commit. Les
@@ -48,8 +66,9 @@ Conventions :
   (`feat!:`).
 - Un changement visible par les utilisateurs a sa ligne sous *Unreleased* dans
   [CHANGELOG.md](CHANGELOG.md) (en anglais).
-- Un nouveau comportement arrive avec ses tests. L'interface web n'a pas d'étape de
-  build : `ui.html`, `ui.css` et `ui.js` sont intégrés tels quels.
+- Un nouveau comportement arrive avec ses tests. L'interface web principale n'a pas
+  d'étape de build : `ui.html`, `ui.css` et `ui.js` sont intégrés tels quels. Seules les
+  pages d'installation et de connexion viennent de `web/`.
 
 ## Pull requests
 
