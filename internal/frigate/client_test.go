@@ -319,7 +319,7 @@ func TestRecordings(t *testing.T) {
 func TestCameraDetailsListAudioLabels(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"objects":{"track":["person"]},"cameras":{
-			"salon":{"objects":{"track":["cat","person"]},"audio":{"enabled":true,"listen":["speech","bark"]}},
+			"garage":{"objects":{"track":["cat","person"]},"audio":{"enabled":true,"listen":["speech","bark"]}},
 			"jardin":{"audio":{"enabled":false,"listen":["bark"]}}}}`))
 	}))
 	defer srv.Close()
@@ -331,7 +331,7 @@ func TestCameraDetailsListAudioLabels(t *testing.T) {
 	for _, c := range cams {
 		got[c.Name] = c.Labels
 	}
-	if !slices.Equal(got["salon"], []string{"bark", "cat", "person", "speech"}) || !slices.Equal(got["jardin"], []string{"person"}) {
+	if !slices.Equal(got["garage"], []string{"bark", "cat", "person", "speech"}) || !slices.Equal(got["jardin"], []string{"person"}) {
 		t.Errorf("labels = %v", got)
 	}
 }

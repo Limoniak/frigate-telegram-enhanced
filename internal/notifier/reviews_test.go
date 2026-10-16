@@ -137,16 +137,16 @@ func allowLabels(t *testing.T, h *harness, labels ...string) {
 func TestAudioReviewNotifiesTheSound(t *testing.T) {
 	h := newHarness(t, "reviews")
 	allowLabels(t, h, "person", "bark")
-	h.fr.files[frigate.LatestPath("salon")] = []byte("jpeg")
-	h.fr.files[frigate.RecordingClipPath("salon", 1790604000.0, 1790604030.5)] = []byte("mp4")
-	h.send(t, "frigate/reviews", audioReviewMsg("update", revID, "salon", "alert", []string{}, []string{"bark"}))
-	h.send(t, "frigate/reviews", audioReviewMsg("end", revID, "salon", "alert", []string{}, []string{"bark"}))
+	h.fr.files[frigate.LatestPath("garage")] = []byte("jpeg")
+	h.fr.files[frigate.RecordingClipPath("garage", 1790604000.0, 1790604030.5)] = []byte("mp4")
+	h.send(t, "frigate/reviews", audioReviewMsg("update", revID, "garage", "alert", []string{}, []string{"bark"}))
+	h.send(t, "frigate/reviews", audioReviewMsg("end", revID, "garage", "alert", []string{}, []string{"bark"}))
 
 	photos := h.tg.byMethod("sendPhoto")
 	if len(photos) != 2 || countData(photos, "jpeg") != 1 {
 		t.Fatalf("photos = %+v", photos)
 	}
-	if !strings.Contains(photos[0].Text, "Barking") || !strings.Contains(photos[0].Text, "salon") {
+	if !strings.Contains(photos[0].Text, "Barking") || !strings.Contains(photos[0].Text, "garage") {
 		t.Errorf("caption = %q, want the sound and the camera", photos[0].Text)
 	}
 	if videos := h.tg.videos(); len(videos) != 2 || countData(videos, "mp4") != 1 {
@@ -157,7 +157,7 @@ func TestAudioReviewNotifiesTheSound(t *testing.T) {
 // The label filter applies to sounds: a sound left out of the labels is not notified.
 func TestAudioReviewFollowsTheLabelFilter(t *testing.T) {
 	h := newHarness(t, "reviews") // labels: [person]
-	h.send(t, "frigate/reviews", audioReviewMsg("update", revID, "salon", "alert", []string{}, []string{"speech"}))
+	h.send(t, "frigate/reviews", audioReviewMsg("update", revID, "garage", "alert", []string{}, []string{"speech"}))
 	if h.tg.count() != 0 {
 		t.Error("speech is not among the labels: no notification")
 	}

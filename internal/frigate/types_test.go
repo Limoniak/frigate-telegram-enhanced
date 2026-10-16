@@ -123,7 +123,7 @@ func TestUnixTime(t *testing.T) {
 
 // An audio review: no object, no detection, the sounds in data.audio.
 func TestParseAudioReview(t *testing.T) {
-	m, err := ParseReviewMessage([]byte(`{"type":"update","after":{"id":"r1","camera":"salon","severity":"detection","start_time":1.0,"end_time":null,
+	m, err := ParseReviewMessage([]byte(`{"type":"update","after":{"id":"r1","camera":"garage","severity":"detection","start_time":1.0,"end_time":null,
 		"data":{"detections":[],"objects":[],"sub_labels":[],"zones":[],"audio":["speech"]}}}`))
 	if err != nil {
 		t.Fatal(err)
