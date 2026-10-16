@@ -108,3 +108,74 @@ func TestDescriptionForUnknownEventIgnored(t *testing.T) {
 		t.Error("want no send")
 	}
 }
+
+// audioReviewMsg is a review of sounds only: Frigate sends no object and no detection.
+func audioReviewMsg(typ, id, camera, severity string, objects, audio []string) []byte {
+	r := map[string]any{
+		"id": id, "camera": camera, "severity": severity, "start_time": 1790604000.0,
+		"data": map[string]any{"detections": []string{}, "objects": objects, "sub_labels": []string{}, "zones": []string{}, "audio": audio},
+	}
+	if typ == "end" {
+		r["end_time"] = 1790604030.5
+	}
+	b, _ := json.Marshal(map[string]any{"type": typ, "before": r, "after": r})
+	return b
+}
+
+// allowLabels sets the labels notified for every camera.
+func allowLabels(t *testing.T, h *harness, labels ...string) {
+	t.Helper()
+	o := h.n.Config.CurrentOverlay()
+	o.Notify.Labels = &labels
+	if err := h.n.Config.ApplyOverlay(&o); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A sound is notified like an object: its name in the caption, the camera's image of
+// the moment (an audio review has no detection), then the recording.
+func TestAudioReviewNotifiesTheSound(t *testing.T) {
+	h := newHarness(t, "reviews")
+	allowLabels(t, h, "person", "bark")
+	h.fr.files[frigate.LatestPath("salon")] = []byte("jpeg")
+	h.fr.files[frigate.RecordingClipPath("salon", 1790604000.0, 1790604030.5)] = []byte("mp4")
+	h.send(t, "frigate/reviews", audioReviewMsg("update", revID, "salon", "alert", []string{}, []string{"bark"}))
+	h.send(t, "frigate/reviews", audioReviewMsg("end", revID, "salon", "alert", []string{}, []string{"bark"}))
+
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) != 2 || countData(photos, "jpeg") != 1 {
+		t.Fatalf("photos = %+v", photos)
+	}
+	if !strings.Contains(photos[0].Text, "Barking") || !strings.Contains(photos[0].Text, "salon") {
+		t.Errorf("caption = %q, want the sound and the camera", photos[0].Text)
+	}
+	if videos := h.tg.videos(); len(videos) != 2 || countData(videos, "mp4") != 1 {
+		t.Fatalf("videos = %+v", videos)
+	}
+}
+
+// The label filter applies to sounds: a sound left out of the labels is not notified.
+func TestAudioReviewFollowsTheLabelFilter(t *testing.T) {
+	h := newHarness(t, "reviews") // labels: [person]
+	h.send(t, "frigate/reviews", audioReviewMsg("update", revID, "salon", "alert", []string{}, []string{"speech"}))
+	if h.tg.count() != 0 {
+		t.Error("speech is not among the labels: no notification")
+	}
+}
+
+// A review with an object and a sound is named after the object.
+func TestReviewWithObjectAndSoundNamedAfterTheObject(t *testing.T) {
+	h := newHarness(t, "reviews")
+	allowLabels(t, h, "person", "bark")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	r := map[string]any{
+		"id": revID, "camera": "garage", "severity": "alert", "start_time": 1790604000.0,
+		"data": map[string]any{"detections": []string{evID}, "objects": []string{"person"}, "sub_labels": []string{}, "zones": []string{}, "audio": []string{"bark"}},
+	}
+	b, _ := json.Marshal(map[string]any{"type": "new", "before": r, "after": r})
+	h.send(t, "frigate/reviews", b)
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) != 2 || !strings.Contains(photos[0].Text, "Person") || countData(photos, "jpeg") != 1 {
+		t.Fatalf("photos = %+v", photos)
+	}
+}

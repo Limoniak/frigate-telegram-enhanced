@@ -240,8 +240,8 @@ func (c *Client) getJSON(ctx context.Context, path string, out any) error {
 	return json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(out)
 }
 
-// CameraInfo describes a camera as Frigate declares it: its zones and the objects
-// it tracks, which the web interface uses to offer lists of choices rather than
+// CameraInfo describes a camera as Frigate declares it: its zones, and the objects
+// it tracks and the sounds it listens to, which the web interface uses to offer lists of choices rather than
 // free input.
 type CameraInfo struct {
 	Name   string   `json:"name"`
@@ -256,6 +256,10 @@ type apiConfig struct {
 		Objects struct {
 			Track []string `json:"track"`
 		} `json:"objects"`
+		Audio struct {
+			Enabled bool     `json:"enabled"`
+			Listen  []string `json:"listen"`
+		} `json:"audio"`
 	} `json:"cameras"`
 	Objects struct {
 		Track []string `json:"track"`
@@ -288,8 +292,9 @@ func (c *Client) Cameras(ctx context.Context) ([]string, error) {
 	return slices.Sorted(maps.Keys(cfg.Cameras)), nil
 }
 
-// CameraDetails returns, per camera and sorted, the zones and the tracked objects.
-// A camera that does not redefine objects.track inherits the global list.
+// CameraDetails returns, per camera and sorted, the zones and the labels: the tracked
+// objects, and the sounds listened to when audio detection is on. A camera that does
+// not redefine objects.track inherits the global list.
 func (c *Client) CameraDetails(ctx context.Context) ([]CameraInfo, error) {
 	var cfg apiConfig
 	if err := c.getJSON(ctx, "/api/config", &cfg); err != nil {
@@ -301,6 +306,9 @@ func (c *Client) CameraDetails(ctx context.Context) ([]CameraInfo, error) {
 		labels := cam.Objects.Track
 		if len(labels) == 0 {
 			labels = cfg.Objects.Track
+		}
+		if cam.Audio.Enabled {
+			labels = append(slices.Clone(labels), cam.Audio.Listen...)
 		}
 		out = append(out, CameraInfo{
 			Name:   name,

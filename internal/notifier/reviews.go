@@ -14,6 +14,9 @@ import (
 func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) {
 	r := msg.After
 	t := n.tracked[r.ID]
+	// The sounds heard count as labels, after the objects: an audio review has
+	// neither objects nor detections.
+	labels := append(slices.Clone(r.Data.Objects), r.Data.Audio...)
 	now := n.Now()
 	if msg.Type == "end" {
 		end := float64(now.Unix())
@@ -50,8 +53,8 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 		}
 		n.tracked[r.ID] = t
 		label := "review"
-		if len(r.Data.Objects) > 0 {
-			label = r.Data.Objects[0]
+		if len(labels) > 0 {
+			label = labels[0]
 		}
 		n.Metrics.EventsReceived.WithLabelValues(r.Camera, label).Inc()
 	}
@@ -65,8 +68,8 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 		return
 	}
 	t.zones = r.Data.Zones
-	if len(r.Data.Objects) > 0 {
-		t.label = r.Data.Objects[0] // for the history; notify replaces it with the label kept
+	if len(labels) > 0 {
+		t.label = labels[0] // for the history; notify replaces it with the label kept
 	}
 	t.subLabel = strings.Join(r.Data.SubLabels, ", ")
 	t.snapshotPath = frigate.LatestPath(r.Camera)
@@ -80,7 +83,7 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 	}
 	n.decide(ctx, t, filter.Input{
 		Camera:    r.Camera,
-		Labels:    r.Data.Objects,
+		Labels:    labels,
 		Zones:     r.Data.Zones,
 		Severity:  r.Severity,
 		SubLabels: subs,

@@ -1279,6 +1279,12 @@ const LABELS = {
   person: ["🚶", "Person"], car: ["🚗", "Car"], dog: ["🐕", "Dog"],
   cat: ["🐈", "Cat"], bicycle: ["🚲", "Bicycle"], motorcycle: ["🏍️", "Motorcycle"],
   bird: ["🐦", "Bird"], package: ["📦", "Package"],
+  // Sounds of Frigate's audio detection, as in internal/notifier/caption.go.
+  speech: ["🗣️", "Speech"], yell: ["📢", "Yelling"], scream: ["😱", "Scream"],
+  crying: ["😢", "Crying"], laughter: ["😂", "Laughter"], applause: ["👏", "Applause"],
+  bark: ["🐕", "Barking"], music: ["🎵", "Music"], siren: ["🚨", "Siren"],
+  doorbell: ["🔔", "Doorbell"], knock: ["🚪", "Knocking"], glass: ["🪟", "Glass"],
+  fire_alarm: ["🔥", "Fire alarm"], smoke_detector: ["🔥", "Smoke alarm"], car_alarm: ["🚨", "Car alarm"],
 };
 
 function labelText(l) {

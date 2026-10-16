@@ -68,6 +68,9 @@ type ReviewData struct {
 	Objects    []string `json:"objects"`
 	SubLabels  []string `json:"sub_labels"`
 	Zones      []string `json:"zones"`
+	// Audio holds the sounds heard (speech, bark…). An audio review has neither
+	// objects nor detections: Frigate does not publish audio events on frigate/events.
+	Audio []string `json:"audio"`
 }
 
 // Review is a review item (alert or detection) published on frigate/reviews.

@@ -14,7 +14,8 @@ import (
 
 const maxCaption = 1024
 
-// labelNames: emoji and name (English, translated by the catalog) of common objects.
+// labelNames: emoji and name (English, translated by the catalog) of common objects
+// and sounds.
 var labelNames = map[string]struct{ emoji, name string }{
 	"person":     {"🚶", "Person"},
 	"car":        {"🚗", "Car"},
@@ -24,6 +25,22 @@ var labelNames = map[string]struct{ emoji, name string }{
 	"motorcycle": {"🏍️", "Motorcycle"},
 	"bird":       {"🐦", "Bird"},
 	"package":    {"📦", "Package"},
+	// Sounds of Frigate's audio detection (reviews mode).
+	"speech":         {"🗣️", "Speech"},
+	"yell":           {"📢", "Yelling"},
+	"scream":         {"😱", "Scream"},
+	"crying":         {"😢", "Crying"},
+	"laughter":       {"😂", "Laughter"},
+	"applause":       {"👏", "Applause"},
+	"bark":           {"🐕", "Barking"},
+	"music":          {"🎵", "Music"},
+	"siren":          {"🚨", "Siren"},
+	"doorbell":       {"🔔", "Doorbell"},
+	"knock":          {"🚪", "Knocking"},
+	"glass":          {"🪟", "Glass"},
+	"fire_alarm":     {"🔥", "Fire alarm"},
+	"smoke_detector": {"🔥", "Smoke alarm"},
+	"car_alarm":      {"🚨", "Car alarm"},
 }
 
 func labelText(label string, lang i18n.Lang) string {

@@ -9,6 +9,10 @@ never a breaking 2.0, while `:latest` follows `main`.
 
 ### Added
 
+- **Sounds** in reviews mode: what Frigate's audio detection hears (barking, smoke alarm,
+  speech…) is notified like an object, with the camera's image and the recording, and
+  follows the same filters; the web interface offers the sounds each camera listens to.
+  A sound is an alert in Frigate only when listed in `review.alerts.labels` (#4).
 - German, Spanish, Italian and Portuguese, for the Telegram messages and the web
   interface. The Italian translation is by @woody4165 (#3).
 - *Compress clips over 50 MB* (`notify.compress_clips`, off by default): a clip too large
