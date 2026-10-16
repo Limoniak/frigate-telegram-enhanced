@@ -265,7 +265,7 @@ func TestPageIsServed(t *testing.T) {
 		t.Error("the script does not reference the API")
 	}
 	cat, _ := io.ReadAll(do(t, ts, "GET", "/i18n.js", "").Body)
-	for _, want := range []string{`const LANGUAGES = [{"code":"en","name":"English"},{"code":"de","name":"Deutsch"},{"code":"es","name":"Español"},{"code":"fr","name":"Français"},{"code":"it","name":"Italiano"},{"code":"pt","name":"Português"}]`, `"Help":"Aide"`} {
+	for _, want := range []string{`const LANGUAGES = [{"code":"en","name":"English"},{"code":"de","name":"Deutsch"},{"code":"es","name":"Español"},{"code":"fr","name":"Français"},{"code":"it","name":"Italiano"},{"code":"pt","name":"Português"}]`, `"Help":"Aide"`, `"person":{"emoji":"🚶","name":"Person"}`} {
 		if !strings.Contains(string(cat), want) {
 			t.Errorf("i18n.js does not contain %s", want)
 		}

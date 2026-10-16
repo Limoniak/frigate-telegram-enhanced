@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"frigate-telegram-enhanced/internal/labels"
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
@@ -55,7 +56,7 @@ func (n *Notifier) startGroups(t *tracked, chats []string, now time.Time) {
 // messages. Called under n.mu.
 func (n *Notifier) addToGroups(ctx context.Context, t *tracked, chats []string) {
 	l := n.Config.Language
-	line := html.EscapeString(t.start.In(n.Config.Location).Format("15:04") + " " + labelText(t.label, l) + " — " + t.camera)
+	line := html.EscapeString(t.start.In(n.Config.Location).Format("15:04") + " " + labels.Text(t.label, t.sound, l) + " — " + t.camera)
 	if len(t.zones) > 0 {
 		line += " · 📍 " + html.EscapeString(strings.Join(t.zones, ", "))
 	}

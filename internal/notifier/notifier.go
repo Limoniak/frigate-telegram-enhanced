@@ -110,6 +110,8 @@ type sentMsg struct {
 type tracked struct {
 	id, camera   string // immutable after creation
 	label        string
+	sound        bool     // label is a sound of the audio detection (reviews)
+	sounds       []string // sounds heard (reviews)
 	subLabel     string
 	zones        []string
 	score        float64
@@ -364,7 +366,7 @@ func (n *Notifier) uiLink(path string) string {
 
 func (n *Notifier) captionData(t *tracked) captionData {
 	return captionData{
-		Label: t.label, SubLabel: t.subLabel, Camera: t.camera, Zones: t.zones,
+		Label: t.label, Sound: t.sound, SubLabel: t.subLabel, Camera: t.camera, Zones: t.zones,
 		Score: t.score, HasScore: t.hasScore, Start: t.start,
 		Description: t.description, Link: t.link,
 	}
@@ -380,6 +382,7 @@ func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 	fresh, grouped := n.split(t, d.Chats, now)
 	// Only the recipients of a new message will get the clip and GIF as a reply.
 	t.notified, t.silent, t.chats, t.label = true, d.Silent, fresh, d.Label
+	t.sound = slices.Contains(t.sounds, d.Label)
 	t.ready = make(chan struct{})
 	t.messages = map[string]sentMsg{}
 	t.groups = map[string]*group{}

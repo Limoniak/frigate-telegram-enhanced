@@ -68,8 +68,10 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 		return
 	}
 	t.zones = r.Data.Zones
+	t.sounds = r.Data.Audio
 	if len(labels) > 0 {
 		t.label = labels[0] // for the history; notify replaces it with the label kept
+		t.sound = slices.Contains(t.sounds, t.label)
 	}
 	t.subLabel = strings.Join(r.Data.SubLabels, ", ")
 	t.snapshotPath = frigate.LatestPath(r.Camera)

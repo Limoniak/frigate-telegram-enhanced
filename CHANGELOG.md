@@ -9,6 +9,10 @@ never a breaking 2.0, while `:latest` follows `main`.
 
 ### Added
 
+- An emoji and a translated name for some 90 labels: the objects of Frigate's model and
+  of Frigate+ (animals, faces, plates, bins, delivery companies…) and the common sounds
+  (voices, animals, alarms, sirens, glass, gunshot…), the same in the notifications and
+  the web interface. A label still unknown shows 🔊 for a sound, 🔔 for an object.
 - **Sounds** in reviews mode: what Frigate's audio detection hears (barking, smoke alarm,
   speech…) is notified like an object, with the camera's image and the recording, and
   follows the same filters; the web interface offers the sounds each camera listens to.

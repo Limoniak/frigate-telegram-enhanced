@@ -50,9 +50,13 @@ func TestBuildCaptionEnglish(t *testing.T) {
 }
 
 func TestBuildCaptionEscapesAndUnknownLabel(t *testing.T) {
-	got := buildCaption(captionData{Label: "raccoon", Camera: "<cam>", Start: time.Unix(0, 0)}, time.UTC, i18n.FR)
-	if !strings.Contains(got, "🔔 raccoon") || !strings.Contains(got, "&lt;cam&gt;") {
+	got := buildCaption(captionData{Label: "unicorn", Camera: "<cam>", Start: time.Unix(0, 0)}, time.UTC, i18n.FR)
+	if !strings.Contains(got, "🔔 unicorn") || !strings.Contains(got, "&lt;cam&gt;") {
 		t.Errorf("caption = %q", got)
+	}
+	// A sound missing from the table gets 🔊, not 🔔.
+	if got := buildCaption(captionData{Label: "tuba", Sound: true, Camera: "cam", Start: time.Unix(0, 0)}, time.UTC, i18n.FR); !strings.Contains(got, "🔊 tuba") {
+		t.Errorf("unknown sound: caption = %q", got)
 	}
 	if strings.Contains(got, "📍") || strings.Contains(got, "🔗") {
 		t.Errorf("unexpected empty lines: %q", got)

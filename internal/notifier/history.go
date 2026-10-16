@@ -20,6 +20,7 @@ type HistoryEntry struct {
 	At       time.Time `json:"at"`
 	Camera   string    `json:"camera"`
 	Label    string    `json:"label"`
+	Sound    bool      `json:"sound,omitempty"`     // Label is a sound of the audio detection
 	SubLabel string    `json:"sub_label,omitempty"` // Frigate's label ("clio 3 océane"…)
 	Zones    []string  `json:"zones"`
 	Score    float64   `json:"score,omitempty"`
@@ -39,7 +40,7 @@ type storedEntry struct {
 // record adds the outcome of a tracked item to the history. Called under n.mu.
 func (n *Notifier) record(t *tracked, sent bool) {
 	e := HistoryEntry{
-		ID: t.id, At: t.start, Camera: t.camera, Label: t.label, SubLabel: t.subLabel,
+		ID: t.id, At: t.start, Camera: t.camera, Label: t.label, Sound: t.sound, SubLabel: t.subLabel,
 		Zones: slices.Clone(t.zones), Sent: sent,
 	}
 	if !sent {

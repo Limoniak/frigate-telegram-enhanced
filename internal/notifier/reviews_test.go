@@ -197,3 +197,18 @@ func TestAudioAlertNotifiedWithDefaultSettings(t *testing.T) {
 		t.Fatalf("photos = %+v", photos)
 	}
 }
+
+// A sound missing from the label table is shown with 🔊, an object with 🔔.
+func TestUnknownSoundShownAsSound(t *testing.T) {
+	h := newHarness(t, "reviews")
+	allowLabels(t, h)
+	h.fr.files[frigate.LatestPath("garage")] = []byte("jpeg")
+	h.send(t, "frigate/reviews", audioReviewMsg("update", revID, "garage", "alert", []string{}, []string{"tuba"}))
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) != 2 || !strings.Contains(photos[0].Text, "🔊 tuba") {
+		t.Fatalf("photos = %+v", photos)
+	}
+	if hist := h.n.History(); len(hist) != 1 || !hist[0].Sound {
+		t.Errorf("history = %+v, want the sound flagged", hist)
+	}
+}
