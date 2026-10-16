@@ -9,11 +9,8 @@ const TOKEN = "frigate-telegram-enhanced";
 const LANG_KEY = "frigate-telegram-enhanced-lang";
 const CODES = LANGUAGES.map((l) => l.code);
 
-function initialLang() {
-  try {
-    const saved = localStorage.getItem(LANG_KEY);
-    if (CODES.includes(saved)) return saved;
-  } catch (e) { /* storage unavailable: follow the browser */ }
+// browserLang is the first language of the browser that has a catalog, else English.
+function browserLang() {
   for (const pref of navigator.languages || [navigator.language || ""]) {
     const code = pref.toLowerCase().split("-")[0];
     if (CODES.includes(code)) return code;
@@ -21,7 +18,17 @@ function initialLang() {
   return "en";
 }
 
-let lang = initialLang();
+// savedChoice is the language chosen in the menu, or "auto" (nothing saved), as in ui.js.
+function savedChoice() {
+  try {
+    const saved = localStorage.getItem(LANG_KEY);
+    if (CODES.includes(saved)) return saved;
+  } catch (e) { /* storage unavailable: follow the browser */ }
+  return "auto";
+}
+
+let langChoice = savedChoice();
+let lang = langChoice === "auto" ? browserLang() : langChoice;
 const T = (s) => (CATALOGS[lang] && CATALOGS[lang][s]) || s;
 const Tf = (s, ...args) => { let i = 0; return T(s).replace(/%[sd]/g, () => String(args[i++])); };
 const $ = (id) => document.getElementById(id);
@@ -86,7 +93,10 @@ function applyStatic() {
   document.title = T("frigate-telegram-enhanced — setup");
   for (const n of document.querySelectorAll("[data-t]")) n.textContent = T(n.dataset.t);
   for (const n of document.querySelectorAll("[data-t-placeholder]")) n.placeholder = T(n.dataset.tPlaceholder);
-  for (const b of document.querySelectorAll(".lang button")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
+  const menu = document.querySelector(".lang select");
+  menu.options[0].textContent = T("Auto (browser)");
+  menu.value = langChoice;
+  document.querySelector(".lang-code").textContent = lang.toUpperCase();
   $("save").textContent = first ? T("Save and start") : T("Save and restart");
   withLink($("tg-lead"), T("In Telegram, open %s, send /newbot and choose a name: it gives you a token. Paste it here."),
     "https://t.me/BotFather", "@BotFather");
@@ -104,18 +114,25 @@ function withLink(node, text, href, label) {
   node.replaceChildren(before, el("a", {href, target: "_blank", rel: "noopener"}, label), after || "");
 }
 
-function setLang(l) {
-  lang = l;
-  try { localStorage.setItem(LANG_KEY, l); } catch (e) { /* not remembered */ }
+function setLang(choice) {
+  langChoice = choice;
+  lang = choice === "auto" ? browserLang() : choice;
+  try {
+    if (choice === "auto") localStorage.removeItem(LANG_KEY);
+    else localStorage.setItem(LANG_KEY, choice);
+  } catch (e) { /* not remembered */ }
   applyStatic();
 }
 
 function initLang() {
-  const box = document.querySelector(".lang");
+  const menu = document.querySelector(".lang select"); // shows only the current code, see ui.js
+  menu.append(el("option", {value: "auto"})); // its text is translated by applyStatic
   for (const l of LANGUAGES) {
-    box.append(el("button", {type: "button", "data-lang": l.code, onclick: () => setLang(l.code)}, l.code.toUpperCase()));
+    menu.append(el("option", {value: l.code}, l.name));
     $("msg-lang").append(el("option", {value: l.code}, l.name));
   }
+  menu.addEventListener("change", () => setLang(menu.value));
+  addEventListener("languagechange", () => { if (langChoice === "auto") setLang("auto"); });
   $("msg-lang").addEventListener("change", () => { msgLang = $("msg-lang").value; });
 }
 

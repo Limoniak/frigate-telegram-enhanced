@@ -18,11 +18,8 @@ const TOKEN = "frigate-telegram-enhanced";
 const LANG_KEY = "frigate-telegram-enhanced-lang";
 const CODES = LANGUAGES.map((l) => l.code);
 
-function initialLang() {
-  try {
-    const saved = localStorage.getItem(LANG_KEY);
-    if (CODES.includes(saved)) return saved;
-  } catch (e) { /* storage unavailable: follow the browser */ }
+// browserLang is the first language of the browser that has a catalog, else English.
+function browserLang() {
   for (const pref of navigator.languages || [navigator.language || ""]) {
     const code = pref.toLowerCase().split("-")[0];
     if (CODES.includes(code)) return code;
@@ -30,7 +27,18 @@ function initialLang() {
   return "en";
 }
 
-let lang = initialLang();
+// savedChoice is the language chosen in the menu, or "auto" (nothing saved): the
+// browser's, followed even when it changes.
+function savedChoice() {
+  try {
+    const saved = localStorage.getItem(LANG_KEY);
+    if (CODES.includes(saved)) return saved;
+  } catch (e) { /* storage unavailable: follow the browser */ }
+  return "auto";
+}
+
+let langChoice = savedChoice();
+let lang = langChoice === "auto" ? browserLang() : langChoice;
 const T = (s) => (CATALOGS[lang] && CATALOGS[lang][s]) || s;
 const Tf = (s, ...args) => { let i = 0; return T(s).replace(/%[sd]/g, () => String(args[i++])); };
 const locale = () => (lang === "en" ? "en-GB" : lang);
@@ -39,12 +47,19 @@ function applyStatic() {
   document.documentElement.lang = lang;
   document.title = T("frigate-telegram-enhanced — notifications");
   for (const n of document.querySelectorAll("[data-t]")) n.textContent = T(n.dataset.t);
-  for (const b of document.querySelectorAll(".lang button")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
+  const menu = document.querySelector(".lang select");
+  menu.options[0].textContent = T("Auto (browser)");
+  menu.value = langChoice;
+  document.querySelector(".lang-code").textContent = lang.toUpperCase();
 }
 
-function setLang(l) {
-  lang = l;
-  try { localStorage.setItem(LANG_KEY, l); } catch (e) { /* choice not remembered, no harm done */ }
+function setLang(choice) {
+  langChoice = choice;
+  lang = choice === "auto" ? browserLang() : choice;
+  try {
+    if (choice === "auto") localStorage.removeItem(LANG_KEY);
+    else localStorage.setItem(LANG_KEY, choice);
+  } catch (e) { /* choice not remembered, no harm done */ }
   applyStatic();
   if (!data) return;
   $("mode").textContent = T("mode ") + data.mode;
@@ -1489,12 +1504,13 @@ window.addEventListener("beforeunload", (e) => {
   e.preventDefault();
 });
 
-// One button per language of the catalogs.
-for (const l of LANGUAGES) {
-  const b = el("button", {type: "button", "data-lang": l.code, "aria-pressed": "false", title: l.name, text: l.code.toUpperCase()});
-  b.addEventListener("click", () => setLang(l.code));
-  document.querySelector(".lang").append(b);
-}
+// The languages of the catalogs, in a menu that shows only the current code: the
+// header stays narrow on a phone, whatever the number of languages.
+const langMenu = document.querySelector(".lang select");
+langMenu.append(el("option", {value: "auto"})); // its text is translated by applyStatic
+for (const l of LANGUAGES) langMenu.append(el("option", {value: l.code, text: l.name}));
+langMenu.addEventListener("change", () => setLang(langMenu.value));
+addEventListener("languagechange", () => { if (langChoice === "auto") setLang("auto"); });
 applyStatic();
 load().catch((e) => message(T("Loading failed:\n") + e.message, "err"));
 // The pause can also change from Telegram: refresh the banner.

@@ -19,6 +19,10 @@ never a breaking 2.0, while `:latest` follows `main`.
 
 ### Changed
 
+- The language switch of the web interface is a menu (🌐 FR ▾) instead of one button per
+  language: with six languages, the buttons cut the title short on a phone. Its first
+  choice, *Auto*, follows the browser's language, as the page does until another one is
+  chosen; before, a language chosen once stayed for good.
 - A clip sent as a link is now logged, with the reason.
 - **Breaking:** the default mode is now `reviews`: one message per Frigate alert, so a
   person walking a dog is one notification, not two. The setup page always saved the

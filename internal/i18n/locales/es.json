@@ -48,6 +48,7 @@
     "An object missing from this list isn't filtered on score.": "Un objeto que no está en esta lista no se filtra por puntuación.",
     "Another program is already using this bot.": "Otro programa ya está usando este bot.",
     "At night (10 pm – 7 am)": "De noche (22 h – 7 h)",
+    "Auto (browser)": "Automático (navegador)",
     "Back to the config.yml settings": "Volver a los ajustes de config.yml",
     "Back to the default settings": "Volver a los ajustes por defecto",
     "Bicycle": "Bicicleta",

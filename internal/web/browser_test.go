@@ -56,8 +56,8 @@ func TestBrowserSmoke(t *testing.T) {
 		// Muting a camera is saved by itself, shortly after.
 		chromedp.Click(`details.camera[data-name="salon"] label.toggle`),
 		chromedp.WaitVisible(`#status.saved`), // saved by itself, no button
-		// The language selector comes from the catalogs; in French, the page is translated.
-		chromedp.Click(`.lang button[data-lang="fr"]`),
+		// The language menu comes from the catalogs; in French, the page is translated.
+		chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "fr"; m.dispatchEvent(new Event("change")); 0`),
 		into(chromedp.Text(`#sec-when h2`), &title),
 	)
 	if err != nil {
@@ -82,6 +82,45 @@ func TestBrowserSmoke(t *testing.T) {
 	saved, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(saved), "salon") {
 		t.Errorf("override saved = %q, %v", saved, err)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The language follows the browser until one is chosen in the menu (kept after a
+// reload), and again once "Auto" is chosen back.
+func TestBrowserLanguageAuto(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	choose := func(code string) chromedp.Action[chromedp.Void] {
+		return chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "` + code + `"; m.dispatchEvent(new Event("change")); 0`)
+	}
+	// menu value, page language, saved choice
+	const state = `[document.querySelector(".lang select").value, document.documentElement.lang, localStorage.getItem("frigate-telegram-enhanced-lang") || "-"].join(" ")`
+	var first, forced, back string
+	err := chromedp.Do(ctx,
+		chromedp.Navigate(ts.URL+"/"),
+		chromedp.WaitVisible(`#cameras .cam-name`),
+		into(chromedp.Evaluate[string](state), &first),
+		choose("de"),
+		chromedp.Reload(),
+		chromedp.WaitVisible(`#cameras .cam-name`),
+		into(chromedp.Evaluate[string](state), &forced),
+		choose("auto"),
+		into(chromedp.Evaluate[string](state), &back),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(first, "auto ") || !strings.HasSuffix(first, " -") {
+		t.Errorf("on arrival: %q, want auto and nothing saved", first)
+	}
+	if forced != "de de de" {
+		t.Errorf("after choosing German and reloading: %q, want \"de de de\"", forced)
+	}
+	if back != first {
+		t.Errorf("back to Auto: %q, want %q as on arrival", back, first)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
