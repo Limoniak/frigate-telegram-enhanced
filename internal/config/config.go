@@ -486,7 +486,7 @@ func build(f fileYAML) (*Config, error) {
 	c := &Config{
 		Language:      lang,
 		Timezone:      orDefault(f.Timezone, "UTC"),
-		Mode:          orDefault(f.Mode, ModeEvents),
+		Mode:          orDefault(f.Mode, ModeReviews),
 		Frigate:       f.Frigate,
 		MQTT:          f.MQTT,
 		HomeAssistant: f.HomeAssistant,

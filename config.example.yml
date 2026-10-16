@@ -10,7 +10,7 @@
 
 language: en                     # language of Telegram messages and errors: en, de, es, fr, it, pt (see internal/i18n/locales)
 timezone: Europe/Paris
-mode: events                     # events (one message per object) or reviews (Frigate ≥ 0.14 alerts)
+mode: reviews                    # reviews (Frigate ≥ 0.14 alerts, default) or events (one message per object)
 
 frigate:
   url: http://frigate:5000       # internal API URL (5000 without auth, 8971 with auth)

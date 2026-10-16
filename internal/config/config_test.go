@@ -37,7 +37,7 @@ func TestParseMinimalAppliesDefaults(t *testing.T) {
 	if c.Frigate.URL != "http://frigate:5000" {
 		t.Errorf("url = %q, the trailing / must be removed", c.Frigate.URL)
 	}
-	if c.Mode != ModeEvents || c.Location.String() != "UTC" {
+	if c.Mode != ModeReviews || c.Location.String() != "UTC" {
 		t.Errorf("mode=%q location=%q", c.Mode, c.Location)
 	}
 	if c.MQTT.ClientID != "frigate-telegram-enhanced" || c.MQTT.TopicPrefix != "frigate" {
