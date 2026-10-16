@@ -9,6 +9,8 @@ never a breaking 2.0, while `:latest` follows `main`.
 
 ### Added
 
+- German, Spanish, Italian and Portuguese, for the Telegram messages and the web
+  interface. The Italian translation is by @woody4165 (#3).
 - *Compress clips over 50 MB* (`notify.compress_clips`, off by default): a clip too large
   for Telegram is re-encoded with FFmpeg, now included in the image, instead of being
   sent as a link. The link remains when re-encoding fails or the clip is over 512 MB.

@@ -25,7 +25,7 @@ func TestParse(t *testing.T) {
 		}
 	}
 	_, err := Parse("xx")
-	if err == nil || !strings.Contains(err.Error(), "en, fr") {
+	if err == nil || !strings.Contains(err.Error(), "(en, ") || !strings.Contains(err.Error(), ", fr") {
 		t.Errorf("Parse(xx) error = %v, want the list of languages", err)
 	}
 	if msg := FR.Message(err); !strings.Contains(msg, "non prise en charge") {
@@ -113,24 +113,27 @@ func TestTranslationsKeepTheFormatVerbs(t *testing.T) {
 	}
 }
 
-// TestFrenchCatalogMatchesTheCode checks that every text the code translates has
-// a French translation, and that the catalog holds no text the code no longer uses.
-func TestFrenchCatalogMatchesTheCode(t *testing.T) {
+// TestCatalogsMatchTheCode checks that every text the code translates has a
+// translation in every catalog, and that no catalog holds a text the code no
+// longer uses.
+func TestCatalogsMatchTheCode(t *testing.T) {
 	keys, literals := map[string]string{}, map[string]bool{}
 	scanGo(t, filepath.Join("..", ".."), keys, literals)
 	scanWeb(t, filepath.Join("..", "web"), keys, literals)
 	if len(keys) < 100 {
 		t.Fatalf("only %d texts found in the code: is the scan broken?", len(keys))
 	}
-	fr := Catalogs()[FR].Messages
-	for _, k := range slices.Sorted(mapsKeys(keys)) {
-		if _, ok := fr[k]; !ok {
-			t.Errorf("%s: %q has no French translation (locales/fr.json)", keys[k], k)
+	for _, l := range Languages()[1:] {
+		msgs := Catalogs()[l].Messages
+		for _, k := range slices.Sorted(mapsKeys(keys)) {
+			if _, ok := msgs[k]; !ok {
+				t.Errorf("%s: %q has no translation in locales/%s.json", keys[k], k, l)
+			}
 		}
-	}
-	for _, k := range slices.Sorted(mapsKeys(fr)) {
-		if !literals[k] {
-			t.Errorf("locales/fr.json: %q is no longer used", k)
+		for _, k := range slices.Sorted(mapsKeys(msgs)) {
+			if !literals[k] {
+				t.Errorf("locales/%s.json: %q is no longer used", l, k)
+			}
 		}
 	}
 }
