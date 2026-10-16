@@ -453,7 +453,7 @@ async function load() {
   $("mqtt-prefix").value = m.topic_prefix || "";
   loaded = {frigate: normURL(f.url || ""), broker: normBroker(m.broker || "")};
   $("timezone").value = c.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-  $("mode").value = c.mode || "events";
+  $("mode").value = c.mode || "reviews";
   msgLang = c.language || "";
   if (msgLang) $("msg-lang").value = msgLang;
   allowedHosts = (c.web && c.web.allowed_hosts) || [];

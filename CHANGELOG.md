@@ -18,6 +18,10 @@ never a breaking 2.0, while `:latest` follows `main`.
 ### Changed
 
 - A clip sent as a link is now logged, with the reason.
+- **Breaking:** the default mode is now `reviews`: one message per Frigate alert, so a
+  person walking a dog is one notification, not two. The setup page always saved the
+  chosen mode, so only a `config.yml` without `mode:` changes; add `mode: events` to keep
+  one message per object, or for Frigate older than 0.14.
 
 ### Removed
 
