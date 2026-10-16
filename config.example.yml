@@ -8,7 +8,7 @@
 # it is the only one taken into account. It holds the bot token and passwords:
 # keep it readable by you alone.
 
-language: en                     # language of Telegram messages and errors: en, fr (see internal/i18n/locales)
+language: en                     # language of Telegram messages and errors: en, de, es, fr, it, pt (see internal/i18n/locales)
 timezone: Europe/Paris
 mode: reviews                    # reviews (Frigate ≥ 0.14 alerts, default) or events (one message per object)
 

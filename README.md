@@ -25,7 +25,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - Commands: `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Burst grouping**: detections close in time are added to the first message instead of sending new ones
 - **Cropped snapshots**: the image zoomed on the detected object, much more readable on a phone
-- In **English** or **French**: Telegram messages (chosen on the setup page) and the web interface (EN / FR switch) — other languages can be added with a single file, see [Translating](#translating)
+- In **English**, **French**, **German**, **Spanish**, **Italian** or **Portuguese**: Telegram messages (chosen on the setup page) and the web interface (language switch) — other languages can be added with a single file, see [Translating](#translating)
 - **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
 - **Per-recipient settings**: e.g. you get everything, the family only people at night
 - After an MQTT outage, detections missed during the last hour are caught up from Frigate
@@ -151,8 +151,8 @@ you alone. Key points:
 ## Web interface
 
 `http://<server-ip>:8431/` serves a page to configure notifications, designed to be set
-up in a few clicks. It follows the browser's language (English or French); the
-**EN / FR** switch in the header changes it and is remembered. On a wide screen, a side
+up in a few clicks. It follows the browser's language (English when it has no translation); the
+language switch in the header changes it and is remembered. On a wide screen, a side
 menu jumps to each section.
 
 - **Status**: one card at the top with the connections to Frigate, MQTT and Telegram,
@@ -328,7 +328,7 @@ To add a language, copy `fr.json` to `<code>.json` (`de.json`, `es.json`…), ch
 `name` and translate the values, keeping the `%s` and `%d` in the same order. A text
 left out is shown in English. The new language is then offered by the setup page, accepted by `language` in
 `config.yml`, and offered by the web interface's language switch. `go test ./internal/i18n/` checks the
-catalogs: `%s`/`%d` kept, and the French catalog in step with the code (every text
+catalogs: `%s`/`%d` kept, and every catalog in step with the code (every text
 translated, none left over).
 
 ## License

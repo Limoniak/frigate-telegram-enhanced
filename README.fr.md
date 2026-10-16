@@ -25,7 +25,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Regroupement des rafales** : les détections rapprochées s'ajoutent au premier message au lieu d'en envoyer de nouveaux
 - **Image recadrée** : le snapshot zoomé sur l'objet détecté, bien plus lisible sur un téléphone
-- En **anglais** ou en **français** : messages Telegram (choisie sur la page d'installation) et interface web (sélecteur EN / FR) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
+- En **anglais**, **français**, **allemand**, **espagnol**, **italien** ou **portugais** : messages Telegram (langue choisie sur la page d'installation) et interface web (sélecteur de langue) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
 - **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
@@ -154,8 +154,8 @@ laissez lisible que par vous. Points clés :
 ## Interface web
 
 `http://<ip-du-serveur>:8431/` sert une page de réglage des notifications, pensée pour se
-régler en quelques clics. Elle suit la langue du navigateur (français ou anglais) ; le
-sélecteur **EN / FR** de l'en-tête la change, et le choix est retenu. Sur grand écran,
+régler en quelques clics. Elle suit la langue du navigateur (l'anglais si elle n'est pas traduite) ; le
+sélecteur de langue de l'en-tête la change, et le choix est retenu. Sur grand écran,
 un sommaire latéral mène à chaque section.
 
 - **État** : une carte en haut de page avec les connexions à Frigate, MQTT et Telegram,
@@ -334,7 +334,7 @@ Pour ajouter une langue, copier `fr.json` vers `<code>.json` (`de.json`, `es.jso
 changer `name` et traduire les valeurs, en gardant les `%s` et `%d` dans le même ordre. Un
 texte omis s'affiche en anglais. La nouvelle langue est alors proposée par la page d'installation,
 acceptée par `language` dans `config.yml`, et proposée par le sélecteur de langue de l'interface web. `go test ./internal/i18n/` vérifie
-les catalogues : `%s`/`%d` conservés, et catalogue français à jour avec le code (tout
+les catalogues : `%s`/`%d` conservés, et chaque catalogue à jour avec le code (tout
 texte traduit, aucun en trop).
 
 ## Licence
