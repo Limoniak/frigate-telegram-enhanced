@@ -304,6 +304,9 @@ groupe.
 
 ## Développement
 
+Les contributions sont les bienvenues : voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md) pour les
+conventions et les vérifications, et [SECURITY.md](SECURITY.md) pour signaler une faille.
+
 ```bash
 go test ./...
 go test -tags browser ./internal/web/   # test de fumée de l'interface web, avec Chrome

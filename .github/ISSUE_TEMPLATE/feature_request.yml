@@ -1,0 +1,16 @@
+name: Feature request / Idée
+description: An idea to make the notifications or the interface better. / Une idée pour améliorer les notifications ou l'interface.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need / Votre besoin
+      description: The situation and what is missing today. / La situation, et ce qui manque aujourd'hui.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea / Votre idée
+      description: How you see it working, if you have an idea. / Comment vous l'imaginez, si vous avez une idée.

@@ -1,0 +1,23 @@
+name: Translation / Traduction
+description: A new language, or corrections to a translation. / Une nouvelle langue, ou des corrections de traduction.
+labels: [documentation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A language is one file, `internal/i18n/locales/<code>.json`: copy `fr.json`, change `name`, translate the values and keep `%s` and `%d`. See [Translating](https://github.com/Limoniak/frigate-telegram-enhanced#translating).
+        Une langue tient dans un fichier, `internal/i18n/locales/<code>.json` : copiez `fr.json`, changez `name`, traduisez les valeurs et gardez `%s` et `%d`. Voir [Traduire](https://github.com/Limoniak/frigate-telegram-enhanced/blob/main/README.fr.md#traduire).
+  - type: input
+    id: language
+    attributes:
+      label: Language / Langue
+      placeholder: "Nederlands (nl)"
+    validations:
+      required: true
+  - type: textarea
+    id: file
+    attributes:
+      label: File or corrections / Fichier ou corrections
+      description: Attach the `.json` file (drag and drop), or list the corrections. / Joignez le fichier `.json` (glisser-déposer), ou listez les corrections.
+    validations:
+      required: true

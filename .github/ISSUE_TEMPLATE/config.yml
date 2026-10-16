@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/Limoniak/frigate-telegram-enhanced#readme
+    about: Installation, configuration, troubleshooting. / Installation, configuration, dépannage.
+  - name: Security / Sécurité
+    url: https://github.com/Limoniak/frigate-telegram-enhanced/security/advisories/new
+    about: Report a vulnerability privately. / Signaler une faille en privé.
