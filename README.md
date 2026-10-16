@@ -12,7 +12,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 
 ## Features
 
-- **events** mode (one message per detected object) or **reviews** mode (grouped alerts, Frigate ≥ 0.14)
+- **reviews** mode (grouped alerts, Frigate ≥ 0.14, the default) or **events** mode (one message per detected object)
 - Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, a link to the clip instead, or the clip re-encoded under 50 MB (*Compress clips over 50 MB*, off by default)
 - Frigate's GenAI description added to the caption as soon as it is available
 - Frigate's labels (custom classification such as your car's name, faces, license plates) added to the caption as soon as Frigate knows them — `🏷 clio 3`
