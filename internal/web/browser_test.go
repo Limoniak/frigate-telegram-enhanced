@@ -56,8 +56,8 @@ func TestBrowserSmoke(t *testing.T) {
 		// Muting a camera is saved by itself, shortly after.
 		chromedp.Click(`details.camera[data-name="salon"] label.toggle`),
 		chromedp.WaitVisible(`#status.saved`), // saved by itself, no button
-		// The language selector comes from the catalogs; in French, the page is translated.
-		chromedp.Click(`.lang button[data-lang="fr"]`),
+		// The language menu comes from the catalogs; in French, the page is translated.
+		chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "fr"; m.dispatchEvent(new Event("change")); 0`),
 		into(chromedp.Text(`#sec-when h2`), &title),
 	)
 	if err != nil {

@@ -39,7 +39,8 @@ function applyStatic() {
   document.documentElement.lang = lang;
   document.title = T("frigate-telegram-enhanced — notifications");
   for (const n of document.querySelectorAll("[data-t]")) n.textContent = T(n.dataset.t);
-  for (const b of document.querySelectorAll(".lang button")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
+  document.querySelector(".lang select").value = lang;
+  document.querySelector(".lang-code").textContent = lang.toUpperCase();
 }
 
 function setLang(l) {
@@ -1489,12 +1490,11 @@ window.addEventListener("beforeunload", (e) => {
   e.preventDefault();
 });
 
-// One button per language of the catalogs.
-for (const l of LANGUAGES) {
-  const b = el("button", {type: "button", "data-lang": l.code, "aria-pressed": "false", title: l.name, text: l.code.toUpperCase()});
-  b.addEventListener("click", () => setLang(l.code));
-  document.querySelector(".lang").append(b);
-}
+// The languages of the catalogs, in a menu that shows only the current code: the
+// header stays narrow on a phone, whatever the number of languages.
+const langMenu = document.querySelector(".lang select");
+for (const l of LANGUAGES) langMenu.append(el("option", {value: l.code, text: l.name}));
+langMenu.addEventListener("change", () => setLang(langMenu.value));
 applyStatic();
 load().catch((e) => message(T("Loading failed:\n") + e.message, "err"));
 // The pause can also change from Telegram: refresh the banner.

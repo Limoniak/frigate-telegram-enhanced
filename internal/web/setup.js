@@ -86,7 +86,8 @@ function applyStatic() {
   document.title = T("frigate-telegram-enhanced — setup");
   for (const n of document.querySelectorAll("[data-t]")) n.textContent = T(n.dataset.t);
   for (const n of document.querySelectorAll("[data-t-placeholder]")) n.placeholder = T(n.dataset.tPlaceholder);
-  for (const b of document.querySelectorAll(".lang button")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
+  document.querySelector(".lang select").value = lang;
+  document.querySelector(".lang-code").textContent = lang.toUpperCase();
   $("save").textContent = first ? T("Save and start") : T("Save and restart");
   withLink($("tg-lead"), T("In Telegram, open %s, send /newbot and choose a name: it gives you a token. Paste it here."),
     "https://t.me/BotFather", "@BotFather");
@@ -111,11 +112,12 @@ function setLang(l) {
 }
 
 function initLang() {
-  const box = document.querySelector(".lang");
+  const menu = document.querySelector(".lang select"); // shows only the current code, see ui.js
   for (const l of LANGUAGES) {
-    box.append(el("button", {type: "button", "data-lang": l.code, onclick: () => setLang(l.code)}, l.code.toUpperCase()));
+    menu.append(el("option", {value: l.code}, l.name));
     $("msg-lang").append(el("option", {value: l.code}, l.name));
   }
+  menu.addEventListener("change", () => setLang(menu.value));
   $("msg-lang").addEventListener("change", () => { msgLang = $("msg-lang").value; });
 }
 
