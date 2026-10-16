@@ -179,3 +179,21 @@ func TestReviewWithObjectAndSoundNamedAfterTheObject(t *testing.T) {
 		t.Fatalf("photos = %+v", photos)
 	}
 }
+
+// With the default settings (every label, alerts only), a sound that Frigate files as
+// an alert (listed in its review.alerts.labels) is notified with nothing to set in
+// the bot, and a sound left as a detection is not.
+func TestAudioAlertNotifiedWithDefaultSettings(t *testing.T) {
+	h := newHarness(t, "reviews")
+	allowLabels(t, h) // no label filter, as by default
+	h.fr.files[frigate.LatestPath("garage")] = []byte("jpeg")
+	h.send(t, "frigate/reviews", audioReviewMsg("update", revID, "garage", "detection", []string{}, []string{"fire_alarm"}))
+	if h.tg.count() != 0 {
+		t.Fatal("a sound filed as a detection must not notify by default")
+	}
+	h.send(t, "frigate/reviews", audioReviewMsg("update", "1790604100.5-rev2", "garage", "alert", []string{}, []string{"fire_alarm"}))
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) != 2 || !strings.Contains(photos[0].Text, "Fire alarm") {
+		t.Fatalf("photos = %+v", photos)
+	}
+}
