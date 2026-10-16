@@ -17,7 +17,7 @@
   const POLL_EVERY = 4000, POLL_FOR = 30 * 60 * 1000;
 
   // ---- state ----
-  let first = $state(true);
+  let first = $state(null); // null until api/connection answers
   let saved = $state({}); // which secrets are saved (an empty field keeps them)
   let bot = $state(""); // @name of the bot, once the token is checked
   let chats = $state([]); // [{id, name, private, on}]
@@ -77,7 +77,7 @@
   function addChats(found) {
     // On the first setup they are the people setting it up: selected. Later, users the bot refused: offered.
     for (const f of found || []) {
-      if (!chats.some((c) => c.id === f.id)) chats.push({ id: f.id, name: f.name, private: f.private, on: first });
+      if (!chats.some((c) => c.id === f.id)) chats.push({ id: f.id, name: f.name, private: f.private, on: first !== false });
     }
   }
 
@@ -135,6 +135,7 @@
   });
 
   async function checkFrigate() {
+    searching = false; // a manual check takes over from the automatic search
     const f = frigateValues();
     if (!f.url) {
       set("frigate", "err", T("Enter Frigate's address first."));
@@ -185,7 +186,7 @@
     if (b && b.state === "password") return { state: "warn", text: Tf("The broker %s asks for a password.", b.address) };
     if (b && b.state === "error") return { state: "err", text: Tf("Frigate's broker does not answer from here (%s). Enter its address below.", b.error) };
     if (b) return { state: "", text: Tf("Broker read from Frigate: %s", b.address) };
-    if (!first || mqttBroker.trim()) return { state: "", text: "" };
+    if (first === false || mqttBroker.trim()) return { state: "", text: "" };
     return { state: "", text: T("Frigate's broker is filled in once Frigate is found.") };
   });
   // The password only when it is asked for, or already part of the settings.
@@ -339,11 +340,11 @@
   <div id="messages">
     {#if loadFailed}<div class="notice err">{T("Cannot read the connection.")}</div>{/if}
   </div>
-  <div class="flex flex-col gap-2" id="intro-first" hidden={!first}>
+  <div class="flex flex-col gap-2" id="intro-first" hidden={first !== true}>
     <span class="text-[clamp(28px,6vw,40px)] font-semibold leading-[1.05] tracking-tight">{T("Welcome!")}</span>
     <span class="text-[var(--muted)]">{T("Three steps and your notifications are running.")}</span>
   </div>
-  <p class="m-0" id="intro-edit" hidden={first}><a href="./">{T("← Back to the notifications")}</a></p>
+  <p class="m-0" id="intro-edit" hidden={first !== false}><a href="./">{T("← Back to the notifications")}</a></p>
 
   <Card id="sec-telegram">
     <div class="flex items-start gap-3">
@@ -483,7 +484,7 @@
   </div>
 
   <div class="flex flex-wrap items-center gap-3">
-    <button type="button" class="btn btn-primary" id="save" disabled={saving} onclick={() => save(false)}>{first ? T("Save and start") : T("Save and restart")}</button>
+    <button type="button" class="btn btn-primary" id="save" disabled={saving} onclick={() => save(false)}>{first !== false ? T("Save and start") : T("Save and restart")}</button>
     <span class="result {res.save.state}" id="save-result" role="status">{res.save.text}</span>
   </div>
 </main>

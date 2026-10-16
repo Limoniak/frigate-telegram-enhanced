@@ -58,6 +58,8 @@ a { color: var(--accent-ink); }
   width: 100%; min-width: 0; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; color: var(--ink);
   background: var(--field); box-shadow: inset 0 0 0 1px var(--ring);
 }
+/* iOS Safari zooms into a field under 16 px on focus. */
+@media (pointer: coarse) { .field { font-size: max(16px, 1em); } }
 .field::placeholder { color: var(--faint); }
 .field:disabled { opacity: 0.5; }
 select.field { appearance: auto; }
