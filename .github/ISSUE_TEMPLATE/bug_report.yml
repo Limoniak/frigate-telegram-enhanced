@@ -1,0 +1,47 @@
+name: Bug report / Bug
+description: Something does not work as expected. / Quelque chose ne fonctionne pas comme prévu.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! English or French, as you prefer. **Remove your bot token, passwords and addresses** from what you paste.
+        Merci du signalement ! En anglais ou en français, comme vous préférez. **Retirez le token du bot, les mots de passe et les adresses** de ce que vous collez.
+        A security issue? Do not post it here: see / Un problème de sécurité ? Pas ici : voir [SECURITY.md](https://github.com/Limoniak/frigate-telegram-enhanced/blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / Ce qui s'est passé
+      description: What you did, what you expected, what you got. / Ce que vous avez fait, ce que vous attendiez, ce que vous avez obtenu.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version of the service / Version du service
+      description: Shown at the bottom of the web interface, or the Docker tag. / Affichée en bas de l'interface web, ou le tag Docker.
+      placeholder: "2.0.0, :latest…"
+    validations:
+      required: true
+  - type: input
+    id: frigate
+    attributes:
+      label: Frigate version / Version de Frigate
+      placeholder: "0.16.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - reviews
+        - events
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Journaux
+      description: "`docker logs frigate-telegram-enhanced`, around the problem. / autour du problème."
+      render: text

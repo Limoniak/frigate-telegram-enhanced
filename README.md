@@ -321,6 +321,9 @@ group.
 
 ## Development
 
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) for the conventions and the
+checks, and [SECURITY.md](SECURITY.md) to report a vulnerability.
+
 ```bash
 go test ./...
 go test -tags browser ./internal/web/   # web interface smoke test, needs Chrome
