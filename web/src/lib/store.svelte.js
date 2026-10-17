@@ -63,20 +63,24 @@ export async function save() {
   const sent = JSON.stringify(app.overlay);
   let ok = false;
   saving = (async () => {
-    const r = await post("api/settings", toSend(app.overlay), "PUT");
-    if (r.ok) {
-      saved = sent;
-      ok = true;
-      app.error = "";
-      if (!app.data.custom) app.data.custom = true;
-      app.status = { text: T("Saved ✓ — applied immediately"), kind: "saved" };
-    } else {
-      app.error = T("Save refused:\n") + (r.data.error || "HTTP " + r.status);
+    try {
+      const r = await post("api/settings", toSend(app.overlay), "PUT");
+      if (r.ok) {
+        saved = sent;
+        ok = true;
+        app.error = "";
+        if (!app.data.custom) app.data.custom = true;
+        app.status = { text: T("Saved ✓ — applied immediately"), kind: "saved" };
+      } else {
+        app.error = T("Save refused:\n") + (r.data.error || "HTTP " + r.status);
+        app.status = { text: T("Not saved"), kind: "dirty" };
+      }
+    } catch (e) {
+      app.error = T("Save refused:\n") + e.message;
       app.status = { text: T("Not saved"), kind: "dirty" };
     }
   })();
-  await saving;
-  saving = null;
+  try { await saving; } finally { saving = null; }
   if (ok && dirty()) touched(); // changed while it was being sent: one more save
   return ok;
 }
@@ -112,9 +116,13 @@ export async function refreshHistory() {
 }
 
 async function stateCall(path, body) {
-  const r = await post(path, body);
-  if (r.ok) app.live = r.data;
-  else app.error = T("Action failed:\n") + (r.data.error || "HTTP " + r.status);
+  try {
+    const r = await post(path, body);
+    if (r.ok) app.live = r.data;
+    else app.error = T("Action failed:\n") + (r.data.error || "HTTP " + r.status);
+  } catch (e) {
+    app.error = T("Action failed:\n") + e.message;
+  }
 }
 
 export const pause = (minutes) => stateCall("api/pause", { minutes });
