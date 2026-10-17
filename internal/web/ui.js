@@ -77,7 +77,7 @@ async function api(path, opts) {
   opts = Object.assign({}, opts);
   opts.headers = Object.assign({"X-Lang": lang}, opts.headers || {});
   const resp = await fetch(path, opts);
-  if (resp.status === 401) location.href = "login?lang=" + lang;
+  if (resp.status === 401) location.href = "login?next=classic&lang=" + lang;
   return resp;
 }
 
@@ -1495,7 +1495,7 @@ async function reset() {
 $("reset").addEventListener("click", reset);
 $("logout").addEventListener("click", async () => {
   await api("logout", {method: "POST", headers: {"X-Requested-With": TOKEN}});
-  location.href = "login?lang=" + lang;
+  location.href = "login?next=classic&lang=" + lang;
 });
 // Leaving with a save pending: it is sent at once, the browser asks to wait for it.
 window.addEventListener("beforeunload", (e) => {

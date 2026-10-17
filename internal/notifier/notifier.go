@@ -312,6 +312,15 @@ func (n *Notifier) Count24h() int {
 	return len(n.sent)
 }
 
+// SentTimes returns the times of the notifications sent over the last 24 h, oldest
+// first: the web interface draws them hour by hour.
+func (n *Notifier) SentTimes() []time.Time {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.pruneSent(n.Now())
+	return slices.Clone(n.sent)
+}
+
 func (n *Notifier) recordSent(now time.Time) {
 	n.sent = append(n.sent, now)
 	n.pruneSent(now)

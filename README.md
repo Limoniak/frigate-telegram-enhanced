@@ -177,6 +177,9 @@ up in a few clicks. It follows the browser's language (English when it has no tr
 language switch in the header changes it and is remembered. On a wide screen, a side
 menu jumps to each section.
 
+The address opens the new overview and style screens; the other settings are in the
+classic interface (`/classic`, link at the bottom of the new one), described below:
+
 - **Status**: one card at the top with the connections to Frigate, MQTT and Telegram,
   whether notifications are active, who is home and which cameras are muted. When a
   connection fails, the cause in plain words and the setting to fix (wrong password,
@@ -330,9 +333,10 @@ go test -tags browser ./internal/web/   # web interface smoke test, needs Chrome
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-The web interface is `internal/web/ui.html`, `ui.css` and `ui.js`, embedded in the binary as
-is: no build step. The setup and login pages are built from `web/` (Svelte and Tailwind) into
-`internal/web/dist/`, which is committed; see [CONTRIBUTING.md](CONTRIBUTING.md).
+The classic interface (`/classic`) is `internal/web/ui.html`, `ui.css` and `ui.js`, embedded in
+the binary as is: no build step. The new interface, the setup and login pages are built from
+`web/` (Svelte and Tailwind) into `internal/web/dist/`, which is committed; see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Translating
 

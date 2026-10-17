@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -230,6 +231,10 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 		{name: "page without password", method: "GET", path: "/", want: http.StatusUnauthorized},
 		{name: "script without password", method: "GET", path: "/ui.js", want: http.StatusUnauthorized},
 		{name: "script with password", method: "GET", path: "/ui.js", auth: []string{"s3cret"}, want: http.StatusOK},
+		{name: "app script without password", method: "GET", path: "/app.js", want: http.StatusUnauthorized},
+		{name: "app sheet without password", method: "GET", path: "/app.css", want: http.StatusUnauthorized},
+		{name: "classic page without password", method: "GET", path: "/classic", want: http.StatusUnauthorized},
+		{name: "classic page with password", method: "GET", path: "/classic", auth: []string{"s3cret"}, want: http.StatusOK},
 		{name: "write without password", method: "PUT", path: "/api/settings", body: "{}", want: http.StatusUnauthorized},
 		{name: "right password", method: "GET", path: "/api/settings", auth: []string{"s3cret"}, want: http.StatusOK},
 	} {
@@ -242,9 +247,35 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 	}
 }
 
-func TestPageIsServed(t *testing.T) {
+// The new interface is at /: its page loads its script, its sheet and the catalogs, and
+// every file it references is served.
+func TestNewInterfaceServed(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	resp := do(t, ts, "GET", "/", "")
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
+		t.Fatalf("status = %d, type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	page, _ := io.ReadAll(resp.Body)
+	for _, ref := range []string{`src="i18n.js"`, `src="./app.js"`} {
+		if !strings.Contains(string(page), ref) {
+			t.Errorf("the page does not load %s", ref)
+		}
+	}
+	refs := regexp.MustCompile(`(?:src|href)="(?:\./)?([a-z0-9][^":]*)"`).FindAllStringSubmatch(string(page), -1)
+	if len(refs) < 3 {
+		t.Fatalf("the page references too few files: %.400s", page)
+	}
+	for _, ref := range refs {
+		if resp := do(t, ts, "GET", "/"+ref[1], ""); resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: %d", ref[1], resp.StatusCode)
+		}
+	}
+}
+
+// The classic interface stays at /classic until its screens move to the new one.
+func TestPageIsServed(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{})
+	resp := do(t, ts, "GET", "/classic", "")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -569,6 +600,30 @@ func TestHistoryAndThumbnails(t *testing.T) {
 		if resp := do(t, ts, "GET", "/api/history/"+id+"/thumb", ""); resp.StatusCode != http.StatusNotFound {
 			t.Errorf("thumbnail of %s: status = %d, want 404", id, resp.StatusCode)
 		}
+	}
+}
+
+type fakeActivity []time.Time
+
+func (f fakeActivity) SentTimes() []time.Time { return f }
+
+// The history also gives the notifications sent over 24 h, hour by hour, the current
+// hour last.
+func TestHistoryGivesSentHours(t *testing.T) {
+	now := time.Date(2026, 10, 17, 21, 30, 0, 0, time.UTC)
+	act := fakeActivity{now.Add(-23*time.Hour - 50*time.Minute), now.Add(-90 * time.Minute), now.Add(-10 * time.Minute), now}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(fakeHistory{}, nil), WithActivity(act), WithClock(func() time.Time { return now }))
+	var v struct {
+		Sent  int   `json:"sent_24h"`
+		Hours []int `json:"sent_hours"`
+	}
+	if err := json.NewDecoder(do(t, ts, "GET", "/api/history", "").Body).Decode(&v); err != nil {
+		t.Fatal(err)
+	}
+	want := make([]int, 24)
+	want[0], want[22], want[23] = 1, 1, 2
+	if v.Sent != 4 || !slices.Equal(v.Hours, want) {
+		t.Errorf("sent %d, hours %v; want 4, %v", v.Sent, v.Hours, want)
 	}
 }
 

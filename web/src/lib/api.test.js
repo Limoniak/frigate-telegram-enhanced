@@ -23,6 +23,11 @@ describe("api", () => {
     await api("api/connection", {}, { lang: "de", fetch: answer(401), onUnauthorized: (url) => { to = url; } });
     expect(to).toBe("login?next=setup&lang=de");
   });
+  it("leads back to the page the session ended on", async () => {
+    let to = "";
+    await api("api/settings", {}, { lang: "fr", next: "", fetch: answer(401), onUnauthorized: (url) => { to = url; } });
+    expect(to).toBe("login?next=&lang=fr");
+  });
 });
 
 describe("post", () => {

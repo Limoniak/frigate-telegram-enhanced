@@ -131,7 +131,7 @@ func run(parent context.Context, cfg *config.Config, connectionPath string, tgOp
 	if cfg.Web.Enabled {
 		fromPage := cfg.Source == connectionPath
 		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg, drops: notif, page: fromPage}
-		opts := []web.Option{web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr),
+		opts := []web.Option{web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr), web.WithActivity(notif),
 			web.WithHealth(chk.check), web.WithRefused(b)}
 		// Login sessions survive restarts (a changed connection restarts the service).
 		if key, err := web.LoadSessionKey(filepath.Join(filepath.Dir(cfg.StateFile), "session.key")); err != nil {

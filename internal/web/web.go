@@ -106,6 +106,11 @@ type History interface {
 	HistoryThumb(id string) (string, bool)
 }
 
+// Activity gives the times of the notifications sent over the last 24 h.
+type Activity interface {
+	SentTimes() []time.Time
+}
+
 // Media reads an image from Frigate.
 type Media interface {
 	GetBytes(ctx context.Context, path string, max int64) ([]byte, error)
@@ -143,17 +148,18 @@ type HealthFunc func(ctx context.Context, l i18n.Lang) []Component
 const testInterval = 3 * time.Second
 
 type Handler struct {
-	cfg     *config.Config
-	path    string // override file
-	cameras CameraLister
-	log     *slog.Logger
-	tester  Tester // nil: no test sending
-	state   State  // nil: no pause from the interface
-	history History
-	media   Media      // nil: history without thumbnails
-	health  HealthFunc // nil: no connection status
-	refused Refusals   // nil: no list of refused users
-	setup   *Setup     // nil: connection set by config.yml
+	cfg      *config.Config
+	path     string // override file
+	cameras  CameraLister
+	log      *slog.Logger
+	tester   Tester // nil: no test sending
+	state    State  // nil: no pause from the interface
+	history  History
+	activity Activity   // nil: history without the notifications sent over 24 h
+	media    Media      // nil: history without thumbnails
+	health   HealthFunc // nil: no connection status
+	refused  Refusals   // nil: no list of refused users
+	setup    *Setup     // nil: connection set by config.yml
 	// sessionKey signs the login sessions; nil: a random one, lost on restart.
 	sessionKey []byte
 	auth       *Auth // password, shared by every route
@@ -179,6 +185,9 @@ func WithState(s State) Option { return func(h *Handler) { h.state = s } }
 func WithHistory(h History, media Media) Option {
 	return func(x *Handler) { x.history, x.media = h, media }
 }
+
+// WithActivity adds to the history the notifications sent over 24 h, hour by hour.
+func WithActivity(a Activity) Option { return func(h *Handler) { h.activity = a } }
 
 // WithHealth enables the connection status display.
 func WithHealth(f HealthFunc) Option { return func(h *Handler) { h.health = f } }
@@ -213,7 +222,11 @@ func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.WrapBa
 // configuration sets one. /healthz and /metrics stay outside: the container probe
 // and the Prometheus scrape do not authenticate (see web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
-	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
+	// The new interface; the classic one stays at /classic for the screens not moved yet.
+	mux.Handle("GET /{$}", h.guard(distAsset("app.html", "text/html; charset=utf-8")))
+	mux.Handle("GET /app.js", h.guard(distAsset("app.js", "text/javascript; charset=utf-8")))
+	mux.Handle("GET /app.css", h.guard(distAsset("app.css", "text/css; charset=utf-8")))
+	mux.Handle("GET /classic", h.guard(asset("ui.html", "text/html; charset=utf-8")))
 	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
 	// The login page's sheet and the fonts hold nothing private: needed before the password.
 	mux.Handle("GET /login.css", distAsset("login.css", "text/css; charset=utf-8"))
@@ -617,6 +630,10 @@ func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
 
 type historyView struct {
 	Entries []historyEntryView `json:"entries"`
+	// Sent24h and SentHours: the notifications sent over 24 h, and per hour, the
+	// current hour last. Absent without an activity source.
+	Sent24h   *int  `json:"sent_24h,omitempty"`
+	SentHours []int `json:"sent_hours,omitempty"`
 }
 
 type historyEntryView struct {
@@ -633,7 +650,27 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 	for _, e := range h.history.History() {
 		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != ""})
 	}
+	if h.activity != nil {
+		times := h.activity.SentTimes()
+		n := len(times)
+		v.Sent24h = &n
+		v.SentHours = sentHours(times, h.now())
+	}
 	writeJSON(w, http.StatusOK, v)
+}
+
+// sentHours counts times per hour over the last 24 h: index 23 holds (now-1h, now],
+// index 22 the hour before, and so on.
+func sentHours(times []time.Time, now time.Time) []int {
+	hours := make([]int, 24)
+	for _, t := range times {
+		ago := now.Sub(t)
+		if ago < 0 || ago >= 24*time.Hour {
+			continue
+		}
+		hours[23-int(ago/time.Hour)]++
+	}
+	return hours
 }
 
 func (h *Handler) thumb(w http.ResponseWriter, r *http.Request) {
