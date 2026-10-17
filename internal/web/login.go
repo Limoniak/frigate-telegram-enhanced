@@ -24,7 +24,7 @@ type loginLang struct {
 	Current bool
 }
 
-// nextPage only accepts the interface's own pages ("", "setup", "classic"): never another site.
+// nextPage only accepts the interface's own pages ("", "setup"): never another site.
 var nextPage = regexp.MustCompile(`^[a-z]*$`)
 
 // loginLang reads ?lang=, set by the page's language links, then the browser's.
