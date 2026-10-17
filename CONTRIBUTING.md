@@ -65,9 +65,8 @@ Conventions:
   (`feat!:`).
 - A change users can notice gets a line under *Unreleased* in
   [CHANGELOG.md](CHANGELOG.md).
-- New behavior comes with tests. The classic interface (`ui.html`, `ui.css` and `ui.js`, at
-  `/classic`) has no build step: they are embedded as they are. The new interface, the setup
-  and login pages come from `web/`.
+- New behavior comes with tests. The whole web interface is in `web/` (Svelte and Tailwind)
+  and compiled into `internal/web/dist/`, which is committed.
 
 ## Pull requests
 

@@ -16,13 +16,17 @@ never a breaking 3.0, while `:latest` follows `main`.
   24 h hour by hour, connections, pause, cameras, the last notification as it arrived)
   and the notification style with a live Telegram preview.
 - The new interface now has every screen: When, Recipients, Cameras (with per-camera
-  settings), Recent activity and Advanced settings. The classic interface stays at
-  `/classic` until the next version.
+  settings), Recent activity and Advanced settings.
+
+### Removed
+
+- The classic interface: `/classic` now leads to the new one.
 
 ### Fixed
 
 - The number of notifications sent in the last 24 h no longer restarts at 0 after a
   restart.
+- Larger step numbers on the setup page.
 
 ## [2.0.0] - 2026-10-16
 
