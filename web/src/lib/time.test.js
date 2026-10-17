@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { locale, timeText, untilText, whenText } from "./time.js";
+import { locale, timeText, untilText, hourStart, whenText } from "./time.js";
 
 const T = (s) => s;
 const now = new Date("2026-10-17T19:30:00Z"); // 21:30 in Paris
@@ -19,5 +19,10 @@ describe("time", () => {
     const ctx = { tz: "Europe/Paris", lang: "en", T, now };
     expect(whenText("2026-10-17T19:00:00Z", ctx)).toBe("21:00");
     expect(whenText("2026-10-16T19:00:00Z", ctx)).toBe("yesterday 21:00");
+  });
+  it("hourStart: bar i covers (now-(24-i)h, now-(23-i)h], the last bar the last hour", () => {
+    const at = 1760900400500;
+    expect(hourStart(at, 23)).toBe(1760900400 - 3600);
+    expect(hourStart(at, 0)).toBe(1760900400 - 24 * 3600);
   });
 });

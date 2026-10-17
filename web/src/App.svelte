@@ -79,7 +79,7 @@
     {:else if current === "when"}<When />
     {:else if current === "recipients"}<Recipients />
     {:else if current === "cameras"}<Cameras {route} />
-    {:else if current === "activity"}<Activity />
+    {:else if current === "activity"}<Activity {route} />
     {:else if current === "advanced"}<Advanced />
     {:else}<Overview />{/if}
   {/if}

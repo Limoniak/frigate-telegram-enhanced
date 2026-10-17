@@ -50,6 +50,9 @@ func TestScreenshots(t *testing.T) {
 	now := time.Now()
 	ago := func(m int) time.Time { return now.Add(-time.Duration(m) * time.Minute) }
 	media := fakeMedia{files: map[string][]byte{}}
+	for _, c := range cams.cams { // the Style screen shows the camera's own image
+		media.files["/api/"+c.Name+"/latest.jpg?h=360"] = photo
+	}
 	entry := func(id string, m int, camera, label string, zones []string, score float64, sent bool, reason string) notifier.HistoryEntry {
 		e := notifier.HistoryEntry{ID: id, At: ago(m), Camera: camera, Label: label, Zones: zones, Score: score, Sent: sent,
 			Reason: reason}

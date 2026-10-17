@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -51,7 +52,8 @@ func TestBrowserOverview(t *testing.T) {
 		WithHealth(health), WithState(st))
 
 	ctx, jsErrors := browser(t)
-	var sent, today, last, lastCamera, pause, heading string
+	var sent, today, last, lastCamera, pause, heading, barLabel, barHash string
+	var bars, width int
 	err = chromedp.Do(ctx,
 		inEnglish(ts.URL+"/"),
 		chromedp.WaitVisible(`#cameras-list`),
@@ -63,6 +65,17 @@ func TestBrowserOverview(t *testing.T) {
 		chromedp.WaitVisible(`#last-notification`),
 		into(chromedp.Text(`#last-notification`), &last),
 		into(chromedp.Evaluate[string](`document.querySelector("#last-notification").textContent.includes("entree") ? "entree" : "garage"`), &lastCamera),
+		// Each bar of the chart leads to the activity of its hour (on a phone too).
+		chromedp.EmulateViewport(360, 740),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('#today a[href^="#activity/"]').length`), &bars),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll('#today a[href^="#activity/"]')].at(-1).getAttribute("aria-label")`), &barLabel),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+		chromedp.Click(`#today a[href^="#activity/"]:last-of-type`),
+		chromedp.WaitVisible(`#activity`),
+		into(chromedp.Evaluate[string](`location.hash`), &barHash),
+		chromedp.EmulateViewport(1280, 900),
+		chromedp.Navigate(ts.URL+"/#overview"),
+		chromedp.WaitVisible(`#cameras-list`),
 		// Turning a camera off is saved by itself.
 		chromedp.Click(`#cameras-list [role=switch][aria-label="entree"]`),
 		chromedp.WaitVisible(`#save-status.ok`),
@@ -78,6 +91,15 @@ func TestBrowserOverview(t *testing.T) {
 	}
 	if sent != "3" {
 		t.Errorf("sent in 24 h = %q, want 3", sent)
+	}
+	if bars != 24 || !regexp.MustCompile(`^3 sent between \d\d:\d\d and \d\d:\d\d$`).MatchString(barLabel) {
+		t.Errorf("chart: %d bars, last = %q, want 24 links named \"3 sent between ...\"", bars, barLabel)
+	}
+	if n, err := strconv.ParseInt(strings.TrimPrefix(barHash, "#activity/"), 10, 64); err != nil || abs(n-now.Add(-time.Hour).Unix()) > 120 {
+		t.Errorf("the last bar leads to %q, want the hour that started an hour ago", barHash)
+	}
+	if width > 360 {
+		t.Errorf("the overview is %d px wide on a 360 px screen", width)
 	}
 	if !strings.Contains(today, "Everything works") {
 		t.Errorf("today = %q, want Everything works", today)
@@ -399,6 +421,57 @@ func TestBrowserStyle(t *testing.T) {
 	}
 	if len(tester.cameras) != 1 {
 		t.Errorf("samples sent: %v", tester.cameras)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The preview shows the camera's own image (no box, no zoom) with its caption, and
+// the sample photo when the image does not load.
+func TestBrowserStyleCameraImage(t *testing.T) {
+	photo, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "assets", "sample.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cams := fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}}
+	media := fakeMedia{files: map[string][]byte{"/api/garage/latest.jpg?h=360": photo, "/api/entree/latest.jpg?h=360": photo}}
+	_, _, ts := setup(t, "", cams, WithHistory(fakeHistory{}, media), WithTester(&fakeTester{}))
+	_, _, bare := setup(t, "", cams, WithTester(&fakeTester{}))
+
+	const state = `(() => { const i = document.querySelector("#live-preview img"); return { ok: !!i && i.complete && i.naturalWidth > 0, src: i ? i.currentSrc : "", box: !!document.querySelector("#live-preview .border-amber-300"), text: document.querySelector("#live-preview").textContent } })()`
+	type view struct {
+		OK   bool   `json:"ok"`
+		Src  string `json:"src"`
+		Box  bool   `json:"box"`
+		Text string `json:"text"`
+	}
+	ctx, jsErrors := browser(t)
+	var live, other, fallback view
+	err = chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#style"),
+		chromedp.WaitVisible(`#live-preview`),
+		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector("#live-preview img"); return !!i && i.complete && i.naturalWidth > 0 })()`),
+		into(chromedp.Evaluate[view](state), &live),
+		chromedp.SetValue(`#try select`, "entree"),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview img").currentSrc.includes("/entree/")`),
+		into(chromedp.Evaluate[view](state), &other),
+		inEnglish(bare.URL+"/#style"),
+		chromedp.WaitVisible(`#live-preview`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview .border-amber-300") !== null`),
+		into(chromedp.Evaluate[view](state), &fallback),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !live.OK || !strings.HasSuffix(live.Src, "/api/cameras/garage/latest.jpg") || live.Box || !strings.Contains(live.Text, "Latest image of garage") {
+		t.Errorf("with the camera image: %+v", live)
+	}
+	if !strings.Contains(other.Src, "/api/cameras/entree/latest.jpg") || !strings.Contains(other.Text, "Latest image of entree") {
+		t.Errorf("after choosing entree: %+v", other)
+	}
+	if !fallback.OK || !strings.Contains(fallback.Src, "/assets/") || !fallback.Box || strings.Contains(fallback.Text, "Latest image") {
+		t.Errorf("without the camera image: %+v", fallback)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -1409,6 +1482,103 @@ func TestBrowserActivity(t *testing.T) {
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
 	}
+}
+
+// The activity filters: camera, outcome and hour; a row opens on its snapshot and, when
+// Frigate gave one, its link.
+func TestBrowserActivityFilters(t *testing.T) {
+	photo, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "assets", "sample.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	entries := []notifier.HistoryEntry{
+		{ID: "a1", At: now.Add(-10 * time.Minute), Camera: "garage", Label: "person", Sent: true, Link: "http://frigate.example/explore?event_id=a1", Snapshot: "/api/events/a1/snapshot.jpg"},
+		{ID: "a2", At: now.Add(-20 * time.Minute), Camera: "entree", Label: "car", Reason: "label"},
+		{ID: "a3", At: now.Add(-5*time.Hour - 30*time.Minute), Camera: "garage", Label: "dog", Sent: true},
+	}
+	media := fakeMedia{files: map[string][]byte{"/api/events/a1/snapshot.jpg": photo}}
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}}, WithHistory(fakeHistory{entries: entries}, media))
+
+	ids := `[...document.querySelectorAll("#activity li[data-id]")].map(e => e.dataset.id).join(",")`
+	// The bar of the hour that began six hours ago covers (now-6h, now-5h].
+	hour := now.Add(-6 * time.Hour).Unix()
+	var all, garage, sent, hourRows, none, hash, foot, banner, empty, expanded, noLink string
+	var banners int
+	var link struct{ Href, Target, Rel string }
+	var width int
+	ctx, jsErrors := browser(t)
+	err = chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inEnglish(ts.URL+"/#activity"),
+		chromedp.WaitVisible(`#activity li[data-id="a1"]`),
+		into(chromedp.Evaluate[string](ids), &all),
+		chromedp.SetValue(`#activity-camera`, "garage"),
+		chromedp.Poll[chromedp.Void](ids+` == "a1,a3"`),
+		into(chromedp.Evaluate[string](ids), &garage),
+		chromedp.SetValue(`#activity-camera`, ""),
+		chromedp.Click(byText(`//*[@id="activity-outcome"]`, "Ignored")),
+		chromedp.Poll[chromedp.Void](ids+` == "a2"`),
+		chromedp.Click(byText(`//*[@id="activity-outcome"]`, "Sent")),
+		chromedp.Poll[chromedp.Void](ids+` == "a1,a3"`),
+		into(chromedp.Evaluate[string](ids), &sent),
+		into(chromedp.Text(`#activity-foot`), &foot),
+		// A row is a button: it opens on the snapshot and the link.
+		into(chromedp.Evaluate[string](`document.querySelector('#activity li[data-id="a1"] button[aria-expanded]').getAttribute("aria-expanded")`), &expanded),
+		chromedp.Click(`#activity li[data-id="a1"] button[aria-expanded]`),
+		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector('#activity li[data-id="a1"] img.big'); return !!i && i.complete && i.naturalWidth > 0 && i.src.endsWith("/api/history/a1/snapshot") })()`),
+		into(chromedp.Evaluate[struct{ Href, Target, Rel string }](`(() => { const a = document.querySelector('#activity li[data-id="a1"] a[href*="event_id=a1"]'); return { Href: a.href, Target: a.target, Rel: a.rel } })()`), &link),
+		chromedp.Click(`#activity li[data-id="a3"] button[aria-expanded]`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('#activity li[data-id="a3"] button[aria-expanded]').getAttribute("aria-expanded") == "true"`),
+		into(chromedp.Evaluate[string](`String(document.querySelectorAll('#activity li[data-id="a3"] a[target=_blank]').length)`), &noLink),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+		// An hour from the address.
+		chromedp.Click(byText(`//*[@id="activity-outcome"]`, "All")),
+		chromedp.Evaluate[chromedp.Void](`location.hash = "#activity/`+strconv.FormatInt(hour, 10)+`"; 0`),
+		chromedp.WaitVisible(`#activity-hour`),
+		chromedp.Poll[chromedp.Void](ids+` == "a3"`),
+		into(chromedp.Evaluate[string](ids), &hourRows),
+		into(chromedp.Text(`#activity-hour`), &banner),
+		chromedp.Evaluate[chromedp.Void](`location.hash = "#activity/`+strconv.FormatInt(now.Add(-12*time.Hour).Unix(), 10)+`"; 0`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("No detection in this hour.")`),
+		into(chromedp.Evaluate[string](ids), &none),
+		into(chromedp.Text(`#activity-list`), &empty),
+		chromedp.Click(`#activity-hour button`),
+		chromedp.Poll[chromedp.Void](ids+` == "a1,a2,a3"`),
+		into(chromedp.Evaluate[string](`location.hash`), &hash),
+		into(chromedp.Evaluate[int](`document.querySelectorAll("#activity-hour").length`), &banners),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all != "a1,a2,a3" || garage != "a1,a3" || sent != "a1,a3" || hourRows != "a3" || none != "" {
+		t.Errorf("rows: all %q, garage %q, sent %q, hour %q, empty hour %q", all, garage, sent, hourRows, none)
+	}
+	if !strings.Contains(foot, "Out of the last 2 detections: 2 sent, 0 ignored.") {
+		t.Errorf("foot = %q, want the count of the filtered list", foot)
+	}
+	if expanded != "false" || link.Target != "_blank" || link.Rel != "noopener" || !strings.HasPrefix(link.Href, "http://frigate.example/explore?event_id=a1") || noLink != "0" {
+		t.Errorf("expansion: collapsed aria-expanded %q, link %+v, links of the entry without one: %s", expanded, link, noLink)
+	}
+	if !strings.HasPrefix(banner, "Between ") || !strings.Contains(empty, "No detection in this hour.") {
+		t.Errorf("banner = %q, empty = %q", banner, empty)
+	}
+	if hash != "#activity" || banners != 0 {
+		t.Errorf("after Show all: hash %q, %d banners", hash, banners)
+	}
+	if width > 360 {
+		t.Errorf("the page is %d px wide on a 360 px screen", width)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+func abs(n int64) int64 {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // The page has no link to /classic, and the old address leads to the interface.

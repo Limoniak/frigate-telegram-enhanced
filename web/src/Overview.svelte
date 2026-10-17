@@ -5,7 +5,7 @@
   import { app, change, pause, resume } from "./lib/store.svelte.js";
   import { effective } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
-  import { untilText, whenText } from "./lib/time.js";
+  import { hourStart, timeText, untilText, whenText } from "./lib/time.js";
   import { routeHash } from "./lib/route.js";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
@@ -44,8 +44,14 @@
           <span id="sent-24h" class="text-6xl font-light tracking-tight tabular-nums">{app.activity.sent}</span>
           {#if app.history?.length}<a class="pb-2 text-[var(--muted)]" href="#activity">{Tf("%d ignored among the last %d detections", ignored, app.history.length)}</a>{/if}
         </div>
-        <div class="flex h-16 items-end gap-[3px]" aria-hidden="true">
-          {#each hours as n, i (i)}<span class="flex-1 rounded-[2px] {i === 23 ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/25'}" style="height:{Math.max(4, (n / peak) * 100)}%"></span>{/each}
+        <div class="flex h-16 items-end gap-[3px]">
+          {#each hours as n, i (i)}
+            {@const start = hourStart(app.activity.at, i)}
+            <a class="flex h-full flex-1 items-end" href={routeHash({ screen: "activity", hour: start })}
+              aria-label={Tf("%d sent between %s and %s", n, timeText(start * 1000, ctx), timeText((start + 3600) * 1000, ctx))}>
+              <span class="block w-full rounded-[2px] {i === 23 ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/25'}" style="height:{Math.max(4, (n / peak) * 100)}%"></span>
+            </a>
+          {/each}
         </div>
         <div class="flex justify-between font-mono text-[11px] text-[var(--faint)]"><span>−24 h</span><span>{T("now")}</span></div>
       {/if}

@@ -1,7 +1,7 @@
 <script>
   // The notification style: pick a model and its options, and see the notification
   // change on the phone next to them, before sending a sample.
-  import { T, i18n } from "./lib/i18n.svelte.js";
+  import { T, Tf, i18n } from "./lib/i18n.svelte.js";
   import { app, change, sendTest } from "./lib/store.svelte.js";
   import { STYLES, cameraOverrides, effective, seconds, styleOf } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
@@ -33,6 +33,10 @@
   let pick = $state("");
   // The camera of the sample: the one picked while it is still enabled, else the first.
   const chosen = $derived(cams.includes(pick) ? pick : cams[0]);
+  // The camera's own image; when it does not load (or there is no camera), the sample.
+  const liveUrl = $derived(chosen ? "api/cameras/" + encodeURIComponent(chosen) + "/latest.jpg" : "");
+  let bad = $state(""); // the address that failed to load
+  const live = $derived(liveUrl && bad !== liveUrl ? liveUrl : "");
   let sending = $state(false);
   let result = $state({ state: "", text: "" });
 
@@ -100,6 +104,7 @@
   </div>
   <div id="live-preview" class="flex flex-col items-center gap-3 lg:sticky lg:top-24 lg:col-span-5 lg:self-start">
     <span class="lbl">{T("Live preview")}</span>
-    <Phone {model} entry={sample} />
+    <Phone {model} entry={sample} image={live} onerror={() => { bad = liveUrl; }} />
+    {#if live}<span class="text-[12px] text-[var(--muted)]">{Tf("Latest image of %s", chosen)}</span>{/if}
   </div>
 </section>

@@ -118,7 +118,7 @@ export async function refreshHistory() {
   const v = await getJSON("api/history").catch(() => null);
   if (!v) return;
   app.history = v.entries || [];
-  app.activity = v.sent_hours ? { sent: v.sent_24h, hours: v.sent_hours } : null;
+  app.activity = v.sent_hours ? { sent: v.sent_24h, hours: v.sent_hours, at: Date.now() } : null;
 }
 
 // resetSettings goes back to config.yml (drops the saved settings), then reloads.
