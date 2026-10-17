@@ -36,7 +36,7 @@ go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
 La CI lance les mêmes vérifications sur chaque pull request.
 
-La nouvelle interface, les pages d'installation et de connexion sont construites à partir de
+L'interface web (pages d'installation, de connexion et principale) est construite à partir de
 `web/` (Svelte et Tailwind). `go build` et `go test` n'ont pas besoin de Node : le résultat
 du build, `internal/web/dist/`, est versionné. Après une modification dans `web/` :
 
@@ -49,7 +49,7 @@ npm run dev        # rechargement à chaud, avec l'API d'un service sur le port 
 ```
 
 `npm run dev` sert la page d'installation sur <http://localhost:5173/setup.html> et la
-nouvelle interface sur <http://localhost:5173/app.html>.
+l'interface sur <http://localhost:5173/app.html>.
 
 La CI échoue quand `internal/web/dist/` ne correspond pas à `web/`. Les pull requests npm
 de Dependabot ne reconstruisent pas `dist/` : quand la vérification échoue sur l'une
@@ -59,7 +59,7 @@ Conventions :
 
 - **Anglais** dans le code, les commentaires, les tests et les messages de commit. Les
   textes montrés aux utilisateurs passent par les catalogues : `T("…")` en Go et en
-  JavaScript, `data-t="…"` en HTML. Chaque catalogue doit traduire chaque texte :
+  JavaScript. Chaque catalogue doit traduire chaque texte :
   `go test ./internal/i18n/` indique ceux qui manquent (dans le doute, laissez le texte
   anglais et signalez-le dans la pull request).
 - Les messages de commit suivent [Conventional Commits](https://www.conventionalcommits.org/fr/) :
@@ -67,8 +67,7 @@ Conventions :
   (`feat!:`).
 - Un changement visible par les utilisateurs a sa ligne sous *Unreleased* dans
   [CHANGELOG.md](CHANGELOG.md) (en anglais).
-- Un nouveau comportement arrive avec ses tests. Toute l'interface web est dans `web/` (Svelte
-  et Tailwind) et compilée dans `internal/web/dist/`, qui est versionné.
+- Un nouveau comportement arrive avec ses tests.
 
 ## Pull requests
 
