@@ -478,7 +478,7 @@
 
   <div class="flex flex-col gap-2" id="checks" hidden={failed.length === 0}>
     {#each failed as c (c.name)}
-      <div class="notice err"><b>{c.name} — </b>{c.detail}{#if c.hint}<div class="text-[var(--muted)]">{c.hint}</div>{/if}</div>
+      <div class="notice err"><b>{c.name} —</b> {c.detail}{#if c.hint}<div class="text-[var(--muted)]">{c.hint}</div>{/if}</div>
     {/each}
     <div><button type="button" class="btn-link" onclick={() => save(true)}>{T("Save anyway")}</button></div>
   </div>

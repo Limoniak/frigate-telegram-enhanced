@@ -48,7 +48,7 @@ npm run build      # met à jour internal/web/dist/, à committer avec votre cha
 npm run dev        # rechargement à chaud, avec l'API d'un service sur le port 8431
 ```
 
-`npm run dev` sert la page d'installation sur <http://localhost:5173/setup.html> et la
+`npm run dev` sert la page d'installation sur <http://localhost:5173/setup.html> et
 l'interface sur <http://localhost:5173/app.html>.
 
 La CI échoue quand `internal/web/dist/` ne correspond pas à `web/`. Les pull requests npm
@@ -59,9 +59,9 @@ Conventions :
 
 - **Anglais** dans le code, les commentaires, les tests et les messages de commit. Les
   textes montrés aux utilisateurs passent par les catalogues : `T("…")` en Go et en
-  JavaScript. Chaque catalogue doit traduire chaque texte :
-  `go test ./internal/i18n/` indique ceux qui manquent (dans le doute, laissez le texte
-  anglais et signalez-le dans la pull request).
+  JavaScript. Chaque catalogue doit traduire chaque texte : `go test ./internal/i18n/`
+  indique ceux qui manquent (dans le doute, laissez le texte anglais et signalez-le
+  dans la pull request).
 - Les messages de commit suivent [Conventional Commits](https://www.conventionalcommits.org/fr/) :
   `feat:`, `fix:`, `docs:`, `test:`, `chore:`… et `!` pour un changement cassant
   (`feat!:`).

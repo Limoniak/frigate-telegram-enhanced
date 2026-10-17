@@ -57,9 +57,9 @@ requests do not rebuild `dist/`: when the check fails on one, a maintainer runs
 Conventions:
 
 - **English** in the code, comments, tests and commit messages. Texts shown to users go
-  through the catalogs: `T("…")` in Go and JavaScript. Every
-  catalog must translate every text: `go test ./internal/i18n/` tells which ones are
-  missing (in doubt, leave the English text and say so in the pull request).
+  through the catalogs: `T("…")` in Go and JavaScript. Every catalog must translate
+  every text: `go test ./internal/i18n/` tells which ones are missing (in doubt, leave
+  the English text and say so in the pull request).
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
   `feat:`, `fix:`, `docs:`, `test:`, `chore:`… and `!` for a breaking change
   (`feat!:`).
