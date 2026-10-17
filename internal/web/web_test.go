@@ -243,9 +243,35 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 	}
 }
 
-func TestPageIsServed(t *testing.T) {
+// The new interface is at /: its page loads its script, its sheet and the catalogs, and
+// every file it references is served.
+func TestNewInterfaceServed(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	resp := do(t, ts, "GET", "/", "")
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
+		t.Fatalf("status = %d, type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	page, _ := io.ReadAll(resp.Body)
+	for _, ref := range []string{`src="i18n.js"`, `src="./app.js"`} {
+		if !strings.Contains(string(page), ref) {
+			t.Errorf("the page does not load %s", ref)
+		}
+	}
+	refs := regexp.MustCompile(`(?:src|href)="(?:\./)?([a-z0-9][^":]*)"`).FindAllStringSubmatch(string(page), -1)
+	if len(refs) < 3 {
+		t.Fatalf("the page references too few files: %.400s", page)
+	}
+	for _, ref := range refs {
+		if resp := do(t, ts, "GET", "/"+ref[1], ""); resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: %d", ref[1], resp.StatusCode)
+		}
+	}
+}
+
+// The classic interface stays at /classic until its screens move to the new one.
+func TestPageIsServed(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{})
+	resp := do(t, ts, "GET", "/classic", "")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}

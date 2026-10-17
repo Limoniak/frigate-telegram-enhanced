@@ -222,7 +222,11 @@ func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.WrapBa
 // configuration sets one. /healthz and /metrics stay outside: the container probe
 // and the Prometheus scrape do not authenticate (see web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
-	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
+	// The new interface; the classic one stays at /classic for the screens not moved yet.
+	mux.Handle("GET /{$}", h.guard(distAsset("app.html", "text/html; charset=utf-8")))
+	mux.Handle("GET /app.js", h.guard(distAsset("app.js", "text/javascript; charset=utf-8")))
+	mux.Handle("GET /app.css", h.guard(distAsset("app.css", "text/css; charset=utf-8")))
+	mux.Handle("GET /classic", h.guard(asset("ui.html", "text/html; charset=utf-8")))
 	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
 	// The login page's sheet and the fonts hold nothing private: needed before the password.
 	mux.Handle("GET /login.css", distAsset("login.css", "text/css; charset=utf-8"))

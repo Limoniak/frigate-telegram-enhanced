@@ -96,6 +96,7 @@ func (s *Setup) MountAlone(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", guard(http.RedirectHandler("setup", http.StatusFound)))
 	mux.Handle("GET /assets/", guard(staticAssets()))
 	mux.Handle("GET /i18n.js", guard(serve(i18nScript, "text/javascript; charset=utf-8")))
+	mux.Handle("GET /app.css", guard(distAsset("app.css", "text/css; charset=utf-8")))
 	s.mount(mux, guard)
 }
 
@@ -105,7 +106,6 @@ const setupHostRefused = "open this page with the server's IP address (for examp
 func (s *Setup) mount(mux *http.ServeMux, guard func(http.Handler) http.Handler) {
 	mux.Handle("GET /setup", guard(distAsset("setup.html", "text/html; charset=utf-8")))
 	mux.Handle("GET /setup.js", guard(distAsset("setup.js", "text/javascript; charset=utf-8")))
-	mux.Handle("GET /setup.css", guard(distAsset("setup.css", "text/css; charset=utf-8")))
 	mux.Handle("GET /api/connection", guard(http.HandlerFunc(s.get)))
 	mux.Handle("POST /api/connection/telegram", guard(sameOrigin(http.HandlerFunc(s.telegram))))
 	mux.Handle("POST /api/connection/frigate", guard(sameOrigin(http.HandlerFunc(s.frigate))))

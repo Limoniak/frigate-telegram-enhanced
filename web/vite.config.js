@@ -18,12 +18,15 @@ export default defineConfig({
     outDir: here("../internal/web/dist"),
     emptyOutDir: true,
     rollupOptions: {
-      input: { login: here("src/login.css"), setup: here("src/setup.html") },
+      input: { login: here("src/login.css"), setup: here("src/setup.html"), app: here("src/app.html") },
       output: {
         entryFileNames: "[name].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: (info) =>
-          (info.names ?? []).some((n) => n.endsWith(".css")) ? "[name][extname]" : "assets/[name]-[hash][extname]",
+          // login.css is its own entry; the sheet shared by the setup page and the main
+          // interface has a fixed name too, whatever chunk it is taken from.
+          (info.names ?? []).includes("login.css") ? "login.css"
+            : (info.names ?? []).some((n) => n.endsWith(".css")) ? "app.css" : "assets/[name]-[hash][extname]",
       },
     },
   },
