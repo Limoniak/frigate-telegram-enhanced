@@ -1,5 +1,6 @@
 // The detailed settings, described once and shown twice (global and per camera), plus the
 // checks and summaries around them. T and Tf are passed in so the module stays pure.
+import { labelText } from "./labels.js";
 import { effective, styleOf } from "./settings.js";
 import { untilText } from "./time.js";
 
@@ -164,7 +165,7 @@ export function cameraSummary(data, overlay, live, name, ctx) {
   const bits = [style === "clip" ? T("Photo + video") : style === "photo" ? T("Photo only")
     : style === "gif" ? T("Photo + GIF") : style === "text" ? T("Text only") : T("custom style")];
   const labels = eff.labels || [];
-  bits.push(labels.length ? labels.join(", ") : T("all objects"));
+  bits.push(labels.length ? labels.map((l) => labelText(l, false, T)).join(", ") : T("all objects"));
   if ((eff.zones || []).length) bits.push("📍 " + eff.zones.join(", "));
   if (!n) bits.push(T("default"));
   if (untracked(data, overlay, name).length) bits.unshift(T("⚠️ object not tracked by Frigate"));

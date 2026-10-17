@@ -51,9 +51,13 @@ func TestScreenshots(t *testing.T) {
 	ago := func(m int) time.Time { return now.Add(-time.Duration(m) * time.Minute) }
 	media := fakeMedia{}
 	entry := func(id string, m int, camera, label string, zones []string, score float64, sent bool, reason string) notifier.HistoryEntry {
-		media["/api/events/"+id+"/thumbnail.jpg"] = photo
-		return notifier.HistoryEntry{ID: id, At: ago(m), Camera: camera, Label: label, Zones: zones, Score: score, Sent: sent,
-			Reason: reason, Thumb: "/api/events/" + id + "/thumbnail.jpg"}
+		e := notifier.HistoryEntry{ID: id, At: ago(m), Camera: camera, Label: label, Zones: zones, Score: score, Sent: sent,
+			Reason: reason}
+		if label == "person" { // the others show the emoji of their label
+			media["/api/events/"+id+"/thumbnail.jpg"] = photo
+			e.Thumb = "/api/events/" + id + "/thumbnail.jpg"
+		}
+		return e
 	}
 	grouped := func(e notifier.HistoryEntry) notifier.HistoryEntry { e.Grouped = true; return e }
 	history := fakeHistory{entries: []notifier.HistoryEntry{
@@ -124,7 +128,7 @@ func TestScreenshots(t *testing.T) {
 			shot(lang+"-phone.png", 390, 900, "#style", `#live-preview img`, "dark"),
 			shot(lang+"-light.png", 1280, 790, "#style", `#live-preview img`, "light"),
 			shot(lang+"-cameras.png", 900, 760, "#cameras/garage", `[data-camera="garage"][open]`, "dark"),
-			shot(lang+"-activity.png", 1000, 900, "#activity", `#activity li img`, "dark"),
+			shot(lang+"-activity.png", 1000, 900, "#activity", `#activity li`, "dark"),
 		)
 		if err != nil {
 			t.Fatal(err)

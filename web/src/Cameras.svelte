@@ -5,6 +5,7 @@
   import { T, Tf, i18n } from "./lib/i18n.svelte.js";
   import { app, change, edit, sendTest } from "./lib/store.svelte.js";
   import { GROUPS, cameraSummary, fieldsFor, unionOf, untracked } from "./lib/fields.js";
+  import { labelText } from "./lib/labels.js";
   import { QUESTIONS } from "./lib/questions.js";
   import { STYLES, effective, same } from "./lib/settings.js";
   import Field from "./lib/Field.svelte";
@@ -95,7 +96,7 @@
           {#snippet what()}
             <Pills label={objects.title} options={objects.options} camera={name} />
             {#if missing.length}
-              <p class="m-0 text-[12px] text-[var(--warn)]">{Tf("⚠️ Frigate doesn't track %s on this camera: these objects will never be reported. Add them to objects.track in Frigate's configuration.", missing.map((l) => Tf("“%s”", l)).join(", "))}</p>
+              <p class="m-0 text-[12px] text-[var(--warn)]">{Tf("⚠️ Frigate doesn't track %s on this camera: these objects will never be reported. Add them to objects.track in Frigate's configuration.", missing.map((l) => Tf("“%s”", labelText(l, false, T))).join(", "))}</p>
             {/if}
           {/snippet}
           {@render question(T("What should be reported?"), null, what)}
