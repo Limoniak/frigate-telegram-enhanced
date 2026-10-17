@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -569,6 +570,30 @@ func TestHistoryAndThumbnails(t *testing.T) {
 		if resp := do(t, ts, "GET", "/api/history/"+id+"/thumb", ""); resp.StatusCode != http.StatusNotFound {
 			t.Errorf("thumbnail of %s: status = %d, want 404", id, resp.StatusCode)
 		}
+	}
+}
+
+type fakeActivity []time.Time
+
+func (f fakeActivity) SentTimes() []time.Time { return f }
+
+// The history also gives the notifications sent over 24 h, hour by hour, the current
+// hour last.
+func TestHistoryGivesSentHours(t *testing.T) {
+	now := time.Date(2026, 10, 17, 21, 30, 0, 0, time.UTC)
+	act := fakeActivity{now.Add(-23*time.Hour - 50*time.Minute), now.Add(-90 * time.Minute), now.Add(-10 * time.Minute), now}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(fakeHistory{}, nil), WithActivity(act), WithClock(func() time.Time { return now }))
+	var v struct {
+		Sent  int   `json:"sent_24h"`
+		Hours []int `json:"sent_hours"`
+	}
+	if err := json.NewDecoder(do(t, ts, "GET", "/api/history", "").Body).Decode(&v); err != nil {
+		t.Fatal(err)
+	}
+	want := make([]int, 24)
+	want[0], want[22], want[23] = 1, 1, 2
+	if v.Sent != 4 || !slices.Equal(v.Hours, want) {
+		t.Errorf("sent %d, hours %v; want 4, %v", v.Sent, v.Hours, want)
 	}
 }
 

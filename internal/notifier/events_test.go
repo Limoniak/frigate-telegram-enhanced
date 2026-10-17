@@ -276,6 +276,21 @@ func TestCount24hExpires(t *testing.T) {
 	}
 }
 
+// SentTimes gives the sending times of the last 24 h, oldest first.
+func TestSentTimesKeepsTheLastDay(t *testing.T) {
+	h := newHarness(t, "events")
+	now := h.clock.Now()
+	h.n.mu.Lock()
+	h.n.recordSent(now.Add(-25 * time.Hour))
+	h.n.recordSent(now.Add(-2 * time.Hour))
+	h.n.recordSent(now)
+	h.n.mu.Unlock()
+	got := h.n.SentTimes()
+	if len(got) != 2 || !got[0].Equal(now.Add(-2*time.Hour)) || !got[1].Equal(now) {
+		t.Errorf("SentTimes = %v", got)
+	}
+}
+
 func TestTopicsDependOnMode(t *testing.T) {
 	if got := newHarness(t, "events").n.Topics(); got[0] != "frigate/events" || got[1] != "frigate/tracked_object_update" {
 		t.Errorf("topics = %v", got)
