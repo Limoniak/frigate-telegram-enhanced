@@ -6,6 +6,7 @@
   import { app, flush, leave, load, startPolling } from "./lib/store.svelte.js";
   import { api } from "./lib/api.js";
   import LangMenu from "./lib/LangMenu.svelte";
+  import ThemeMenu from "./lib/ThemeMenu.svelte";
   import Overview from "./Overview.svelte";
   import Style from "./Style.svelte";
   import When from "./When.svelte";
@@ -66,6 +67,7 @@
       <a href="#{id}" class="whitespace-nowrap rounded-full px-3 py-1.5 no-underline {current === id ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}" aria-current={current === id ? "page" : undefined}>{label}</a>
     {/each}
     <LangMenu />
+    <ThemeMenu />
   </nav>
   <p id="save-status" class="result m-0 mt-2 text-center {app.status.kind === 'saved' ? 'ok' : ''}" role="status" hidden={!app.status.text}>{app.status.text}</p>
 </header>
@@ -79,7 +81,7 @@
     {:else if current === "when"}<When />
     {:else if current === "recipients"}<Recipients />
     {:else if current === "cameras"}<Cameras {route} />
-    {:else if current === "activity"}<Activity />
+    {:else if current === "activity"}<Activity {route} />
     {:else if current === "advanced"}<Advanced />
     {:else}<Overview />{/if}
   {/if}

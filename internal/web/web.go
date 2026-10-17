@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -102,6 +103,7 @@ type State interface {
 type History interface {
 	History() []notifier.HistoryEntry
 	HistoryThumb(id string) (string, bool)
+	HistorySnapshot(id string) (string, bool)
 }
 
 // Activity gives the times of the notifications sent over the last 24 h.
@@ -116,6 +118,13 @@ type Media interface {
 
 // maxThumb bounds the size of a thumbnail relayed from Frigate.
 const maxThumb = 1 << 20
+
+// maxLatest bounds the size of a snapshot or a camera image relayed from Frigate.
+const maxLatest = 2 << 20
+
+// cameraName is what a camera name may contain to be relayed: nothing that could
+// change the path asked of Frigate.
+var cameraName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // State of a connection, as the interface shows it.
 const (
@@ -246,6 +255,8 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /api/history", h.guard(http.HandlerFunc(h.getHistory)))
 	mux.Handle("GET /api/health", h.guard(http.HandlerFunc(h.getHealth)))
 	mux.Handle("GET /api/history/{id}/thumb", h.guard(http.HandlerFunc(h.thumb)))
+	mux.Handle("GET /api/history/{id}/snapshot", h.guard(http.HandlerFunc(h.snapshot)))
+	mux.Handle("GET /api/cameras/{name}/latest.jpg", h.guard(http.HandlerFunc(h.cameraLatest)))
 	if h.setup != nil {
 		h.setup.mount(mux, h.guard)
 	}
@@ -621,6 +632,9 @@ func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
 
 type historyView struct {
 	Entries []historyEntryView `json:"entries"`
+	// Now is the server's clock, the end of the last hour of SentHours: the interface
+	// takes its hour windows from it, not from the browser's clock.
+	Now time.Time `json:"now"`
 	// Sent24h and SentHours: the notifications sent over 24 h, and per hour, the
 	// current hour last. Absent without an activity source.
 	Sent24h   *int  `json:"sent_24h,omitempty"`
@@ -629,7 +643,8 @@ type historyView struct {
 
 type historyEntryView struct {
 	notifier.HistoryEntry
-	HasThumb bool `json:"has_thumb"`
+	HasThumb    bool `json:"has_thumb"`
+	HasSnapshot bool `json:"has_snapshot"`
 }
 
 func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
@@ -637,15 +652,16 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable"))
 		return
 	}
-	v := historyView{Entries: []historyEntryView{}}
+	now := h.now() // one instant: Now is the end of the last bar of SentHours
+	v := historyView{Entries: []historyEntryView{}, Now: now}
 	for _, e := range h.history.History() {
-		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != ""})
+		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != "", HasSnapshot: h.media != nil && e.Snapshot != ""})
 	}
 	if h.activity != nil {
 		times := h.activity.SentTimes()
 		n := len(times)
 		v.Sent24h = &n
-		v.SentHours = sentHours(times, h.now())
+		v.SentHours = sentHours(times, now)
 	}
 	writeJSON(w, http.StatusOK, v)
 }
@@ -665,24 +681,52 @@ func sentHours(times []time.Time, now time.Time) []int {
 }
 
 func (h *Handler) thumb(w http.ResponseWriter, r *http.Request) {
+	h.historyImage(w, r, func(id string) (string, bool) { return h.history.HistoryThumb(id) }, maxThumb, "thumbnail unavailable")
+}
+
+func (h *Handler) snapshot(w http.ResponseWriter, r *http.Request) {
+	h.historyImage(w, r, func(id string) (string, bool) { return h.history.HistorySnapshot(id) }, maxLatest, "image unavailable")
+}
+
+// historyImage relays the image of a history entry, whose Frigate path is found by path.
+func (h *Handler) historyImage(w http.ResponseWriter, r *http.Request, path func(id string) (string, bool), max int64, failure string) {
 	if h.history == nil || h.media == nil {
 		http.NotFound(w, r)
 		return
 	}
-	path, ok := h.history.HistoryThumb(r.PathValue("id"))
+	p, ok := path(r.PathValue("id"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	img, err := h.media.GetBytes(ctx, path, maxThumb)
+	img, err := h.media.GetBytes(ctx, p, max)
 	if err != nil {
-		http.Error(w, h.lang(r).T("thumbnail unavailable"), http.StatusBadGateway)
+		http.Error(w, h.lang(r).T(failure), http.StatusBadGateway)
 		return
 	}
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.Write(img)
+}
+
+// cameraLatest relays the latest image of a camera.
+func (h *Handler) cameraLatest(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if h.media == nil || !cameraName.MatchString(name) {
+		http.NotFound(w, r)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	img, err := h.media.GetBytes(ctx, frigate.LatestPath(name)+"?h=360", maxLatest)
+	if err != nil {
+		http.Error(w, h.lang(r).T("image unavailable"), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "no-store")
 	w.Write(img)
 }
 

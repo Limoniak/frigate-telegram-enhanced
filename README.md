@@ -60,7 +60,7 @@ the camera to adjust.
   <img src="docs/images/en-activity.png" width="700" alt="Recent activity: detections sent, grouped or ignored, with the reason and a thumbnail">
 </p>
 
-**On a phone, in a light or dark theme.** The page adapts to the screen and follows the system theme (dark by default, light on the right).
+**On a phone, in a light or dark theme.** The page adapts to the screen and follows the system theme (dark by default, light on the right); the theme menu in the header forces Light or Dark, or goes back to Auto, and is remembered (the setup and login pages follow it).
 
 <p align="center">
   <img src="docs/images/en-phone.png" width="260" alt="The Style screen on a phone">
@@ -186,7 +186,8 @@ page opens one screen per topic:
   pause for 30 min, 1 h, 8 h or until resumed; who is home; the cameras muted, to turn
   back on; the last notification as it arrived.
 - **Style**: photo + video, photo only, photo + GIF or text only, each with a live preview
-  of the message as it will arrive in Telegram. Below: bursts (one message per detection,
+  of the message as it will arrive in Telegram, on the latest image of the camera chosen for
+  the sample (the sample photo when Frigate gives none). Below: bursts (one message per detection,
   or detections within 2 or 5 minutes added to the first message, edited so no extra
   sound), framing (wide shot or zoom on the object) and video (in the same message as the
   image, or as a reply).
@@ -205,7 +206,9 @@ page opens one screen per topic:
 - **Recent activity** (when the history is available): the last 50 detections with their
   thumbnail and outcome — ✅ sent, or ⛔ ignored with the reason in plain words (outside the
   zones, score too low, already reported a moment ago…) and a link to adjust the camera.
-  The last 50 detections are kept across restarts.
+  Filter by camera, outcome or hour; a line opens on the snapshot and an *Open in Frigate*
+  link. The bars of the overview's 24 h chart lead to the notifications sent in that hour
+  (the same hours can be picked in a menu). The last 50 detections are kept across restarts.
 - **Advanced settings**: every global setting in detail, sorted by theme — recipients
   and filtering, media, pace, schedule and presence, links. The zones and objects offered
   come from Frigate's API. A camera's own settings are under *Cameras*, in *All settings

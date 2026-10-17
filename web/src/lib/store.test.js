@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SAVE_DELAY, app, change, edit, flush, leave, load, pause, resetSettings, sendTest } from "./store.svelte.js";
+import { SAVE_DELAY, app, change, edit, flush, leave, load, pause, refreshHistory, resetSettings, sendTest } from "./store.svelte.js";
 
 // fakeServer answers like the Go handler: settings, saves (recorded), test.
 function fakeServer({ refuse = false, refuseReset = false } = {}) {
@@ -35,6 +35,13 @@ afterEach(() => {
 });
 
 describe("store", () => {
+  it("the chart's clock is the server's, not the browser's", async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ entries: [], now: "2026-10-17T19:30:00Z", sent_24h: 1, sent_hours: new Array(24).fill(0) })));
+    vi.setSystemTime(new Date("2026-10-17T19:45:00Z")); // a browser clock 15 minutes ahead
+    await refreshHistory();
+    expect(app.activity.at).toBe(Date.parse("2026-10-17T19:30:00Z"));
+  });
+
   it("loads the settings, with an empty entry per camera", async () => {
     fakeServer();
     await load();

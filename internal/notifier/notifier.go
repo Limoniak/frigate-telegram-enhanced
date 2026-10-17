@@ -358,7 +358,7 @@ func (n *Notifier) sweep() {
 			// filtering metrics (finish will not see it).
 			if !t.notified && t.lastReason != "" {
 				n.Metrics.EventsFiltered.WithLabelValues(t.lastReason).Inc()
-				n.record(t, false)
+				n.record(t, time.Time{})
 			}
 			delete(n.tracked, id)
 		}
@@ -398,7 +398,7 @@ func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 	t.grouped = len(fresh) == 0
 	n.State.MarkNotified(filter.CooldownKey(t.camera, d.Label), now)
 	n.recordSent(now)
-	n.record(t, true)
+	n.record(t, now)
 	if len(grouped) > 0 {
 		n.Log.Info("notification grouped", "camera", t.camera, "label", d.Label, "event_id", t.id, "chats", grouped)
 		n.Metrics.NotificationsSent.WithLabelValues("grouped").Inc()
@@ -436,7 +436,7 @@ func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool, end flo
 	if !t.notified {
 		if t.lastReason != "" {
 			n.Metrics.EventsFiltered.WithLabelValues(t.lastReason).Inc()
-			n.record(t, false)
+			n.record(t, time.Time{})
 		}
 		delete(n.tracked, t.id)
 		return

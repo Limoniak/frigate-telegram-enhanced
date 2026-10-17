@@ -241,6 +241,8 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 		{name: "app sheet without password", method: "GET", path: "/app.css", want: http.StatusUnauthorized},
 		{name: "classic redirect without password", method: "GET", path: "/classic", want: http.StatusFound},
 		{name: "write without password", method: "PUT", path: "/api/settings", body: "{}", want: http.StatusUnauthorized},
+		{name: "camera image without password", method: "GET", path: "/api/cameras/garage/latest.jpg", want: http.StatusUnauthorized},
+		{name: "snapshot without password", method: "GET", path: "/api/history/a/snapshot", want: http.StatusUnauthorized},
 		{name: "right password", method: "GET", path: "/api/settings", auth: []string{"s3cret"}, want: http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -558,10 +560,26 @@ func (f fakeHistory) HistoryThumb(id string) (string, bool) {
 	return "", false
 }
 
-type fakeMedia map[string][]byte
+func (f fakeHistory) HistorySnapshot(id string) (string, bool) {
+	for _, e := range f.entries {
+		if e.ID == id && e.Snapshot != "" {
+			return e.Snapshot, true
+		}
+	}
+	return "", false
+}
+
+// fakeMedia gives the bytes by path and records the paths asked for.
+type fakeMedia struct {
+	files map[string][]byte
+	asked *[]string
+}
 
 func (f fakeMedia) GetBytes(_ context.Context, path string, _ int64) ([]byte, error) {
-	if b, ok := f[path]; ok {
+	if f.asked != nil {
+		*f.asked = append(*f.asked, path)
+	}
+	if b, ok := f.files[path]; ok {
 		return b, nil
 	}
 	return nil, errors.New("absent")
@@ -572,7 +590,7 @@ func TestHistoryAndThumbnails(t *testing.T) {
 		{ID: "b", Camera: "garage", Label: "dog", Reason: "label", Thumb: "/api/events/b/thumbnail.jpg"},
 		{ID: "a", Camera: "garage", Label: "person", Sent: true},
 	}}
-	media := fakeMedia{"/api/events/b/thumbnail.jpg": []byte("jpeg")}
+	media := fakeMedia{files: map[string][]byte{"/api/events/b/thumbnail.jpg": []byte("jpeg")}}
 	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(hist, media))
 
 	var v struct {
@@ -607,6 +625,78 @@ func TestHistoryAndThumbnails(t *testing.T) {
 	}
 }
 
+func TestHistorySnapshotAndLink(t *testing.T) {
+	hist := fakeHistory{entries: []notifier.HistoryEntry{
+		{ID: "a", Camera: "garage", Label: "person", Sent: true, Link: "https://frigate.example/explore?event_id=a", Snapshot: "/api/events/a/snapshot.jpg?bbox=1"},
+		{ID: "b", Camera: "garage", Label: "dog"},
+	}}
+	media := fakeMedia{files: map[string][]byte{"/api/events/a/snapshot.jpg?bbox=1": []byte("big")}}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(hist, media))
+
+	var v struct {
+		Entries []struct {
+			Link        string `json:"link"`
+			HasSnapshot bool   `json:"has_snapshot"`
+			Snapshot    string `json:"Snapshot"`
+		} `json:"entries"`
+	}
+	if err := json.NewDecoder(do(t, ts, "GET", "/api/history", "").Body).Decode(&v); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Entries) != 2 || !v.Entries[0].HasSnapshot || v.Entries[1].HasSnapshot || v.Entries[0].Link != hist.entries[0].Link || v.Entries[1].Link != "" {
+		t.Errorf("history = %+v", v.Entries)
+	}
+	if v.Entries[0].Snapshot != "" {
+		t.Error("the Frigate path must not be exposed")
+	}
+
+	resp := do(t, ts, "GET", "/api/history/a/snapshot", "")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || string(body) != "big" || resp.Header.Get("Content-Type") != "image/jpeg" {
+		t.Errorf("snapshot: %d %q", resp.StatusCode, body)
+	}
+	for _, id := range []string{"b", "inconnu"} {
+		if resp := do(t, ts, "GET", "/api/history/"+id+"/snapshot", ""); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("snapshot of %s: status = %d, want 404", id, resp.StatusCode)
+		}
+	}
+}
+
+func TestCameraLatest(t *testing.T) {
+	var asked []string
+	media := fakeMedia{files: map[string][]byte{"/api/garage/latest.jpg?h=360": []byte("live")}, asked: &asked}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(fakeHistory{}, media))
+
+	resp := do(t, ts, "GET", "/api/cameras/garage/latest.jpg", "")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || string(body) != "live" ||
+		resp.Header.Get("Content-Type") != "image/jpeg" || resp.Header.Get("Cache-Control") != "no-store" {
+		t.Errorf("latest: %d %q %v", resp.StatusCode, body, resp.Header)
+	}
+	if !slices.Equal(asked, []string{"/api/garage/latest.jpg?h=360"}) {
+		t.Errorf("asked %v", asked)
+	}
+
+	asked = nil
+	for _, name := range []string{"..", "a%2Fb", "a%20b"} {
+		if resp := do(t, ts, "GET", "/api/cameras/"+name+"/latest.jpg", ""); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%q: status = %d, want 404", name, resp.StatusCode)
+		}
+	}
+	if len(asked) != 0 {
+		t.Errorf("invalid names reached Frigate: %v", asked)
+	}
+
+	if resp := do(t, ts, "GET", "/api/cameras/entree/latest.jpg", ""); resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("Frigate failing: status = %d, want 502", resp.StatusCode)
+	}
+
+	_, _, bare := setup(t, "", fakeCameras{})
+	if resp := do(t, bare, "GET", "/api/cameras/garage/latest.jpg", ""); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("without media: status = %d, want 404", resp.StatusCode)
+	}
+}
+
 type fakeActivity []time.Time
 
 func (f fakeActivity) SentTimes() []time.Time { return f }
@@ -618,14 +708,18 @@ func TestHistoryGivesSentHours(t *testing.T) {
 	act := fakeActivity{now.Add(-23*time.Hour - 50*time.Minute), now.Add(-90 * time.Minute), now.Add(-10 * time.Minute), now}
 	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(fakeHistory{}, nil), WithActivity(act), WithClock(func() time.Time { return now }))
 	var v struct {
-		Sent  int   `json:"sent_24h"`
-		Hours []int `json:"sent_hours"`
+		Sent  int       `json:"sent_24h"`
+		Hours []int     `json:"sent_hours"`
+		Now   time.Time `json:"now"`
 	}
 	if err := json.NewDecoder(do(t, ts, "GET", "/api/history", "").Body).Decode(&v); err != nil {
 		t.Fatal(err)
 	}
 	want := make([]int, 24)
 	want[0], want[22], want[23] = 1, 1, 2
+	if !v.Now.Equal(now) {
+		t.Errorf("now = %v, want the server's clock %v (the bars' windows end then)", v.Now, now)
+	}
 	if v.Sent != 4 || !slices.Equal(v.Hours, want) {
 		t.Errorf("sent %d, hours %v; want 4, %v", v.Sent, v.Hours, want)
 	}

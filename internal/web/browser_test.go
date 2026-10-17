@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
 	"gopkg.in/yaml.v3"
@@ -51,7 +54,8 @@ func TestBrowserOverview(t *testing.T) {
 		WithHealth(health), WithState(st))
 
 	ctx, jsErrors := browser(t)
-	var sent, today, last, lastCamera, pause, heading string
+	var sent, today, last, lastCamera, pause, heading, barLabel, barHash string
+	var bars, width int
 	err = chromedp.Do(ctx,
 		inEnglish(ts.URL+"/"),
 		chromedp.WaitVisible(`#cameras-list`),
@@ -63,6 +67,17 @@ func TestBrowserOverview(t *testing.T) {
 		chromedp.WaitVisible(`#last-notification`),
 		into(chromedp.Text(`#last-notification`), &last),
 		into(chromedp.Evaluate[string](`document.querySelector("#last-notification").textContent.includes("entree") ? "entree" : "garage"`), &lastCamera),
+		// Each bar of the chart leads to the activity of its hour (on a phone too).
+		chromedp.EmulateViewport(360, 740),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('#today a[href^="#activity/"]').length`), &bars),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll('#today a[href^="#activity/"]')].at(-1).getAttribute("aria-label")`), &barLabel),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+		chromedp.Click(`#today a[href^="#activity/"]:last-of-type`),
+		chromedp.WaitVisible(`#activity`),
+		into(chromedp.Evaluate[string](`location.hash`), &barHash),
+		chromedp.EmulateViewport(1280, 900),
+		chromedp.Navigate(ts.URL+"/#overview"),
+		chromedp.WaitVisible(`#cameras-list`),
 		// Turning a camera off is saved by itself.
 		chromedp.Click(`#cameras-list [role=switch][aria-label="entree"]`),
 		chromedp.WaitVisible(`#save-status.ok`),
@@ -78,6 +93,15 @@ func TestBrowserOverview(t *testing.T) {
 	}
 	if sent != "3" {
 		t.Errorf("sent in 24 h = %q, want 3", sent)
+	}
+	if bars != 24 || !regexp.MustCompile(`^3 sent between \d\d:\d\d and \d\d:\d\d$`).MatchString(barLabel) {
+		t.Errorf("chart: %d bars, last = %q, want 24 links named \"3 sent between ...\"", bars, barLabel)
+	}
+	if n, err := strconv.ParseInt(strings.TrimPrefix(barHash, "#activity/"), 10, 64); err != nil || abs(n-now.Add(-time.Hour).Unix()) > 120 {
+		t.Errorf("the last bar leads to %q, want the hour that started an hour ago", barHash)
+	}
+	if width > 360 {
+		t.Errorf("the overview is %d px wide on a 360 px screen", width)
 	}
 	if !strings.Contains(today, "Everything works") {
 		t.Errorf("today = %q, want Everything works", today)
@@ -180,6 +204,49 @@ func TestBrowserLanguageAuto(t *testing.T) {
 	}
 	if back != first {
 		t.Errorf("back to Auto: %q, want %q as on arrival", back, first)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The theme follows the system until one is chosen in the menu (kept after a reload,
+// also by the login page; the theme menu is the second select of the header), and again once "Auto" is chosen back.
+func TestBrowserTheme(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	choose := func(v string) chromedp.Action[chromedp.Void] {
+		return chromedp.Evaluate[chromedp.Void](`{ const m = document.querySelectorAll("header select")[1]; m.value = "` + v + `"; m.dispatchEvent(new Event("change", { bubbles: true })); } 0`)
+	}
+	logIn := chromedp.Steps(
+		chromedp.WaitVisible(`.login-card input[type=password]`),
+		chromedp.SendKeys(`#password`, "s3cret"),
+		chromedp.Click(`.login-card button[type=submit]`),
+		chromedp.WaitVisible(`#cameras-list`),
+	)
+	const attr = `document.documentElement.getAttribute("data-theme") || "-"`
+	var first, light, reloaded, login, auto string
+	err := chromedp.Do(ctx,
+		chromedp.Navigate(ts.URL+"/"),
+		logIn,
+		into(chromedp.Evaluate[string](attr), &first),
+		choose("light"),
+		into(chromedp.Evaluate[string](attr), &light),
+		chromedp.Reload(),
+		chromedp.WaitVisible(`#logout`),
+		into(chromedp.Evaluate[string](attr), &reloaded),
+		chromedp.Click(`#logout`),
+		chromedp.WaitVisible(`.login-card`),
+		into(chromedp.Evaluate[string](attr), &login),
+		logIn,
+		choose("auto"),
+		into(chromedp.Evaluate[string](attr), &auto),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != "-" || light != "light" || reloaded != "light" || login != "light" || auto != "-" {
+		t.Errorf("data-theme: arrival %q, chosen %q, reloaded %q, login page %q, auto %q; want - light light light -", first, light, reloaded, login, auto)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -399,6 +466,57 @@ func TestBrowserStyle(t *testing.T) {
 	}
 	if len(tester.cameras) != 1 {
 		t.Errorf("samples sent: %v", tester.cameras)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The preview shows the camera's own image (no box, no zoom) with its caption, and
+// the sample photo when the image does not load.
+func TestBrowserStyleCameraImage(t *testing.T) {
+	photo, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "assets", "sample.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cams := fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}}
+	media := fakeMedia{files: map[string][]byte{"/api/garage/latest.jpg?h=360": photo, "/api/entree/latest.jpg?h=360": photo}}
+	_, _, ts := setup(t, "", cams, WithHistory(fakeHistory{}, media), WithTester(&fakeTester{}))
+	_, _, bare := setup(t, "", cams, WithTester(&fakeTester{}))
+
+	const state = `(() => { const i = document.querySelector("#live-preview img"); return { ok: !!i && i.complete && i.naturalWidth > 0, src: i ? i.currentSrc : "", box: !!document.querySelector("#live-preview .border-amber-300"), text: document.querySelector("#live-preview").textContent } })()`
+	type view struct {
+		OK   bool   `json:"ok"`
+		Src  string `json:"src"`
+		Box  bool   `json:"box"`
+		Text string `json:"text"`
+	}
+	ctx, jsErrors := browser(t)
+	var live, other, fallback view
+	err = chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#style"),
+		chromedp.WaitVisible(`#live-preview`),
+		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector("#live-preview img"); return !!i && i.complete && i.naturalWidth > 0 })()`),
+		into(chromedp.Evaluate[view](state), &live),
+		chromedp.SetValue(`#try select`, "entree"),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview img").currentSrc.includes("/entree/")`),
+		into(chromedp.Evaluate[view](state), &other),
+		inEnglish(bare.URL+"/#style"),
+		chromedp.WaitVisible(`#live-preview`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview .border-amber-300") !== null`),
+		into(chromedp.Evaluate[view](state), &fallback),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !live.OK || !strings.HasSuffix(live.Src, "/api/cameras/garage/latest.jpg") || live.Box || !strings.Contains(live.Text, "Latest image of garage") {
+		t.Errorf("with the camera image: %+v", live)
+	}
+	if !strings.Contains(other.Src, "/api/cameras/entree/latest.jpg") || !strings.Contains(other.Text, "Latest image of entree") {
+		t.Errorf("after choosing entree: %+v", other)
+	}
+	if !fallback.OK || !strings.Contains(fallback.Src, "/assets/") || !fallback.Box || strings.Contains(fallback.Text, "Latest image") {
+		t.Errorf("without the camera image: %+v", fallback)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -1411,6 +1529,103 @@ func TestBrowserActivity(t *testing.T) {
 	}
 }
 
+// The activity filters: camera, outcome and hour; a row opens on its snapshot and, when
+// Frigate gave one, its link.
+func TestBrowserActivityFilters(t *testing.T) {
+	photo, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "assets", "sample.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	entries := []notifier.HistoryEntry{
+		{ID: "a1", At: now.Add(-10 * time.Minute), Camera: "garage", Label: "person", Sent: true, Link: "http://frigate.example/explore?event_id=a1", Snapshot: "/api/events/a1/snapshot.jpg"},
+		{ID: "a2", At: now.Add(-20 * time.Minute), Camera: "entree", Label: "car", Reason: "label"},
+		{ID: "a3", At: now.Add(-5*time.Hour - 30*time.Minute), Camera: "garage", Label: "dog", Sent: true},
+	}
+	media := fakeMedia{files: map[string][]byte{"/api/events/a1/snapshot.jpg": photo}}
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}}, WithHistory(fakeHistory{entries: entries}, media))
+
+	ids := `[...document.querySelectorAll("#activity li[data-id]")].map(e => e.dataset.id).join(",")`
+	// The bar of the hour that began six hours ago covers (now-6h, now-5h].
+	hour := now.Add(-6 * time.Hour).Unix()
+	var all, garage, sent, hourRows, none, hash, foot, banner, empty, expanded, noLink string
+	var banners int
+	var link struct{ Href, Target, Rel string }
+	var width int
+	ctx, jsErrors := browser(t)
+	err = chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inEnglish(ts.URL+"/#activity"),
+		chromedp.WaitVisible(`#activity li[data-id="a1"]`),
+		into(chromedp.Evaluate[string](ids), &all),
+		chromedp.SetValue(`#activity-camera`, "garage"),
+		chromedp.Poll[chromedp.Void](ids+` == "a1,a3"`),
+		into(chromedp.Evaluate[string](ids), &garage),
+		chromedp.SetValue(`#activity-camera`, ""),
+		chromedp.Click(byText(`//*[@id="activity-outcome"]`, "Ignored")),
+		chromedp.Poll[chromedp.Void](ids+` == "a2"`),
+		chromedp.Click(byText(`//*[@id="activity-outcome"]`, "Sent")),
+		chromedp.Poll[chromedp.Void](ids+` == "a1,a3"`),
+		into(chromedp.Evaluate[string](ids), &sent),
+		into(chromedp.Text(`#activity-foot`), &foot),
+		// A row is a button: it opens on the snapshot and the link.
+		into(chromedp.Evaluate[string](`document.querySelector('#activity li[data-id="a1"] button[aria-expanded]').getAttribute("aria-expanded")`), &expanded),
+		chromedp.Click(`#activity li[data-id="a1"] button[aria-expanded]`),
+		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector('#activity li[data-id="a1"] img.big'); return !!i && i.complete && i.naturalWidth > 0 && i.src.endsWith("/api/history/a1/snapshot") })()`),
+		into(chromedp.Evaluate[struct{ Href, Target, Rel string }](`(() => { const a = document.querySelector('#activity li[data-id="a1"] a[href*="event_id=a1"]'); return { Href: a.href, Target: a.target, Rel: a.rel } })()`), &link),
+		chromedp.Click(`#activity li[data-id="a3"] button[aria-expanded]`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('#activity li[data-id="a3"] button[aria-expanded]').getAttribute("aria-expanded") == "true"`),
+		into(chromedp.Evaluate[string](`String(document.querySelectorAll('#activity li[data-id="a3"] a[target=_blank]').length)`), &noLink),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+		// An hour from the address.
+		chromedp.Click(byText(`//*[@id="activity-outcome"]`, "All")),
+		chromedp.Evaluate[chromedp.Void](`location.hash = "#activity/`+strconv.FormatInt(hour, 10)+`"; 0`),
+		chromedp.WaitVisible(`#activity-hour`),
+		chromedp.Poll[chromedp.Void](ids+` == "a3"`),
+		into(chromedp.Evaluate[string](ids), &hourRows),
+		into(chromedp.Text(`#activity-hour`), &banner),
+		chromedp.Evaluate[chromedp.Void](`location.hash = "#activity/`+strconv.FormatInt(now.Add(-12*time.Hour).Unix(), 10)+`"; 0`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("No detection in this hour.")`),
+		into(chromedp.Evaluate[string](ids), &none),
+		into(chromedp.Text(`#activity-list`), &empty),
+		chromedp.Click(`#activity-hour button`),
+		chromedp.Poll[chromedp.Void](ids+` == "a1,a2,a3"`),
+		into(chromedp.Evaluate[string](`location.hash`), &hash),
+		into(chromedp.Evaluate[int](`document.querySelectorAll("#activity-hour").length`), &banners),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all != "a1,a2,a3" || garage != "a1,a3" || sent != "a1,a3" || hourRows != "a3" || none != "" {
+		t.Errorf("rows: all %q, garage %q, sent %q, hour %q, empty hour %q", all, garage, sent, hourRows, none)
+	}
+	if !strings.Contains(foot, "Out of the last 2 detections: 2 sent, 0 ignored.") {
+		t.Errorf("foot = %q, want the count of the filtered list", foot)
+	}
+	if expanded != "false" || link.Target != "_blank" || link.Rel != "noopener" || !strings.HasPrefix(link.Href, "http://frigate.example/explore?event_id=a1") || noLink != "0" {
+		t.Errorf("expansion: collapsed aria-expanded %q, link %+v, links of the entry without one: %s", expanded, link, noLink)
+	}
+	if !strings.HasPrefix(banner, "Between ") || !strings.Contains(empty, "No detection in this hour.") {
+		t.Errorf("banner = %q, empty = %q", banner, empty)
+	}
+	if hash != "#activity" || banners != 0 {
+		t.Errorf("after Show all: hash %q, %d banners", hash, banners)
+	}
+	if width > 360 {
+		t.Errorf("the page is %d px wide on a 360 px screen", width)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+func abs(n int64) int64 {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
 // The page has no link to /classic, and the old address leads to the interface.
 func TestBrowserNoClassicLinks(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
@@ -1557,6 +1772,344 @@ func TestBrowserAdvancedNames(t *testing.T) {
 	}
 	if want := "Minimum score – car – Remove|Quiet hours 1 – Remove|Off hours 1 – Remove"; removes != want {
 		t.Errorf("Remove buttons are named %q, want %q", removes, want)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// inLang is inEnglish for another language of the menu.
+func inLang(url, lang string) chromedp.Action[chromedp.Void] {
+	return chromedp.Steps(
+		chromedp.Navigate(url),
+		chromedp.Evaluate[chromedp.Void](`localStorage.setItem("frigate-telegram-enhanced-lang", "`+lang+`"); 0`),
+		chromedp.Reload(),
+	)
+}
+
+// The activity's hours are the chart's: a notification counts at the time it was
+// sent, arriving from a bar lists what the bar counted (the sent ones first), and an
+// empty list says why. The same hours can be picked in a select, which a phone can use
+// where the bars are thin.
+func TestBrowserActivityHours(t *testing.T) {
+	now := time.Now()
+	entries := []notifier.HistoryEntry{
+		{ID: "recent", At: now.Add(-20 * time.Minute), SentAt: now.Add(-19 * time.Minute), Camera: "garage", Label: "person", Sent: true},
+		// Started before the hour that began six hours ago, sent in it: that bar counts it.
+		{ID: "late", At: now.Add(-6*time.Hour - 2*time.Minute), SentAt: now.Add(-5*time.Hour - 50*time.Minute), Camera: "garage", Label: "person", Sent: true},
+		{ID: "quiet", At: now.Add(-5*time.Hour - 40*time.Minute), Camera: "entree", Label: "car", Reason: "label"},
+		{ID: "alone", At: now.Add(-4*time.Hour - 30*time.Minute), Camera: "entree", Label: "dog", Reason: "label"},
+	}
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}},
+		WithHistory(fakeHistory{entries: entries}, nil), WithActivity(fakeActivity{now.Add(-19 * time.Minute), now.Add(-5*time.Hour - 50*time.Minute)}))
+
+	ids := `[...document.querySelectorAll("#activity li[data-id]")].map(e => e.dataset.id).join(",")`
+	at := func(h time.Duration) string {
+		return `location.hash = "#activity/` + strconv.FormatInt(now.Add(h).Unix(), 10) + `"; 0`
+	}
+	var fromBar, withIgnored, filtered, none, label string
+	var group struct{ Role, Label string }
+	var options []string
+	var picked struct{ Hash, Value string }
+	ctx, jsErrors := browser(t)
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#activity"),
+		chromedp.WaitVisible(`#activity li[data-id="recent"]`),
+		into(chromedp.Evaluate[struct{ Role, Label string }](`(() => { const g = document.querySelector("#activity-outcome"); return { Role: g.getAttribute("role"), Label: g.getAttribute("aria-label") } })()`), &group),
+		into(chromedp.Evaluate[[]string](`[...document.querySelectorAll("#activity-hour-pick option")].map(o => o.textContent.trim())`), &options),
+		// The select leads to the same address as a bar.
+		chromedp.Evaluate[chromedp.Void](`{ const s = document.querySelector("#activity-hour-pick"); s.value = s.options[1].value; s.dispatchEvent(new Event("change", { bubbles: true })); } 0`),
+		chromedp.Poll[chromedp.Void](ids+` == "recent"`),
+		into(chromedp.Evaluate[struct{ Hash, Value string }](`({ Hash: location.hash, Value: document.querySelector("#activity-hour-pick").value })`), &picked),
+		// A bar: the sent ones, then everything of the hour.
+		chromedp.Evaluate[chromedp.Void](at(-6*time.Hour)),
+		chromedp.Poll[chromedp.Void](ids+` == "late"`),
+		into(chromedp.Evaluate[string](ids), &fromBar),
+		chromedp.Click(byText(`//*[@id="activity-outcome"]`, "All")),
+		chromedp.Poll[chromedp.Void](ids+` == "late,quiet"`),
+		into(chromedp.Evaluate[string](ids), &withIgnored),
+		// An hour with only an ignored detection, seen as sent only.
+		chromedp.Evaluate[chromedp.Void](at(-5*time.Hour)),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("No detection matches these filters.")`),
+		into(chromedp.Evaluate[string](ids), &filtered),
+		chromedp.Evaluate[chromedp.Void](at(-12*time.Hour)),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("No detection in this hour.")`),
+		into(chromedp.Evaluate[string](ids), &none),
+		into(chromedp.Evaluate[string](`document.querySelector("#activity-hour-pick").getAttribute("aria-label")`), &label),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromBar != "late" || withIgnored != "late,quiet" || filtered != "" || none != "" {
+		t.Errorf("rows: from a bar %q, all outcomes %q, filtered %q, empty hour %q", fromBar, withIgnored, filtered, none)
+	}
+	if group.Role != "group" || group.Label != "Outcome" {
+		t.Errorf("outcome pills = %+v, want a group named Outcome", group)
+	}
+	if len(options) != 25 || options[0] != "All hours" || !regexp.MustCompile(`^\d\d:\d\d – \d\d:\d\d$`).MatchString(options[1]) || label != "Hour" {
+		t.Errorf("hour select: label %q, options %q", label, options)
+	}
+	if !regexp.MustCompile(`^#activity/\d+$`).MatchString(picked.Hash) || picked.Value != strings.TrimPrefix(picked.Hash, "#activity/") {
+		t.Errorf("after picking an hour: %+v", picked)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// An hour older than the 50 detections kept says so, instead of "no detection".
+func TestBrowserActivityOlderHour(t *testing.T) {
+	now := time.Now()
+	var entries []notifier.HistoryEntry
+	for i := range 50 {
+		entries = append(entries, notifier.HistoryEntry{ID: "n" + strconv.Itoa(i), At: now.Add(-time.Duration(i+1) * time.Minute), Camera: "garage", Label: "dog", Sent: true})
+	}
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}}, WithHistory(fakeHistory{entries: entries}, nil))
+	var list string
+	ctx, jsErrors := browser(t)
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#activity/"+strconv.FormatInt(now.Add(-10*time.Hour).Unix(), 10)),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("older than the last 50 detections")`),
+		into(chromedp.Text(`#activity-list`), &list),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(list, "No detection in this hour.") {
+		t.Errorf("list = %q", list)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// Two lines with the same event id (and an id with a space) keep their own state and
+// give valid, unique ids to the parts they control.
+func TestBrowserActivityRowKeys(t *testing.T) {
+	now := time.Now()
+	entries := []notifier.HistoryEntry{
+		{ID: "dup", At: now.Add(-10 * time.Minute), Camera: "garage", Label: "person", Sent: true},
+		{ID: "dup", At: now.Add(-20 * time.Minute), Camera: "garage", Label: "person", Sent: true},
+		{ID: "a b", At: now.Add(-30 * time.Minute), Camera: "garage", Label: "dog", Sent: true},
+	}
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}}, WithHistory(fakeHistory{entries: entries}, nil))
+	const buttons = `[...document.querySelectorAll("#activity li button[aria-expanded]")]`
+	type view struct {
+		Expanded []string `json:"expanded"`
+		Controls []string `json:"controls"`
+		Unique   bool     `json:"unique"`
+		Found    []bool   `json:"found"`
+	}
+	var state view
+	ctx, jsErrors := browser(t)
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#activity"),
+		chromedp.WaitVisible(`#activity li`),
+		chromedp.Evaluate[chromedp.Void](buttons+`[0].click(); 0`),
+		chromedp.Poll[chromedp.Void](buttons+`[0].getAttribute("aria-expanded") == "true"`),
+		chromedp.Evaluate[chromedp.Void](buttons+`[2].click(); 0`),
+		chromedp.Poll[chromedp.Void](buttons+`[2].getAttribute("aria-expanded") == "true"`),
+		into(chromedp.Evaluate[view](`(() => { const b = `+buttons+`; const ids = [...document.querySelectorAll("[id]")].map(e => e.id);
+			return { expanded: b.map(x => x.getAttribute("aria-expanded")), controls: b.map(x => x.getAttribute("aria-controls")),
+				unique: new Set(ids).size == ids.length, found: b.map(x => !!document.getElementById(x.getAttribute("aria-controls"))) } })()`), &state),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(state.Expanded, []string{"true", "false", "true"}) {
+		t.Errorf("aria-expanded = %v, want only the lines opened", state.Expanded)
+	}
+	if !state.Unique || !slices.Equal(state.Found, []bool{true, false, true}) {
+		t.Errorf("ids unique: %v, controlled part found: %v", state.Unique, state.Found)
+	}
+	for _, c := range state.Controls {
+		if c == "" || strings.ContainsAny(c, " \t") {
+			t.Errorf("aria-controls = %q, want one valid id", c)
+		}
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// An opened line shows the snapshot, else the thumbnail when the snapshot is lost,
+// else the emoji of its label: no broken image.
+func TestBrowserActivityImageFallbacks(t *testing.T) {
+	photo, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "assets", "sample.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	entries := []notifier.HistoryEntry{
+		{ID: "thumb", At: now.Add(-10 * time.Minute), Camera: "garage", Label: "person", Sent: true, Thumb: "/api/events/thumb/thumbnail.jpg", Snapshot: "/api/events/thumb/snapshot.jpg"},
+		{ID: "none", At: now.Add(-20 * time.Minute), Camera: "garage", Label: "dog", Sent: true},
+	}
+	media := fakeMedia{files: map[string][]byte{"/api/events/thumb/thumbnail.jpg": photo}} // the snapshot is lost
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}}, WithHistory(fakeHistory{entries: entries}, media))
+	var big string
+	var imgs int
+	ctx, jsErrors := browser(t)
+	err = chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#activity"),
+		chromedp.WaitVisible(`#activity li[data-id="thumb"]`),
+		chromedp.Click(`#activity li[data-id="thumb"] button[aria-expanded]`),
+		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector('#activity li[data-id="thumb"] img.big'); return !!i && i.complete && i.naturalWidth > 0 && i.src.endsWith("/api/history/thumb/thumb") })()`),
+		into(chromedp.Evaluate[string](`document.querySelector('#activity li[data-id="thumb"] img.big').src`), &big),
+		chromedp.Click(`#activity li[data-id="none"] button[aria-expanded]`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('#activity li[data-id="none"] button[aria-expanded]').getAttribute("aria-expanded") == "true"`),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('#activity li[data-id="none"] img').length`), &imgs),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(big, "/api/history/thumb/thumb") || imgs != 0 {
+		t.Errorf("fallback image %q, images of the line without any: %d", big, imgs)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The hour select and the filters fit a phone, in German too.
+func TestBrowserActivityFitsAPhone(t *testing.T) {
+	now := time.Now()
+	entries := []notifier.HistoryEntry{
+		{ID: "a", At: now.Add(-10 * time.Minute), SentAt: now.Add(-9 * time.Minute), Camera: "garage", Label: "person", Sent: true},
+		{ID: "b", At: now.Add(-20 * time.Minute), Camera: "entree", Label: "car", Reason: "label"},
+	}
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}},
+		WithHistory(fakeHistory{entries: entries}, nil), WithActivity(fakeActivity{now.Add(-9 * time.Minute)}))
+	var width int
+	var first string
+	ctx, jsErrors := browser(t)
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inLang(ts.URL+"/#activity", "de"),
+		chromedp.WaitVisible(`#activity-hour-pick`),
+		into(chromedp.Evaluate[string](`document.querySelector("#activity-hour-pick option").textContent`), &first),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != "Alle Stunden" || width > 360 {
+		t.Errorf("first option %q, page %d px wide on a 360 px screen", first, width)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// background is the page's background colour as the sum of its red, green and blue.
+const background = `getComputedStyle(document.body).backgroundColor.match(/\d+/g).slice(0, 3).reduce((a, n) => a + Number(n), 0)`
+
+// "Auto" follows the system's colour scheme, a forced theme ignores it, and the setup
+// page follows the saved choice as the interface does.
+func TestBrowserThemeFollowsTheSystem(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	s := NewSetup(filepath.Join(t.TempDir(), "connection.yml"), nil, &fakeProber{}, slog.New(slog.DiscardHandler), func() {})
+	mux := http.NewServeMux()
+	s.MountAlone(mux)
+	setupPage := httptest.NewServer(mux)
+	defer setupPage.Close()
+
+	system := func(scheme string) chromedp.Action[chromedp.Void] {
+		return chromedp.Func(func(ctx context.Context, tg *chromedp.Target) error {
+			_, err := cdp.Call(ctx, tg, emulation.SetEmulatedMedia, emulation.SetEmulatedMediaParams{Features: []*emulation.MediaFeature{{Name: "prefers-color-scheme", Value: scheme}}})
+			return err
+		})
+	}
+	choose := func(v string) chromedp.Action[chromedp.Void] {
+		return chromedp.Evaluate[chromedp.Void](`{ const m = document.querySelectorAll("header select")[1]; m.value = "` + v + `"; m.dispatchEvent(new Event("change", { bubbles: true })); } 0`)
+	}
+	var autoLight, autoDark, forcedDark, forcedLight, setupDark, setupLight int
+	ctx, jsErrors := browser(t)
+	err := chromedp.Do(ctx,
+		system("light"),
+		chromedp.Navigate(ts.URL+"/"),
+		chromedp.WaitVisible(`#cameras-list`),
+		into(chromedp.Evaluate[int](background), &autoLight),
+		system("dark"),
+		into(chromedp.Evaluate[int](background), &autoDark),
+		// A forced theme, whatever the system says.
+		choose("dark"),
+		system("light"),
+		into(chromedp.Evaluate[int](background), &forcedDark),
+		choose("light"),
+		system("dark"),
+		into(chromedp.Evaluate[int](background), &forcedLight),
+		// The setup page, with the choice saved in its own storage.
+		chromedp.Navigate(setupPage.URL+"/"),
+		chromedp.Evaluate[chromedp.Void](`localStorage.setItem("frigate-telegram-enhanced-theme", "light"); 0`),
+		chromedp.Reload(),
+		chromedp.WaitVisible(`#intro-first`),
+		into(chromedp.Evaluate[int](background), &setupLight),
+		chromedp.Evaluate[chromedp.Void](`localStorage.setItem("frigate-telegram-enhanced-theme", "dark"); 0`),
+		system("light"),
+		chromedp.Reload(),
+		chromedp.WaitVisible(`#intro-first`),
+		into(chromedp.Evaluate[int](background), &setupDark),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const half = 3 * 128
+	if autoLight < half || autoDark >= half {
+		t.Errorf("Auto: background %d with a light system, %d with a dark one; want light then dark", autoLight, autoDark)
+	}
+	if forcedDark >= half || forcedLight < half {
+		t.Errorf("forced: dark chosen on a light system %d, light chosen on a dark one %d", forcedDark, forcedLight)
+	}
+	if setupLight < half || setupDark >= half {
+		t.Errorf("setup page: saved light on a dark system %d, saved dark on a light one %d", setupLight, setupDark)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// gatedMedia holds every image back until gate is closed.
+type gatedMedia struct {
+	fakeMedia
+	gate chan struct{}
+}
+
+func (g gatedMedia) GetBytes(ctx context.Context, path string, max int64) ([]byte, error) {
+	select {
+	case <-g.gate:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return g.fakeMedia.GetBytes(ctx, path, max)
+}
+
+// The caption of the camera's image appears once the image is there, and not at all
+// for the text-only style, which shows no image.
+func TestBrowserStyleCaptionFollowsTheImage(t *testing.T) {
+	photo, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "assets", "sample.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	media := gatedMedia{fakeMedia: fakeMedia{files: map[string][]byte{"/api/garage/latest.jpg?h=360": photo}}, gate: make(chan struct{})}
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}}, WithHistory(fakeHistory{}, media), WithTester(&fakeTester{}))
+	const caption = `document.querySelector("#live-preview").textContent.includes("Latest image of garage")`
+	var before, after bool
+	ctx, jsErrors := browser(t)
+	err = chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#style"),
+		chromedp.WaitVisible(`#live-preview img`),
+		into(chromedp.Evaluate[bool](caption), &before), // the image is still on its way
+		chromedp.Func(func(context.Context, *chromedp.Target) error { close(media.gate); return nil }),
+		chromedp.Poll[chromedp.Void](caption),
+		chromedp.Click(`#styles [data-style="text"]`),
+		chromedp.Poll[chromedp.Void](`!`+caption+` && !document.querySelector("#live-preview img")`),
+		into(chromedp.Evaluate[bool](caption), &after),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before || after {
+		t.Errorf("caption before the image loaded: %v, with the text-only style: %v; want neither", before, after)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

@@ -59,7 +59,7 @@ score trop bas, déjà signalé il y a peu…), avec un lien direct vers la cam�
   <img src="docs/images/fr-activity.png" width="700" alt="Activité récente : détections envoyées, regroupées ou ignorées, avec la raison et une vignette">
 </p>
 
-**Sur téléphone, en thème clair ou sombre.** La page s'adapte à l'écran et suit le thème du système (sombre par défaut, clair à droite).
+**Sur téléphone, en thème clair ou sombre.** La page s'adapte à l'écran et suit le thème du système (sombre par défaut, clair à droite) ; le menu de thème de l'en-tête force le thème clair ou sombre, ou revient à Auto, et est mémorisé (les pages de configuration et de connexion le suivent).
 
 <p align="center">
   <img src="docs/images/fr-phone.png" width="260" alt="L'écran Style sur un téléphone">
@@ -188,7 +188,8 @@ de la page ouvre un écran par sujet :
   de 30 min, 1 h, 8 h ou jusqu'à reprise ; qui est à la maison ; les caméras coupées, à
   réactiver ; la dernière notification telle qu'elle est arrivée.
 - **Style** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou *Texte seul*, chacun avec un
-  aperçu du message tel qu'il arrivera dans Telegram. Plus bas : les rafales (un message par
+  aperçu du message tel qu'il arrivera dans Telegram, sur la dernière image de la caméra
+  choisie pour l'exemple (la photo d'exemple quand Frigate n'en donne pas). Plus bas : les rafales (un message par
   détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
   modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet) et la
   vidéo (dans le même message que l'image, ou en réponse).
@@ -207,7 +208,10 @@ de la page ouvre un écran par sujet :
 - **Activité récente** (quand l'historique est disponible) : les 50 dernières détections avec
   leur miniature et leur issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone,
   score trop bas, déjà signalé il y a peu…) et un lien pour régler la caméra concernée.
-  Les 50 dernières détections sont conservées d'un redémarrage à l'autre.
+  Filtres par caméra, issue ou heure ; une ligne s'ouvre sur le cliché et un lien *Ouvrir
+  dans Frigate*. Les barres du graphique des 24 h de l'aperçu mènent aux notifications
+  envoyées pendant cette heure (les mêmes heures se choisissent dans un menu). Les 50
+  dernières détections sont conservées d'un redémarrage à l'autre.
 - **Réglages avancés** : tous les réglages globaux en détail, rangés par thème —
   destinataires et filtrage, médias, rythme, horaires et présence, liens. Les zones et
   les objets proposés viennent de l'API de Frigate. Les réglages propres à une caméra
