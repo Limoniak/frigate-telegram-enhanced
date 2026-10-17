@@ -180,6 +180,9 @@ régler en quelques clics. Elle suit la langue du navigateur (l'anglais si elle 
 sélecteur de langue de l'en-tête la change, et le choix est retenu. Sur grand écran,
 un sommaire latéral mène à chaque section.
 
+L'adresse ouvre les nouveaux écrans d'aperçu et de style ; les autres réglages sont dans
+l'interface classique (`/classic`, lien en bas de la nouvelle).
+
 - **État** : une carte en haut de page avec les connexions à Frigate, MQTT et Telegram,
   l'état des notifications, qui est à la maison et les caméras coupées. Quand une
   connexion échoue, la cause en clair et le réglage à corriger (mauvais mot de passe,
@@ -335,10 +338,10 @@ go test -tags browser ./internal/web/   # test de fumée de l'interface web, ave
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-L'interface web se compose de `internal/web/ui.html`, `ui.css` et `ui.js`, intégrés tels quels
-au binaire : aucune étape de build. Les pages d'installation et de connexion sont construites
-à partir de `web/` (Svelte et Tailwind) dans `internal/web/dist/`, qui est versionné ; voir
-[CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
+L'interface classique (`/classic`) se compose de `internal/web/ui.html`, `ui.css` et `ui.js`,
+intégrés tels quels au binaire : aucune étape de build. La nouvelle interface, les pages
+d'installation et de connexion sont construites à partir de `web/` (Svelte et Tailwind) dans
+`internal/web/dist/`, qui est versionné ; voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
 
 ### Traduire
 
