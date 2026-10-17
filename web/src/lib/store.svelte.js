@@ -48,6 +48,12 @@ export function change(patch, camera) {
   touched();
 }
 
+// edit applies a free-form change to the overlay (recipients, addresses), and schedules the save.
+export function edit(fn) {
+  fn(app.overlay);
+  touched();
+}
+
 function touched() {
   if (!dirty()) return;
   app.status = { text: T("Saving…"), kind: "dirty" };
@@ -113,6 +119,23 @@ export async function refreshHistory() {
   if (!v) return;
   app.history = v.entries || [];
   app.activity = v.sent_hours ? { sent: v.sent_24h, hours: v.sent_hours } : null;
+}
+
+// resetSettings goes back to config.yml (drops the saved settings), then reloads.
+export async function resetSettings() {
+  try {
+    const r = await post("api/settings/reset");
+    if (!r.ok) throw new Error(r.data.error || "HTTP " + r.status);
+    await load();
+  } catch (e) {
+    app.error = T("Could not go back to config.yml:\n") + e.message;
+  }
+}
+
+// leave goes to another page once the pending change is sent.
+export async function leave(href) {
+  await flush();
+  location.href = href;
 }
 
 async function stateCall(path, body) {

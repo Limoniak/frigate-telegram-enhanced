@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SAVE_DELAY, app, change, flush, load, pause, sendTest } from "./store.svelte.js";
+import { SAVE_DELAY, app, change, edit, flush, load, pause, resetSettings, sendTest } from "./store.svelte.js";
 
 // fakeServer answers like the Go handler: settings, saves (recorded), test.
-function fakeServer({ refuse = false } = {}) {
+function fakeServer({ refuse = false, refuseReset = false } = {}) {
   const server = { down: false, hold: null, refuse };
   const puts = [];
   const tests = [];
@@ -15,6 +15,7 @@ function fakeServer({ refuse = false } = {}) {
       if (server.hold) await server.hold;
       return server.refuse ? json({ error: "invalid cooldown" }, 400) : json({ status: "ok" });
     }
+    if (path === "api/settings/reset") return refuseReset ? json({ error: "disk full" }, 500) : json({ status: "ok" });
     if (path === "api/settings") {
       return json({ mode: "reviews", timezone: "UTC", cameras: [{ name: "garage" }, { name: "entree" }], chats: ["moi"],
         overlay: { notify: { snapshot: true, clip: true, gif: false, group: "0s" }, cameras: {} }, custom: false });
@@ -135,5 +136,23 @@ describe("store", () => {
     expect(puts).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
     expect(puts).toHaveLength(1);
+  });
+
+  it("edit changes the overlay and schedules the save", async () => {
+    const { puts } = fakeServer();
+    await load();
+    edit((o) => { o.external_url = "https://x.example"; });
+    expect(puts).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
+    expect(puts).toHaveLength(1);
+    expect(puts[0].external_url).toBe("https://x.example");
+  });
+
+  it("a refused reset shows the failure", async () => {
+    fakeServer({ refuseReset: true });
+    await load();
+    await resetSettings();
+    expect(app.error.startsWith("Could not go back to config.yml:")).toBe(true);
+    expect(app.error).toContain("disk full");
   });
 });
