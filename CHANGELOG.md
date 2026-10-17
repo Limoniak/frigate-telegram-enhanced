@@ -19,6 +19,19 @@ never a breaking 3.0, while `:latest` follows `main`.
   settings, the objects of each camera named with their emoji), Recent activity and
   Advanced settings.
 
+### Added
+
+- Style preview with the chosen camera's latest image (the sample photo when there is
+  none).
+- Recent activity filters (camera, outcome, hour) and lines that open on the snapshot with
+  "Open in Frigate"; the bars of the 24 h chart open that hour's activity, and the same
+  hours can be picked in a menu.
+- Theme menu: Auto, Light or Dark (the interface, the setup page and the login page
+  follow it).
+- API: `GET /api/cameras/{name}/latest.jpg`, `GET /api/history/{id}/snapshot`; `link`,
+  `has_snapshot` and `sent_at` per entry and `now` in `/api/history`. The history file
+  keeps the link, the snapshot and the send time.
+
 ### Removed
 
 - The classic interface: `/classic` now leads to the new one.
