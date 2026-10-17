@@ -28,9 +28,7 @@ import (
 	"frigate-telegram-enhanced/internal/state"
 )
 
-// The interface: the main page, its style sheet and its script (no build step yet),
-// the login page, and dist/, the
-// front end built from web/ (npm run build), committed so that go build needs no Node.
+// The login page, and dist/, the front end built from web/ (npm run build), committed so that go build needs no Node.
 //
 //go:embed login.html all:dist
 var assets embed.FS
@@ -316,6 +314,7 @@ func sameOrigin(next http.Handler) http.Handler {
 	})
 }
 
+// no-store: after an update of the service, the browser must not keep the old script with the new page.
 func serve(body []byte, contentType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", contentType)

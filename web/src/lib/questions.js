@@ -1,6 +1,5 @@
-// The questions of the simple settings screen and the choices offered to each
-// recipient. T is passed in
-// so the module stays pure.
+// The questions of the simple settings screen and the choices offered to each recipient.
+// T is passed in so the module stays pure.
 
 export const NIGHT = [{ from: "22:00", to: "07:00" }];
 export const DAY = [{ from: "07:00", to: "22:00" }];

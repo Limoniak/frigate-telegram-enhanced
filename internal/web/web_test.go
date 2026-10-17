@@ -251,7 +251,7 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 	}
 }
 
-// The new interface is at /: its page loads its script, its sheet and the catalogs, and
+// The interface is at /: its page loads its script, its sheet and the catalogs, and
 // every file it references is served.
 func TestNewInterfaceServed(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})

@@ -1,6 +1,6 @@
-// The settings logic of the interface: comparing values the way
-// Go writes them, applying a choice globally or to one camera, and the notification
-// styles. Pure: the store (store.svelte.js) makes it reactive.
+// The settings logic of the interface: comparing values the way Go writes them, applying a
+// choice globally or to one camera, and the notification styles. Pure: the store
+// (store.svelte.js) makes it reactive.
 
 const DURATIONS = new Set(["cooldown", "group", "sub_label_wait", "clip_delay"]);
 const LISTS = new Set(["chats", "labels", "zones", "ignore_sub_labels", "severity"]);

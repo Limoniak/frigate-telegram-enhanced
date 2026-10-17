@@ -228,8 +228,7 @@ var (
 	jsBilingual = regexp.MustCompile(`(?:^|[^\w.$])T\(\s*(?:"(?:[^"\\\n]|\\.)*"\s*,|` + "`" + `[^` + "`" + `]*\$\{)`)
 )
 
-// scanWeb does the same for the web interface: T("…")/Tf("…") in its scripts,
-// data-t and data-t-placeholder in its pages.
+// scanWeb does the same for the web interface: T("…")/Tf("…") in its Svelte components and scripts (web/src).
 func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[string]bool) {
 	t.Helper()
 	unquote := func(name, s string) string {
@@ -240,7 +239,6 @@ func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[stri
 		return u
 	}
 
-	// The new front end: T("…") in its Svelte components and scripts.
 	src := filepath.Join(dir, "..", "..", "web", "src")
 	err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || strings.HasSuffix(path, ".test.js") ||
