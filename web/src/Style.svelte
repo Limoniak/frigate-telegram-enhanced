@@ -29,6 +29,8 @@
   const groups = () => [["0s", T("One message per detection")], ["2m", T("📦 Group over 2 min")], ["5m", T("📦 Group over 5 min")]];
 
   let pick = $state("");
+  // The camera of the sample: the one picked while it is still enabled, else the first.
+  const chosen = $derived(cams.includes(pick) ? pick : cams[0]);
   let sending = $state(false);
   let result = $state({ state: "", text: "" });
 
@@ -36,7 +38,7 @@
     sending = true;
     result = { state: "", text: T("Sending…") };
     try {
-      await sendTest(pick || cams[0]);
+      await sendTest(chosen);
       result = { state: "ok", text: T("Sent ✓ — check Telegram") };
     } catch (e) {
       result = { state: "err", text: T("Failed: ") + e.message };
@@ -82,7 +84,7 @@
       <div id="try" class="flex flex-wrap items-center gap-3">
         <button type="button" class="btn btn-primary" disabled={sending} onclick={test}>{T("📨 Send me a sample")}</button>
         {#if cams.length > 1}<span class="text-[var(--muted)]">{T("from camera")}</span>
-          <select class="field w-auto" aria-label={T("Camera for the sample")} bind:value={pick}>{#each cams as c (c)}<option value={c}>{c}</option>{/each}</select>{/if}
+          <select class="field w-auto" aria-label={T("Camera for the sample")} value={chosen} onchange={(e) => (pick = e.currentTarget.value)}>{#each cams as c (c)}<option value={c}>{c}</option>{/each}</select>{/if}
         <span id="try-result" class="result {result.state}" role="status">{result.text}</span>
       </div>
     {/if}
