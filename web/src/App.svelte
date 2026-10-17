@@ -1,10 +1,9 @@
 <script>
   // The shell of the main interface: a floating pill navigation, the save status, the
-  // screens (#overview, #style, #when, #cameras, #recipients, #activity, #advanced), and the link to the classic
-  // interface.
+  // screens (#overview, #style, #when, #cameras, #recipients, #activity, #advanced), and the footer links.
   import { onMount } from "svelte";
   import { T, i18n } from "./lib/i18n.svelte.js";
-  import { app, load, startPolling } from "./lib/store.svelte.js";
+  import { app, leave, load, startPolling } from "./lib/store.svelte.js";
   import { api } from "./lib/api.js";
   import LangMenu from "./lib/LangMenu.svelte";
   import Overview from "./Overview.svelte";
@@ -41,9 +40,15 @@
   ];
 
   async function logout() {
-    await api("logout", { method: "POST" }, { lang: i18n.lang, next: "" });
-    location.href = "login?lang=" + i18n.lang;
+    try {
+      await api("logout", { method: "POST" }, { lang: i18n.lang, next: "" });
+    } finally {
+      location.href = "login?lang=" + i18n.lang;
+    }
   }
+
+  // Footer links finish the pending save before leaving the page.
+  const goTo = (href) => (e) => { e.preventDefault(); leave(href); };
 </script>
 
 <header class="sticky top-[env(safe-area-inset-top,0px)] z-10 px-4 pt-4">
@@ -75,8 +80,8 @@
   {#if app.data}
     <span>{T("mode ") + app.data.mode} · {app.data.timezone}</span>
     <span class="flex-1"></span>
-    <a href="classic">{T("Classic interface")}</a>
-    {#if app.data.can_connection}<a href="setup">{T("Connection")}</a>{/if}
+    <a href="classic" onclick={goTo("classic")}>{T("Classic interface")}</a>
+    {#if app.data.can_connection}<a href="setup" onclick={goTo("setup")}>{T("Connection")}</a>{/if}
     {#if app.data.auth}<button type="button" class="btn-link" id="logout" onclick={logout}>{T("Log out")}</button>{/if}
   {/if}
 </footer>

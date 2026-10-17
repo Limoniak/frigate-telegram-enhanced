@@ -1094,3 +1094,28 @@ func TestBrowserActivity(t *testing.T) {
 		t.Errorf("JavaScript errors: %q", errs)
 	}
 }
+
+// The menu stays inside the new interface; only the footer links to the classic one,
+// and the classic page links back.
+func TestBrowserNoClassicLinks(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{})
+	ctx, jsErrors := browser(t)
+	var inMenu, back int
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/"),
+		chromedp.WaitVisible(`#nav`),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('#nav a[href^="classic"]').length`), &inMenu),
+		inEnglish(ts.URL+"/classic"),
+		chromedp.WaitVisible(`footer`),
+		into(chromedp.Evaluate[int](`[...document.querySelectorAll('footer a[href="./"]')].filter(a => a.textContent.trim() === "New interface").length`), &back),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inMenu != 0 || back != 1 {
+		t.Errorf("classic links in the menu = %d, links back in the classic footer = %d", inMenu, back)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
