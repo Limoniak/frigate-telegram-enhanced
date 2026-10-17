@@ -50,6 +50,8 @@ npm run dev        # live reload, with the API of a service running on port 8431
 `npm run dev` serves the setup page at <http://localhost:5173/setup.html> and the
 interface at <http://localhost:5173/app.html>.
 
+The screenshots of the README (`docs/images/`) are regenerated with `CHROME_PATH=/path/to/chrome go test -tags screenshots -run Screenshots ./internal/web/`; commit the result.
+
 The CI fails when `internal/web/dist/` does not match `web/`. Dependabot's npm pull
 requests do not rebuild `dist/`: when the check fails on one, a maintainer runs
 `npm run build` on its branch and pushes the result.

@@ -51,6 +51,8 @@ npm run dev        # rechargement à chaud, avec l'API d'un service sur le port 
 `npm run dev` sert la page d'installation sur <http://localhost:5173/setup.html> et
 l'interface sur <http://localhost:5173/app.html>.
 
+Les captures du README (`docs/images/`) se régénèrent avec `CHROME_PATH=/chemin/vers/chrome go test -tags screenshots -run Screenshots ./internal/web/` ; commitez le résultat.
+
 La CI échoue quand `internal/web/dist/` ne correspond pas à `web/`. Les pull requests npm
 de Dependabot ne reconstruisent pas `dist/` : quand la vérification échoue sur l'une
 d'elles, un mainteneur lance `npm run build` sur sa branche et pousse le résultat.

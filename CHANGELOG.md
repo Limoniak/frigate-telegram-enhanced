@@ -14,9 +14,10 @@ never a breaking 3.0, while `:latest` follows `main`.
   (`web/`).
 - New Nocturne interface at the address of the service: an overview (notifications over
   24 h hour by hour, connections, pause, cameras, the last notification as it arrived)
-  and the notification style with a live Telegram preview.
+  and the notification style with a live Telegram preview on a sample photo.
 - The new interface now has every screen: When, Recipients, Cameras (with per-camera
-  settings), Recent activity and Advanced settings.
+  settings, the objects of each camera named with their emoji), Recent activity and
+  Advanced settings.
 
 ### Removed
 

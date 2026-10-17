@@ -6,6 +6,7 @@
   import { STYLES, cameraOverrides, effective, seconds, styleOf } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
   import { routeHash } from "./lib/route.js";
+  import photo from "./assets/sample.jpg";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
   import Switch from "./lib/Switch.svelte";
@@ -57,7 +58,14 @@
         {#each STYLES as s (s.id)}
           <button type="button" data-style={s.id} aria-pressed={current === s.id} onclick={() => change(s.patch)}
             class="grid gap-2 rounded-[16px] p-2 text-left ring-1 transition-shadow duration-500 {current === s.id ? 'ring-2 ring-[var(--accent)] text-[var(--ink)]' : 'ring-[var(--ring)] text-[var(--muted)]'}">
-            <span class="h-10 rounded-[10px] {s.id === 'text' ? 'bg-[var(--glass)]' : 'bg-gradient-to-b from-[#3f4b57] to-[#1c2530]'}"></span>
+            {#if s.id === "text"}
+              <span class="grid h-10 content-center gap-1 rounded-[10px] bg-[var(--glass)] px-2"><i class="h-[3px] w-4/5 rounded bg-[var(--faint)]"></i><i class="h-[3px] w-3/5 rounded bg-[var(--faint)]"></i><i class="h-[3px] w-2/5 rounded bg-[var(--faint)]"></i></span>
+            {:else}
+              <span class="relative h-10 overflow-hidden rounded-[10px] bg-[#26313b]">
+                <img class="h-full w-full object-cover object-[50%_45%]" src={photo} alt="">
+                {#if s.id !== "photo"}<span class="absolute bottom-0.5 left-1 rounded-full bg-black/55 px-1.5 text-[9px] leading-[14px] text-white">{s.id === "gif" ? "GIF" : "▶"}</span>{/if}
+              </span>
+            {/if}
             <span class="font-medium">{labels()[s.id][0]}</span>
           </button>
         {/each}

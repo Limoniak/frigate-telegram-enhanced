@@ -7,7 +7,7 @@ détection, puis le clip vidéo dans le même message, avec des filtres fins, un
 tout régler en quelques clics et un pilotage depuis Telegram.
 
 <p align="center">
-  <img src="docs/screenshots/fr/overview.png" width="820" alt="Interface web : modèles de notification avec aperçu du message Telegram, et questions à choix simples">
+  <img src="docs/images/fr-overview.png" width="820" alt="Aperçu : notifications sur 24 h, connexions et caméras, à côté de la dernière notification telle qu'elle arrive dans Telegram">
 </p>
 
 ## Fonctionnalités
@@ -37,15 +37,18 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 **Choisir un modèle de notification.** Quatre modèles — *Photo + vidéo*, *Photo seule*,
 *Photo + GIF*, *Texte seul* — chacun avec un aperçu du message tel qu'il arrivera dans
 Telegram. Un clic, et toutes les caméras l'adoptent. En dessous, quelques questions à
-choix simples : quoi signaler, à quelle fréquence, et que faire la nuit (capture
-ci-dessus).
+choix simples : quoi signaler, à quelle fréquence, et que faire la nuit.
+
+<p align="center">
+  <img src="docs/images/fr-style.png" width="820" alt="Style : quatre modèles de notification avec un aperçu en direct du message Telegram">
+</p>
 
 **Régler une caméra.** Un interrupteur par caméra ; en l'ouvrant, on lui donne un autre
 modèle, d'autres objets ou seulement certaines zones — sinon elle suit les choix
 généraux. *Tester cette caméra* envoie une vraie notification d'exemple.
 
 <p align="center">
-  <img src="docs/screenshots/fr/cameras.png" width="820" alt="Caméra ouverte : modèle, objets et zones, bouton de test">
+  <img src="docs/images/fr-cameras.png" width="700" alt="L'écran Caméras avec une caméra ouverte : modèle, objets et zones">
 </p>
 
 **Comprendre pourquoi une notification n'est pas arrivée.** L'activité récente liste les
@@ -53,15 +56,15 @@ dernières détections, avec leur issue : ✅ envoyée, ou ⛔ ignorée et pourq
 score trop bas, déjà signalé il y a peu…), avec un lien direct vers la caméra à régler.
 
 <p align="center">
-  <img src="docs/screenshots/fr/activity.png" width="820" alt="Activité récente : détections envoyées ou ignorées, avec la raison">
+  <img src="docs/images/fr-activity.png" width="700" alt="Activité récente : détections envoyées, regroupées ou ignorées, avec la raison et une vignette">
 </p>
 
-**Sur téléphone, et en mode sombre.** La page s'adapte à l'écran et suit le thème du système.
+**Sur téléphone, en thème clair ou sombre.** La page s'adapte à l'écran et suit le thème du système (sombre par défaut, clair à droite).
 
 <p align="center">
-  <img src="docs/screenshots/fr/mobile.png" width="260" alt="Interface sur téléphone">
+  <img src="docs/images/fr-phone.png" width="260" alt="L'écran Style sur un téléphone">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/fr/dark.png" width="540" alt="Interface en mode sombre">
+  <img src="docs/images/fr-light.png" width="540" alt="L'écran Style en thème clair">
 </p>
 
 ## Prérequis
@@ -364,3 +367,5 @@ texte traduit, aucun en trop).
 [MIT](LICENSE). L'image Docker contient aussi une version statique de
 [FFmpeg](https://ffmpeg.org/) (GPL, issue de [mwader/static-ffmpeg](https://github.com/wader/static-ffmpeg)),
 qui sert uniquement à ré-encoder les clips de plus de 50 Mo.
+
+La photo d'exemple des aperçus (`web/src/assets/sample.jpg`) est sous [licence Unsplash](https://unsplash.com/license), voir `web/src/assets/CREDITS.md`.

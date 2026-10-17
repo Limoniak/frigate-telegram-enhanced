@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -797,6 +798,21 @@ func TestBuiltAssetsServed(t *testing.T) {
 	resp = do(t, ts, "GET", "/"+string(font[1]), "")
 	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Header.Get("Cache-Control"), "immutable") {
 		t.Errorf("%s: %d, Cache-Control %q", font[1], resp.StatusCode, resp.Header.Get("Cache-Control"))
+	}
+}
+
+// The sample photo of the previews is served as a JPEG, with or without a password.
+func TestBuiltPhotoServed(t *testing.T) {
+	photos, _ := fs.Glob(distFS, "assets/sample-*.jpg")
+	if len(photos) != 1 {
+		t.Fatalf("dist/assets/sample-*.jpg = %v, want one file", photos)
+	}
+	for _, password := range []string{"", "s3cret"} {
+		_, _, ts := setup(t, password, fakeCameras{})
+		resp := do(t, ts, "GET", "/"+photos[0], "")
+		if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "image/jpeg" {
+			t.Errorf("password %q: %d %s, want 200 image/jpeg", password, resp.StatusCode, resp.Header.Get("Content-Type"))
+		}
 	}
 }
 
