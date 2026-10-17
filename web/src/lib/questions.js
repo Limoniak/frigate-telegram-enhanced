@@ -1,5 +1,5 @@
 // The questions of the simple settings screen and the choices offered to each
-// recipient, ported from ui.js (QUESTIONS, RECIPIENT_*, setRecipient). T is passed in
+// recipient. T is passed in
 // so the module stays pure.
 
 export const NIGHT = [{ from: "22:00", to: "07:00" }];

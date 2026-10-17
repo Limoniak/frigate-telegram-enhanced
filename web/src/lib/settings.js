@@ -1,4 +1,4 @@
-// The settings logic of the interface, ported from ui.js: comparing values the way
+// The settings logic of the interface: comparing values the way
 // Go writes them, applying a choice globally or to one camera, and the notification
 // styles. Pure: the store (store.svelte.js) makes it reactive.
 

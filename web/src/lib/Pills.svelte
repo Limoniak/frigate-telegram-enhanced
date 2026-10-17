@@ -12,7 +12,7 @@
 
   const keys = $derived(Object.keys(Object.assign({}, ...options.map((o) => o.patch))));
   const inherit = $derived(!!camera && inheritsAll(app.overlay, keys, camera));
-  // The first matching option is the active one, as in the classic interface.
+  // The first matching option is the active one: two options can match the same values.
   const active = $derived(inherit ? -1 : options.findIndex((o) => matches(o.patch, values ?? effective(app.overlay, camera))));
   const cls = (on) => "rounded-full px-3 py-1 text-[12px] " + (on ? "bg-[var(--glass-hi)] text-[var(--ink)]" : "text-[var(--muted)]");
 </script>
