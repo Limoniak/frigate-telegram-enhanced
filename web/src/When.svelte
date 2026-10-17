@@ -13,6 +13,7 @@
   const showKnown = $derived(subs.length || (app.overlay.notify.ignore_sub_labels || []).length || app.overlay.notify.ignore_known);
   const known = $derived(!!app.overlay.notify.ignore_known);
   const ms = $derived(app.overlay.notify.min_score || { default: 0 });
+  const hasMore = $derived(questions.some((q) => q.more) || !!showKnown || app.data.mode !== "reviews");
   const perLabel = $derived(!!ms.by_label && Object.keys(ms.by_label).length > 0);
 
   // While dragging only the text changes; the value is kept on release.
@@ -29,29 +30,30 @@
   <div class="flex flex-col gap-1"><span class="lbl">{T("When")}</span><h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("When should you be notified?")}</h1></div>
   <Card>
     {#if (app.data.chats || []).length > 1}
-      {#snippet who()}<Chips options={app.data.chats} value={app.overlay.notify.chats || []} onchange={(next) => edit((o) => { o.notify.chats = next; })} />{/snippet}
+      {#snippet who()}<Chips label={T("Who receives the notifications?")} options={app.data.chats} value={app.overlay.notify.chats || []} onchange={(next) => edit((o) => { o.notify.chats = next; })} />{/snippet}
       {@render question(T("Who receives the notifications?"), null, who)}
     {/if}
     {#each questions.filter((q) => !q.more) as q (q.id)}
-      {#snippet pills()}<Pills options={q.options} />{/snippet}
+      {#snippet pills()}<Pills label={q.title} options={q.options} />{/snippet}
       {@render question(q.title, q.hint, pills)}
     {/each}
   </Card>
+  {#if hasMore}
   <Card>
     <details class="more" open={false}>
       <summary>{T("More choices: bursts, sensitivity…")}</summary>
       <div class="mt-4 flex flex-col gap-5">
         {#each questions.filter((q) => q.more) as q (q.id)}
-          {#snippet pills()}<Pills options={q.options} />{/snippet}
+          {#snippet pills()}<Pills label={q.title} options={q.options} />{/snippet}
           {@render question(q.title, q.hint, pills)}
         {/each}
         {#if showKnown}
           {#snippet labels()}
             <div class="flex flex-col gap-2">
-              <Pills options={[{ label: T("Report everything"), patch: { ignore_known: false } }, { label: T("🏷 Only unknown objects"), patch: { ignore_known: true } }]} />
+              <Pills label={T("Known labels")} options={[{ label: T("Report everything"), patch: { ignore_known: false } }, { label: T("🏷 Only unknown objects"), patch: { ignore_known: true } }]} />
               {#if !known}
                 <div class="text-[12px] text-[var(--faint)]">{T("Don't notify for:")}</div>
-                <Chips options={subs} value={app.overlay.notify.ignore_sub_labels || []} free onchange={(next) => edit((o) => { o.notify.ignore_sub_labels = next; })} />
+                <Chips label={T("Don't notify for:")} options={subs} value={app.overlay.notify.ignore_sub_labels || []} free onchange={(next) => edit((o) => { o.notify.ignore_sub_labels = next; })} />
               {/if}
             </div>
           {/snippet}
@@ -60,7 +62,7 @@
         {#if app.data.mode !== "reviews"}
           {#snippet sens()}
             {#if perLabel}
-              <p class="m-0 text-[12px] text-[var(--faint)]">{T("Set per object in Advanced settings.")} <a href="#advanced">{T("Advanced settings")}</a></p>
+              <p class="m-0 text-[12px] text-[var(--faint)]"><a href="#advanced">{T("Set per object in Advanced settings.")}</a></p>
             {:else}
               <div class="flex items-center gap-3">
                 <input type="range" class="min-w-0 flex-1" min="0" max="0.95" step="0.05" aria-label={T("Minimum score")} value={score}
@@ -77,4 +79,5 @@
       </div>
     </details>
   </Card>
+  {/if}
 </section>

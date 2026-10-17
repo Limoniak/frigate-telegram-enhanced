@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -569,6 +570,61 @@ func TestBrowserWhenSingleChat(t *testing.T) {
 	}
 	if links != 0 {
 		t.Errorf("the menu links to Recipients with one chat")
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The Advanced screen: an invalid duration or address is flagged and never saved, a
+// valid one is saved by itself, and the page fits a phone.
+func TestBrowserAdvanced(t *testing.T) {
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	cooldown := `[data-key="cooldown"] input`
+	var invalid, urlInvalid string
+	var width int
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inEnglish(ts.URL+"/#advanced"),
+		chromedp.WaitVisible(`#advanced`),
+		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="cooldown"] input'); i.focus(); i.select(); 0`),
+		chromedp.SendKeys(cooldown, "5 minutes"+kb.Tab),
+		into(chromedp.Evaluate[string](`document.querySelector('[data-key="cooldown"] input').getAttribute("aria-invalid") || ""`), &invalid),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invalid != "true" {
+		t.Errorf("aria-invalid = %q for 5 minutes", invalid)
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if saved, err := os.ReadFile(path); err == nil && strings.Contains(string(saved), "cooldown") {
+		t.Errorf("an invalid duration was saved: %q", saved)
+	}
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="cooldown"] input'); i.focus(); i.select(); 0`),
+		chromedp.SendKeys(cooldown, "90s"+kb.Tab),
+		chromedp.WaitVisible(`#save-status.ok`),
+		chromedp.SendKeys(`#external-url`, "frigate.local"+kb.Tab),
+		into(chromedp.Evaluate[string](`document.getElementById("external-url").getAttribute("aria-invalid") || ""`), &urlInvalid),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := os.ReadFile(path)
+	if err != nil || !regexp.MustCompile(`cooldown:\s*("?)(1m30s|90s)`).Match(saved) {
+		t.Errorf("cooldown not saved: %q, %v", saved, err)
+	}
+	if strings.Contains(string(saved), "frigate.local") {
+		t.Errorf("an invalid address was saved: %q", saved)
+	}
+	if urlInvalid != "true" {
+		t.Errorf("aria-invalid = %q for frigate.local", urlInvalid)
+	}
+	if width > 360 {
+		t.Errorf("the page is %d px wide on a 360 px screen", width)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

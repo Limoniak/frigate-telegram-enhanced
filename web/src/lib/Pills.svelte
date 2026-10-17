@@ -8,7 +8,7 @@
 
   // values and pick serve a level that is not a camera's settings (a recipient): the
   // values to compare with, and what a click does.
-  let { options, camera = null, id = undefined, values = undefined, pick = undefined } = $props();
+  let { options, camera = null, id = undefined, values = undefined, pick = undefined, label = undefined } = $props();
 
   const keys = $derived(Object.keys(Object.assign({}, ...options.map((o) => o.patch))));
   const inherit = $derived(!!camera && inheritsAll(app.overlay, keys, camera));
@@ -17,7 +17,7 @@
   const cls = (on) => "rounded-full px-3 py-1 text-[12px] " + (on ? "bg-[var(--glass-hi)] text-[var(--ink)]" : "text-[var(--muted)]");
 </script>
 
-<div {id} class="inline-flex max-w-full flex-wrap gap-0.5 rounded-[20px] bg-[var(--field)] p-[3px] ring-1 ring-[var(--ring)]">
+<div {id} role={label ? "group" : undefined} aria-label={label} class="inline-flex max-w-full flex-wrap gap-0.5 rounded-[20px] bg-[var(--field)] p-[3px] ring-1 ring-[var(--ring)]">
   {#if camera}
     <button type="button" aria-pressed={inherit} class={cls(inherit)} onclick={() => edit((o) => clearKeys(o, keys, camera))}>{T("Default")}</button>
   {/if}

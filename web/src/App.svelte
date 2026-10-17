@@ -1,6 +1,6 @@
 <script>
   // The shell of the main interface: a floating pill navigation, the save status, the
-  // screens (#overview, #style, #when, #recipients), and links to the screens still in the classic
+  // screens (#overview, #style, #when, #recipients, #advanced), and links to the screens still in the classic
   // interface.
   import { onMount } from "svelte";
   import { T, i18n } from "./lib/i18n.svelte.js";
@@ -11,6 +11,7 @@
   import Style from "./Style.svelte";
   import When from "./When.svelte";
   import Recipients from "./Recipients.svelte";
+  import Advanced from "./Advanced.svelte";
   import { parseRoute } from "./lib/route.js";
 
   let route = $state(parseRoute(location.hash));
@@ -33,13 +34,13 @@
   const screens = () => [
     ["overview", T("Overview")], ["style", T("Style")], ["when", T("When")],
     ...(hasRecipients ? [["recipients", T("Recipients")]] : []),
+    ["advanced", T("Advanced settings")],
   ];
 
   // The screens not yet moved: their section in the classic interface.
   const classic = () => [
     [T("Cameras"), "classic#sec-cameras"],
     [T("Recent activity"), "classic#activity-box"],
-    [T("Advanced settings"), "classic#advanced"],
   ];
 
   async function logout() {
@@ -69,6 +70,7 @@
     {#if route.screen === "style"}<Style />
     {:else if route.screen === "when"}<When />
     {:else if route.screen === "recipients" && hasRecipients}<Recipients />
+    {:else if route.screen === "advanced"}<Advanced />
     {:else}<Overview />{/if}
   {/if}
 </main>

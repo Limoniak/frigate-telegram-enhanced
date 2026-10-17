@@ -15,9 +15,9 @@
       <div data-chat={chat} class="flex flex-col gap-3">
         <div class="font-medium">{"👤 " + chat}</div>
         <div class="text-[12px] text-[var(--faint)]">{T("Receives")}</div>
-        <Pills options={RECIPIENT_OBJECTS(T)} values={recipientValues(app.overlay, chat)} pick={(patch) => edit((o) => setRecipient(o, chat, patch))} />
+        <Pills label={T("Receives")} options={RECIPIENT_OBJECTS(T)} values={recipientValues(app.overlay, chat)} pick={(patch) => edit((o) => setRecipient(o, chat, patch))} />
         <div class="text-[12px] text-[var(--faint)]">{T("When")}</div>
-        <Pills options={RECIPIENT_WHEN(T)} values={recipientValues(app.overlay, chat)} pick={(patch) => edit((o) => setRecipient(o, chat, patch))} />
+        <Pills label={T("When")} options={RECIPIENT_WHEN(T)} values={recipientValues(app.overlay, chat)} pick={(patch) => edit((o) => setRecipient(o, chat, patch))} />
       </div>
     </Card>
   {/each}
