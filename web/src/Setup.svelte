@@ -7,6 +7,7 @@
   import { api as rawApi, post as rawPost, problem as rawProblem } from "./lib/api.js";
   import Card from "./lib/Card.svelte";
   import LangMenu from "./lib/LangMenu.svelte";
+  import ThemeMenu from "./lib/ThemeMenu.svelte";
   import WithLink from "./lib/WithLink.svelte";
 
   const api = (path, opts) => rawApi(path, opts, { lang: i18n.lang });
@@ -333,6 +334,7 @@
     </span>
     <h1 class="m-0 min-w-0 flex-1 truncate text-[15px] font-semibold">{T("Connection")}</h1>
     <LangMenu />
+    <ThemeMenu />
   </div>
 </header>
 

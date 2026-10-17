@@ -1,6 +1,10 @@
 {
   "name": "Español",
   "messages": {
+    "Auto (system)": "Automático (sistema)",
+    "Dark": "Oscuro",
+    "Light": "Claro",
+    "Theme": "Tema",
     "\n\nTap a camera to mute it for 1 h, or to turn it back on.": "\n\nToca una cámara para silenciarla 1 h o para volver a activarla.",
     "\n🎞 On a real event, an animated GIF will follow as a reply.": "\n🎞 En un evento real, seguirá un GIF animado como respuesta.",
     "\n🎬 On a real event, the video clip will follow as a reply.": "\n🎬 En un evento real, seguirá el clip de vídeo como respuesta.",

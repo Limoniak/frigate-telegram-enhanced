@@ -208,6 +208,49 @@ func TestBrowserLanguageAuto(t *testing.T) {
 	}
 }
 
+// The theme follows the system until one is chosen in the menu (kept after a reload,
+// also by the login page; the theme menu is the second select of the header), and again once "Auto" is chosen back.
+func TestBrowserTheme(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	choose := func(v string) chromedp.Action[chromedp.Void] {
+		return chromedp.Evaluate[chromedp.Void](`{ const m = document.querySelectorAll("header select")[1]; m.value = "` + v + `"; m.dispatchEvent(new Event("change", { bubbles: true })); } 0`)
+	}
+	logIn := chromedp.Steps(
+		chromedp.WaitVisible(`.login-card input[type=password]`),
+		chromedp.SendKeys(`#password`, "s3cret"),
+		chromedp.Click(`.login-card button[type=submit]`),
+		chromedp.WaitVisible(`#cameras-list`),
+	)
+	const attr = `document.documentElement.getAttribute("data-theme") || "-"`
+	var first, light, reloaded, login, auto string
+	err := chromedp.Do(ctx,
+		chromedp.Navigate(ts.URL+"/"),
+		logIn,
+		into(chromedp.Evaluate[string](attr), &first),
+		choose("light"),
+		into(chromedp.Evaluate[string](attr), &light),
+		chromedp.Reload(),
+		chromedp.WaitVisible(`#logout`),
+		into(chromedp.Evaluate[string](attr), &reloaded),
+		chromedp.Click(`#logout`),
+		chromedp.WaitVisible(`.login-card`),
+		into(chromedp.Evaluate[string](attr), &login),
+		logIn,
+		choose("auto"),
+		into(chromedp.Evaluate[string](attr), &auto),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != "-" || light != "light" || reloaded != "light" || login != "light" || auto != "-" {
+		t.Errorf("data-theme: arrival %q, chosen %q, reloaded %q, login page %q, auto %q; want - light light light -", first, light, reloaded, login, auto)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
 // browser starts Chrome for the test; jsErrors returns the uncaught JavaScript errors so far.
 func browser(t *testing.T) (ctx context.Context, jsErrors func() []string) {
 	t.Helper()
