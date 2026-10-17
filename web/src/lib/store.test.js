@@ -3,7 +3,7 @@ import { SAVE_DELAY, app, change, edit, flush, leave, load, pause, resetSettings
 
 // fakeServer answers like the Go handler: settings, saves (recorded), test.
 function fakeServer({ refuse = false, refuseReset = false } = {}) {
-  const server = { down: false, hold: null, holdReset: null, refuse };
+  const server = { down: false, hold: null, holdReset: null, refuse, failLoad: false };
   const puts = [];
   const tests = [];
   globalThis.fetch = vi.fn(async (path, opts = {}) => {
@@ -18,6 +18,7 @@ function fakeServer({ refuse = false, refuseReset = false } = {}) {
     if (path === "api/settings/reset" && server.holdReset) await server.holdReset;
     if (path === "api/settings/reset") return refuseReset ? json({ error: "disk full" }, 500) : json({ status: "ok" });
     if (path === "api/settings") {
+      if (server.failLoad) return json({}, 500);
       return json({ mode: "reviews", timezone: "UTC", cameras: [{ name: "garage" }, { name: "entree" }], chats: ["moi"],
         overlay: { notify: { snapshot: true, clip: true, gif: false, group: "0s" }, cameras: {} }, custom: false });
     }
@@ -162,6 +163,18 @@ describe("store", () => {
     expect(puts).toEqual([]);
     expect(app.data.custom).toBe(false);
     expect(app.overlay.notify.snapshot).toBe(true);
+    expect(app.status.text).toBe("");
+  });
+
+  it("a reset whose reload fails does not send the older settings", async () => {
+    const { puts, server } = fakeServer();
+    await load();
+    change({ snapshot: false });
+    server.failLoad = true;
+    await resetSettings();
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2);
+    expect(puts).toEqual([]);
+    expect(app.error.startsWith("Could not go back to config.yml:")).toBe(true);
   });
 
   it("a refused reset still sends the change made before it", async () => {
@@ -191,6 +204,7 @@ describe("store", () => {
     await reset;
     expect(puts.length).toBe(1);
     expect(app.overlay.notify.clip).toBe(true);
+    expect(app.status.text).toBe("");
   });
 
   it("a refused reset shows the failure", async () => {

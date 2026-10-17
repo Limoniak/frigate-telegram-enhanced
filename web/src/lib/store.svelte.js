@@ -124,15 +124,18 @@ export async function refreshHistory() {
 // resetSettings goes back to config.yml (drops the saved settings), then reloads.
 export async function resetSettings() {
   clearTimeout(saveTimer); // a pending save must not land after the reset and undo it
+  let done = false; // the server went back: the change made before must not be sent any more
   try {
     if (saving) await saving;
     clearTimeout(saveTimer); // the save just finished may have re-armed it
     const r = await post("api/settings/reset");
     if (!r.ok) throw new Error(r.data.error || "HTTP " + r.status);
+    done = true;
     await load();
+    app.status = { text: "", kind: "" }; // the dropped change is no longer "Saving…"
   } catch (e) {
     app.error = T("Could not go back to config.yml:\n") + e.message;
-    touched(); // the change made before the reset is still to be sent
+    if (!done) touched(); // the change made before the reset is still to be sent
   }
 }
 

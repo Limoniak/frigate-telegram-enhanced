@@ -176,7 +176,7 @@
       return;
     }
     set("frigate", "err", T("Frigate was not found by itself: enter its address."));
-    frigateUrlEl?.focus();
+    if (document.activeElement === document.body) frigateUrlEl?.focus(); // never steal it from a field being typed in
   }
 
   // ---- MQTT ----

@@ -316,6 +316,7 @@ func TestBrowserSetup(t *testing.T) {
 	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#intro-first`),
+		chromedp.WaitVisible(`#frigate-result.err`), // the search on arrival has answered
 		chromedp.SendKeys(`#token`, "123:abc"),
 		chromedp.Click(`#check-token`),
 		chromedp.WaitVisible(`#chats .chip`),
@@ -1254,8 +1255,8 @@ func TestBrowserCameras(t *testing.T) {
 		// A followed link leaves the focus on the camera's summary, with no control nested in it.
 		chromedp.Poll[chromedp.Void](`document.activeElement.tagName === "SUMMARY"`),
 		into(chromedp.Evaluate[bool](`document.activeElement.parentElement.dataset.camera === "garage"`), &focused),
-		// The card is not left under the sticky header.
-		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="garage"]').getBoundingClientRect().top >= document.querySelector("header").getBoundingClientRect().bottom`),
+		// The page scrolled to the card, and did not leave it under the sticky header.
+		chromedp.Poll[chromedp.Void](`scrollY > 0 && document.querySelector('[data-camera="garage"]').getBoundingClientRect().top >= document.querySelector("header").getBoundingClientRect().bottom`),
 		into(chromedp.Evaluate[int](`document.querySelectorAll('summary button, summary input').length`), &nested),
 		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="garage"]').open`), &open),
 		into(chromedp.Evaluate[bool](`!!document.querySelector('[data-camera="ancienne"]')`), &oldExists),
