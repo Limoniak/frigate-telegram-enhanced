@@ -231,6 +231,10 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 		{name: "page without password", method: "GET", path: "/", want: http.StatusUnauthorized},
 		{name: "script without password", method: "GET", path: "/ui.js", want: http.StatusUnauthorized},
 		{name: "script with password", method: "GET", path: "/ui.js", auth: []string{"s3cret"}, want: http.StatusOK},
+		{name: "app script without password", method: "GET", path: "/app.js", want: http.StatusUnauthorized},
+		{name: "app sheet without password", method: "GET", path: "/app.css", want: http.StatusUnauthorized},
+		{name: "classic page without password", method: "GET", path: "/classic", want: http.StatusUnauthorized},
+		{name: "classic page with password", method: "GET", path: "/classic", auth: []string{"s3cret"}, want: http.StatusOK},
 		{name: "write without password", method: "PUT", path: "/api/settings", body: "{}", want: http.StatusUnauthorized},
 		{name: "right password", method: "GET", path: "/api/settings", auth: []string{"s3cret"}, want: http.StatusOK},
 	} {
