@@ -1,7 +1,7 @@
 <script>
   // One card per camera: its switch, the few choices that matter (style, objects,
   // zones), and every setting folded below, each of which the camera can override.
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import { T, Tf, i18n } from "./lib/i18n.svelte.js";
   import { app, change, edit, sendTest } from "./lib/store.svelte.js";
   import { GROUPS, cameraSummary, fieldsFor, unionOf, untracked } from "./lib/fields.js";
@@ -32,8 +32,9 @@
   let cards = $state({});
   $effect(() => {
     const name = route.camera;
-    if (!name || !(name in cards)) return;
-    const card = cards[name];
+    if (!name) return;
+    const card = untrack(() => cards[name]); // the camera list changing must not reopen a closed card
+    if (!card) return;
     card.open = true;
     tick().then(() => card.scrollIntoView({ block: "start" }));
   });

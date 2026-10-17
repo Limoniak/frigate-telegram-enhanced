@@ -41,7 +41,7 @@
       {#if app.activity}
         <div class="flex flex-wrap items-end gap-4">
           <span id="sent-24h" class="text-6xl font-light tracking-tight tabular-nums">{app.activity.sent}</span>
-          {#if app.history?.length}<span class="pb-2 text-[var(--muted)]">{Tf("%d ignored among the last %d detections", ignored, app.history.length)}</span>{/if}
+          {#if app.history?.length}<a class="pb-2 text-[var(--muted)]" href="#activity">{Tf("%d ignored among the last %d detections", ignored, app.history.length)}</a>{/if}
         </div>
         <div class="flex h-16 items-end gap-[3px]" aria-hidden="true">
           {#each hours as n, i (i)}<span class="flex-1 rounded-[2px] {i === 23 ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/25'}" style="height:{Math.max(4, (n / peak) * 100)}%"></span>{/each}

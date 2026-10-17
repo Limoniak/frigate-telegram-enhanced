@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1029,6 +1030,65 @@ func TestBrowserCamerasLink(t *testing.T) {
 	}
 	if !open || other {
 		t.Errorf("entree open = %v, garage open = %v", open, other)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The activity screen: eight lines until "Show all", the reason in plain words, the
+// grouped outcome, and the link that opens the camera card to adjust.
+func TestBrowserActivity(t *testing.T) {
+	cams := fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "porte d'entrée"}}}
+	now := time.Now()
+	entries := []notifier.HistoryEntry{{ID: "x1", At: now, Camera: "porte d'entrée", Label: "person", Reason: "zone"}}
+	for i := 2; i <= 10; i++ {
+		entries = append(entries, notifier.HistoryEntry{ID: "x" + strconv.Itoa(i), At: now, Camera: "garage", Label: "car", Sent: true, Grouped: i == 3})
+	}
+	_, _, ts := setup(t, "", cams, WithHistory(fakeHistory{entries: entries}, nil))
+
+	ctx, jsErrors := browser(t)
+	var rows, rowsAll, width int
+	var foot, first, page, hash string
+	var open bool
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inEnglish(ts.URL+"/#activity"),
+		chromedp.WaitVisible(`#activity li[data-id="x1"]`),
+		into(chromedp.Evaluate[int](`document.querySelectorAll("#activity li").length`), &rows),
+		into(chromedp.Text(`#activity`), &page),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+		chromedp.Click(byText("", "Show all")),
+		chromedp.Poll[chromedp.Void](`document.querySelectorAll("#activity li").length == 10`),
+		into(chromedp.Evaluate[int](`document.querySelectorAll("#activity li").length`), &rowsAll),
+		into(chromedp.Text(`#activity-foot`), &foot),
+		into(chromedp.Text(`#activity li[data-id="x1"]`), &first),
+		chromedp.Click(`#activity li[data-id="x1"] a`),
+		chromedp.WaitVisible(`[data-camera="porte d'entrée"] summary`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="porte d\'entrée"]').open`),
+		into(chromedp.Evaluate[string](`location.hash`), &hash),
+		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="porte d\'entrée"]').open`), &open),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows != 8 || rowsAll != 10 {
+		t.Errorf("rows = %d then %d, want 8 then 10", rows, rowsAll)
+	}
+	if !strings.Contains(foot, "Out of the last 10 detections:") {
+		t.Errorf("foot = %q", foot)
+	}
+	if !strings.Contains(first, "outside the chosen zones") {
+		t.Errorf("x1 = %q, want its reason", first)
+	}
+	if !strings.Contains(page, "📦 Grouped") {
+		t.Errorf("page = %q, want a grouped line", page)
+	}
+	if hash != "#cameras/porte%20d'entr%C3%A9e" || !open {
+		t.Errorf("hash = %q, open = %v", hash, open)
+	}
+	if width > 360 {
+		t.Errorf("the page is %d px wide on a 360 px screen", width)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

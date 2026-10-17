@@ -1,6 +1,6 @@
 <script>
   // The shell of the main interface: a floating pill navigation, the save status, the
-  // screens (#overview, #style, #when, #cameras, #recipients, #advanced), and links to the screens still in the classic
+  // screens (#overview, #style, #when, #cameras, #recipients, #activity, #advanced), and the link to the classic
   // interface.
   import { onMount } from "svelte";
   import { T, i18n } from "./lib/i18n.svelte.js";
@@ -12,6 +12,7 @@
   import When from "./When.svelte";
   import Recipients from "./Recipients.svelte";
   import Cameras from "./Cameras.svelte";
+  import Activity from "./Activity.svelte";
   import Advanced from "./Advanced.svelte";
   import { parseRoute } from "./lib/route.js";
 
@@ -35,12 +36,8 @@
   const screens = () => [
     ["overview", T("Overview")], ["style", T("Style")], ["when", T("When")], ["cameras", T("Cameras")],
     ...(hasRecipients ? [["recipients", T("Recipients")]] : []),
+    ...(app.data?.can_history ? [["activity", T("Recent activity")]] : []),
     ["advanced", T("Advanced settings")],
-  ];
-
-  // The screens not yet moved: their section in the classic interface.
-  const classic = () => [
-    [T("Recent activity"), "classic#activity-box"],
   ];
 
   async function logout() {
@@ -53,9 +50,6 @@
   <nav id="nav" class="mx-auto flex w-full max-w-max items-center gap-1 overflow-x-auto rounded-full bg-[var(--glass)] p-1.5 ring-1 ring-[var(--ring)] backdrop-blur-xl">
     {#each screens() as [id, label] (id)}
       <a href="#{id}" class="whitespace-nowrap rounded-full px-3 py-1.5 no-underline {route.screen === id ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}" aria-current={route.screen === id ? "page" : undefined}>{label}</a>
-    {/each}
-    {#each classic() as [label, href] (href)}
-      <a {href} class="whitespace-nowrap rounded-full px-3 py-1.5 text-[var(--muted)] no-underline">{label}</a>
     {/each}
     <LangMenu />
   </nav>
@@ -71,6 +65,7 @@
     {:else if route.screen === "when"}<When />
     {:else if route.screen === "recipients" && hasRecipients}<Recipients />
     {:else if route.screen === "cameras"}<Cameras {route} />
+    {:else if route.screen === "activity" && app.data.can_history}<Activity />
     {:else if route.screen === "advanced"}<Advanced />
     {:else}<Overview />{/if}
   {/if}
