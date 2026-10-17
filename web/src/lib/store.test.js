@@ -164,6 +164,35 @@ describe("store", () => {
     expect(app.overlay.notify.snapshot).toBe(true);
   });
 
+  it("a refused reset still sends the change made before it", async () => {
+    const { puts } = fakeServer({ refuseReset: true });
+    await load();
+    change({ snapshot: false });
+    await resetSettings();
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2);
+    expect(puts.length).toBe(1);
+    expect(app.status.kind).toBe("saved");
+  });
+
+  it("a reset during a save does not let the older settings be sent after it", async () => {
+    const { puts, server } = fakeServer();
+    await load();
+    change({ snapshot: false });
+    let release;
+    server.hold = new Promise((r) => (release = r));
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY); // the save is in flight
+    change({ clip: false }); // pending behind it
+    let releaseReset;
+    server.holdReset = new Promise((r) => (releaseReset = r));
+    const reset = resetSettings();
+    release();
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2); // the timer the finished save re-armed would fire here
+    releaseReset();
+    await reset;
+    expect(puts.length).toBe(1);
+    expect(app.overlay.notify.clip).toBe(true);
+  });
+
   it("a refused reset shows the failure", async () => {
     fakeServer({ refuseReset: true });
     await load();
@@ -188,7 +217,7 @@ describe("store", () => {
     const { puts } = fakeServer();
     await load();
     let putsWhenLeft = -1;
-    globalThis.location = { set href(v) { putsWhenLeft = puts.length; } };
+    vi.stubGlobal("location", { set href(v) { putsWhenLeft = puts.length; } });
     change({ snapshot: false });
     await leave("classic");
     expect(putsWhenLeft).toBe(1); // the page is left only once the change is sent
@@ -198,7 +227,7 @@ describe("store", () => {
     const { puts } = fakeServer();
     await load();
     let went = "";
-    globalThis.location = { set href(v) { went = v; } };
+    vi.stubGlobal("location", { set href(v) { went = v; } });
     await leave("setup");
     expect(puts).toEqual([]);
     expect(went).toBe("setup");

@@ -126,11 +126,13 @@ export async function resetSettings() {
   clearTimeout(saveTimer); // a pending save must not land after the reset and undo it
   try {
     if (saving) await saving;
+    clearTimeout(saveTimer); // the save just finished may have re-armed it
     const r = await post("api/settings/reset");
     if (!r.ok) throw new Error(r.data.error || "HTTP " + r.status);
     await load();
   } catch (e) {
     app.error = T("Could not go back to config.yml:\n") + e.message;
+    touched(); // the change made before the reset is still to be sent
   }
 }
 
