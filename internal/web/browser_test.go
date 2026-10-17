@@ -421,6 +421,50 @@ func TestBrowserSampleSavesFirst(t *testing.T) {
 	}
 }
 
+// The Style screen: the chosen style and the options show on the phone at once, the
+// cameras that set their own are named, and the sample leaves with the saved choice.
+func TestBrowserStyle(t *testing.T) {
+	tester := &fakeTester{}
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}},
+		WithTester(tester))
+	if resp := do(t, ts, "PUT", "/api/settings", `{"cameras":{"entree":{"clip":false}}}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/settings: %d", resp.StatusCode)
+	}
+	ctx, jsErrors := browser(t)
+	var overrides, preview string
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#style"),
+		chromedp.WaitVisible(`#styles [data-style="clip"][aria-pressed="true"]`),
+		into(chromedp.Text(`#style-overrides`), &overrides),
+		chromedp.Click(`[data-style="gif"]`),
+		chromedp.WaitVisible(`#styles [data-style="gif"][aria-pressed="true"]`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview").textContent.includes("GIF")`),
+		chromedp.Click(`#style-in-place`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview").textContent.includes("As a reply")`),
+		into(chromedp.Text(`#live-preview`), &preview),
+		chromedp.Click(`#try button`), // the pending change is saved first
+		chromedp.WaitVisible(`#try-result.ok`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(overrides, "entree") {
+		t.Errorf("overrides = %q, want entree", overrides)
+	}
+	if !strings.Contains(preview, "GIF") {
+		t.Errorf("preview = %q, want GIF", preview)
+	}
+	if saved, err := os.ReadFile(path); err != nil || !strings.Contains(string(saved), "gif: true") || !strings.Contains(string(saved), "media_in_place: false") {
+		t.Errorf("the sample went out before the change was saved: %q, %v", saved, err)
+	}
+	if len(tester.cameras) != 1 {
+		t.Errorf("samples sent: %v", tester.cameras)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
 // With a password, a page of the service's own leads to its login page (never the
 // browser's dialog), then back to the interface.
 func TestBrowserLogin(t *testing.T) {
