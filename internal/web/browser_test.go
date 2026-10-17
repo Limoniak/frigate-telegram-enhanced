@@ -1,8 +1,9 @@
-//go:build browser
+//go:build browser || screenshots
 
 // Smoke test of the interface in a real browser (Chrome, driven by chromedp): the
 // page loads without JavaScript errors, shows cameras, status and activity, and
 // saves a setting by itself. Run separately: go test -tags browser ./internal/web/
+// (the screenshots tag compiles it too, for the helpers of screenshots_test.go)
 package web
 
 import (
@@ -350,10 +351,20 @@ func TestBrowserStyle(t *testing.T) {
 	}
 	ctx, jsErrors := browser(t)
 	var overrides, preview string
+	var photo struct {
+		Loaded bool   `json:"loaded"`
+		Src    string `json:"src"`
+	}
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#style"),
 		chromedp.WaitVisible(`#styles [data-style="clip"][aria-pressed="true"]`),
 		into(chromedp.Text(`#style-overrides`), &overrides),
+		// The preview shows a real photo, served from assets/.
+		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector("#live-preview img"); return !!i && i.complete && i.naturalWidth > 0 })()`),
+		into(chromedp.Evaluate[struct {
+			Loaded bool   `json:"loaded"`
+			Src    string `json:"src"`
+		}](`(() => { const i = document.querySelector("#live-preview img"); return { loaded: i.complete && i.naturalWidth > 0, src: i.currentSrc } })()`), &photo),
 		chromedp.Click(`[data-style="gif"]`),
 		chromedp.WaitVisible(`#styles [data-style="gif"][aria-pressed="true"]`),
 		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview").textContent.includes("GIF")`),
@@ -365,6 +376,9 @@ func TestBrowserStyle(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !photo.Loaded || !strings.Contains(photo.Src, "/assets/") {
+		t.Errorf("preview photo = %+v, want a loaded image under assets/", photo)
 	}
 	if !strings.Contains(overrides, "entree") {
 		t.Errorf("overrides = %q, want entree", overrides)
