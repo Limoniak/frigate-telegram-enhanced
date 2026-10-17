@@ -730,13 +730,23 @@ func TestBrowserAdvancedControls(t *testing.T) {
 		chromedp.Evaluate[chromedp.Void](`var s = document.querySelector('[data-key="min_score"] select'); s.value = "label"; s.dispatchEvent(new Event("change", { bubbles: true })); 0`),
 		chromedp.WaitVisible(score+` input[type=number][aria-label="car"]`),
 		into(chromedp.Evaluate[string](`document.querySelector('[data-key="min_score"] select').getAttribute("aria-label")`), &scoreSelect),
-		chromedp.Evaluate[chromedp.Void](`var n = document.querySelector('[data-key="min_score"] input[type=number]'); n.value = "0.8"; n.dispatchEvent(new Event("change", { bubbles: true })); 0`),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if scoreSelect != "One value per object" {
 		t.Errorf("score mode select is named %q", scoreSelect)
+	}
+	// The new mode reaches the file before the value changes: each wait covers one save.
+	waitSaved(t, path, "a first score for car", func(f map[string]any) bool {
+		m, _ := notifyOf(f)["min_score"].(map[string]any)
+		return m["car"] == 0.7
+	})
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`var n = document.querySelector('[data-key="min_score"] input[type=number][aria-label="car"]'); n.value = "0.8"; n.dispatchEvent(new Event("change", { bubbles: true })); 0`),
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
 	waitSaved(t, path, "a score for car", func(f map[string]any) bool {
 		m, _ := notifyOf(f)["min_score"].(map[string]any)
