@@ -178,7 +178,7 @@ language switch in the header changes it and is remembered. On a wide screen, a 
 menu jumps to each section.
 
 The address opens the new overview and style screens; the other settings are in the
-classic interface (`/classic`, link at the bottom of the new one).
+classic interface (`/classic`, link at the bottom of the new one), described below:
 
 - **Status**: one card at the top with the connections to Frigate, MQTT and Telegram,
   whether notifications are active, who is home and which cameras are muted. When a

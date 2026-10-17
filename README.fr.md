@@ -181,7 +181,7 @@ sélecteur de langue de l'en-tête la change, et le choix est retenu. Sur grand 
 un sommaire latéral mène à chaque section.
 
 L'adresse ouvre les nouveaux écrans d'aperçu et de style ; les autres réglages sont dans
-l'interface classique (`/classic`, lien en bas de la nouvelle).
+l'interface classique (`/classic`, lien en bas de la nouvelle), décrite ci-dessous :
 
 - **État** : une carte en haut de page avec les connexions à Frigate, MQTT et Telegram,
   l'état des notifications, qui est à la maison et les caméras coupées. Quand une

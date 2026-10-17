@@ -5,7 +5,7 @@
   import { app, change, pause, resume } from "./lib/store.svelte.js";
   import { effective } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
-  import { timeText, untilText } from "./lib/time.js";
+  import { untilText, whenText } from "./lib/time.js";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
   import Switch from "./lib/Switch.svelte";
@@ -21,7 +21,7 @@
   const mutes = $derived(Object.fromEntries((app.live?.mutes || []).map((m) => [m.camera, m.until])));
   const home = $derived((app.live?.home || []).map((t) => { const p = t.split("/"); return p.length >= 2 && p.at(-1) === "state" ? p.at(-2) : p.at(-1); }));
   const lastEntry = $derived(last && {
-    label: last.label, sound: last.sound, camera: last.camera, time: timeText(last.at, ctx),
+    label: last.label, sound: last.sound, camera: last.camera, time: whenText(last.at, ctx),
     details: [last.zones?.length ? "📍 " + last.zones.join(", ") : "", last.score ? Math.round(last.score * 100) + T("%") : ""].filter(Boolean).join(" · "),
   });
 </script>
