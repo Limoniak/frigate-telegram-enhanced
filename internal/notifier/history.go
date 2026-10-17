@@ -117,10 +117,18 @@ func (n *Notifier) loadHistory() {
 	if len(entries) > historySize {
 		entries = entries[len(entries)-historySize:]
 	}
+	var sent []time.Time
 	for _, e := range entries {
 		e.HistoryEntry.Thumb = e.Thumb
 		n.history = append(n.history, e.HistoryEntry)
+		if e.Sent {
+			sent = append(sent, e.At)
+		}
 	}
+	// The history keeps only historySize entries, so the count read back is a minimum.
+	slices.SortFunc(sent, func(a, b time.Time) int { return a.Compare(b) })
+	n.sent = append(n.sent, sent...)
+	n.pruneSent(n.Now())
 }
 
 // FlushHistory writes the recent activity to HistoryFile if it changed since the
