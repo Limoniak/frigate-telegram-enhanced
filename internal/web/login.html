@@ -25,6 +25,7 @@
 </form>
 <script>
   // Carry the page's #fragment through the login, so a deep link survives it.
+  document.querySelectorAll("nav a").forEach(function (a) { a.href += location.hash; });
   document.querySelector("form").addEventListener("submit", function (e) {
     e.target.action = e.target.action.split("#")[0] + location.hash;
   });
