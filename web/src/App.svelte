@@ -89,7 +89,6 @@
   {#if app.data}
     <span>{T("mode ") + app.data.mode} · {app.data.timezone}</span>
     <span class="flex-1"></span>
-    <a href="classic" onclick={goTo("classic")}>{T("Classic interface")}</a>
     {#if app.data.can_connection}<a href="setup" onclick={goTo("setup")}>{T("Connection")}</a>{/if}
     {#if app.data.auth}<button type="button" class="btn-link" id="logout" onclick={logout}>{T("Log out")}</button>{/if}
   {/if}

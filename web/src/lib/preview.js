@@ -1,5 +1,5 @@
 // previewModel says what a notification looks like with the effective settings eff,
-// as ui.js drew it: the media replaces the image when "in place", otherwise it comes
+// as Telegram shows it: the media replaces the image when "in place", otherwise it comes
 // as a reply.
 import { seconds } from "./settings.js";
 

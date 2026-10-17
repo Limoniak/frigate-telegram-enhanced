@@ -213,9 +213,6 @@ de la page ouvre un écran par sujet :
   celle du bouton 🏠 *Home Assistant* (vide : pas de bouton) ; un lien *Tester ↗* ouvre
   chaque adresse dès qu'elle est valide.
 
-L'interface classique reste à `/classic` jusqu'à la prochaine version (lien *Interface
-classique* en bas de page, et *Nouvelle interface* là-bas pour revenir).
-
 Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
 redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
 est valide — un réglage refusé est signalé et laisse le service sur les précédents.
@@ -335,10 +332,9 @@ go test -tags browser ./internal/web/   # test de fumée de l'interface web, ave
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-L'interface classique (`/classic`) se compose de `internal/web/ui.html`, `ui.css` et `ui.js`,
-intégrés tels quels au binaire : aucune étape de build. La nouvelle interface, les pages
-d'installation et de connexion sont construites à partir de `web/` (Svelte et Tailwind) dans
-`internal/web/dist/`, qui est versionné ; voir [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
+L'interface web complète (installation, connexion et interface principale) est construite à
+partir de `web/` (Svelte et Tailwind) dans `internal/web/dist/`, qui est versionné ; voir
+[CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
 
 ### Traduire
 

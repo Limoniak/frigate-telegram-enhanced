@@ -28,11 +28,9 @@ import (
 	"frigate-telegram-enhanced/internal/state"
 )
 
-// The interface: the main page, its style sheet and its script (no build step yet),
-// the login page, and dist/, the
-// front end built from web/ (npm run build), committed so that go build needs no Node.
+// The login page, and dist/, the front end built from web/ (npm run build), committed so that go build needs no Node.
 //
-//go:embed ui.html ui.css ui.js login.html all:dist
+//go:embed login.html all:dist
 var assets embed.FS
 
 // distFS is the built front end.
@@ -222,19 +220,21 @@ func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.WrapBa
 // configuration sets one. /healthz and /metrics stay outside: the container probe
 // and the Prometheus scrape do not authenticate (see web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
-	// The new interface; the classic one stays at /classic for the screens not moved yet.
+	// The interface.
 	mux.Handle("GET /{$}", h.guard(distAsset("app.html", "text/html; charset=utf-8")))
 	mux.Handle("GET /app.js", h.guard(distAsset("app.js", "text/javascript; charset=utf-8")))
 	mux.Handle("GET /app.css", h.guard(distAsset("app.css", "text/css; charset=utf-8")))
-	mux.Handle("GET /classic", h.guard(asset("ui.html", "text/html; charset=utf-8")))
-	mux.Handle("GET /ui.css", h.guard(asset("ui.css", "text/css; charset=utf-8")))
+	// The classic interface is gone; its old address leads to the new one.
+	mux.HandleFunc("GET /classic", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "./") // relative: the service may sit behind a path prefix
+		w.WriteHeader(http.StatusFound)
+	})
 	// The login page's sheet and the fonts hold nothing private: needed before the password.
 	mux.Handle("GET /login.css", distAsset("login.css", "text/css; charset=utf-8"))
 	mux.Handle("GET /assets/", staticAssets())
 	mux.HandleFunc("GET /login", h.loginPage)
 	mux.HandleFunc("POST /login", h.login)
 	mux.Handle("POST /logout", sameOrigin(http.HandlerFunc(h.logout)))
-	mux.Handle("GET /ui.js", h.guard(asset("ui.js", "text/javascript; charset=utf-8")))
 	mux.Handle("GET /i18n.js", h.guard(serve(i18nScript, "text/javascript; charset=utf-8")))
 	mux.Handle("GET /api/settings", h.guard(http.HandlerFunc(h.get)))
 	mux.Handle("PUT /api/settings", h.guard(sameOrigin(http.HandlerFunc(h.put))))
@@ -314,16 +314,7 @@ func sameOrigin(next http.Handler) http.Handler {
 	})
 }
 
-// asset serves a file of the interface. no-store: after an update of the service,
-// the browser must not keep the old script with the new page.
-func asset(name, contentType string) http.Handler {
-	body, err := assets.ReadFile(name)
-	if err != nil {
-		panic(err) // embedded: missing only if the code is inconsistent
-	}
-	return serve(body, contentType)
-}
-
+// no-store: after an update of the service, the browser must not keep the old script with the new page.
 func serve(body []byte, contentType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", contentType)

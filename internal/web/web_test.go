@@ -226,6 +226,7 @@ func TestResetReturnsToConfigFile(t *testing.T) {
 
 func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	ts.Client().CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse } // the redirect itself is checked
 
 	for _, tc := range []struct {
 		name, method, path, body string
@@ -235,12 +236,9 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 		{name: "without password", method: "GET", path: "/api/settings", want: http.StatusUnauthorized},
 		{name: "wrong password", method: "GET", path: "/api/settings", auth: []string{"autre"}, want: http.StatusUnauthorized},
 		{name: "page without password", method: "GET", path: "/", want: http.StatusUnauthorized},
-		{name: "script without password", method: "GET", path: "/ui.js", want: http.StatusUnauthorized},
-		{name: "script with password", method: "GET", path: "/ui.js", auth: []string{"s3cret"}, want: http.StatusOK},
 		{name: "app script without password", method: "GET", path: "/app.js", want: http.StatusUnauthorized},
 		{name: "app sheet without password", method: "GET", path: "/app.css", want: http.StatusUnauthorized},
-		{name: "classic page without password", method: "GET", path: "/classic", want: http.StatusUnauthorized},
-		{name: "classic page with password", method: "GET", path: "/classic", auth: []string{"s3cret"}, want: http.StatusOK},
+		{name: "classic redirect without password", method: "GET", path: "/classic", want: http.StatusFound},
 		{name: "write without password", method: "PUT", path: "/api/settings", body: "{}", want: http.StatusUnauthorized},
 		{name: "right password", method: "GET", path: "/api/settings", auth: []string{"s3cret"}, want: http.StatusOK},
 	} {
@@ -253,7 +251,7 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 	}
 }
 
-// The new interface is at /: its page loads its script, its sheet and the catalogs, and
+// The interface is at /: its page loads its script, its sheet and the catalogs, and
 // every file it references is served.
 func TestNewInterfaceServed(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
@@ -278,29 +276,28 @@ func TestNewInterfaceServed(t *testing.T) {
 	}
 }
 
-// The classic interface stays at /classic until its screens move to the new one.
-func TestPageIsServed(t *testing.T) {
+// The classic interface is gone: /classic leads to the new one, its files are 404.
+func TestClassicRedirects(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
-	resp := do(t, ts, "GET", "/classic", "")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d", resp.StatusCode)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	get := func(path string) *http.Response {
+		resp, err := client.Get(ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return resp
 	}
-	body, _ := io.ReadAll(resp.Body)
-	for _, ref := range []string{`href="ui.css"`, `src="ui.js"`} {
-		if !strings.Contains(string(body), ref) {
-			t.Errorf("the page does not load %s", ref)
+	if resp := get("/classic"); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "./" {
+		t.Errorf("/classic: status %d, Location %q, want 302 to ./", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	for _, path := range []string{"/ui.js", "/ui.css"} {
+		if resp := get(path); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: status %d, want 404", path, resp.StatusCode)
 		}
 	}
-	for path, want := range map[string]string{"/ui.css": "text/css; charset=utf-8", "/ui.js": "text/javascript; charset=utf-8",
-		"/i18n.js": "text/javascript; charset=utf-8"} {
-		resp := do(t, ts, "GET", path, "")
-		if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != want {
-			t.Errorf("%s: status %d, type %q", path, resp.StatusCode, resp.Header.Get("Content-Type"))
-		}
-	}
-	js, _ := io.ReadAll(do(t, ts, "GET", "/ui.js", "").Body)
-	if !strings.Contains(string(js), "api/settings") {
-		t.Error("the script does not reference the API")
+	if resp := get("/i18n.js"); resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "text/javascript; charset=utf-8" {
+		t.Errorf("/i18n.js: status %d, type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
 	cat, _ := io.ReadAll(do(t, ts, "GET", "/i18n.js", "").Body)
 	for _, want := range []string{`const LANGUAGES = [{"code":"en","name":"English"},{"code":"de","name":"Deutsch"},{"code":"es","name":"Español"},{"code":"fr","name":"Français"},{"code":"it","name":"Italiano"},{"code":"pt","name":"Português"}]`, `"Help":"Aide"`, `"person":{"emoji":"🚶","name":"Person"}`} {

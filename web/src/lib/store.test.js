@@ -235,7 +235,7 @@ describe("store", () => {
     let putsWhenLeft = -1;
     vi.stubGlobal("location", { set href(v) { putsWhenLeft = puts.length; } });
     change({ snapshot: false });
-    await leave("classic");
+    await leave("setup");
     expect(putsWhenLeft).toBe(1); // the page is left only once the change is sent
   });
 

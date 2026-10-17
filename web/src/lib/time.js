@@ -1,5 +1,5 @@
 // Times as the interface shows them: in the service's time zone and the page's
-// language. Ported from ui.js (untilText, whenText).
+// language.
 export const locale = (lang) => (lang === "en" ? "en-GB" : lang);
 
 const day = (d, tz, lang) => d.toLocaleDateString(locale(lang), { timeZone: tz });

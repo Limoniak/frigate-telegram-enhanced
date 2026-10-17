@@ -1,6 +1,5 @@
-// The detailed settings, described once and shown twice (global and per camera), plus
-// the checks and summaries around them. Ported from ui.js. T and Tf are passed in so
-// the module stays pure.
+// The detailed settings, described once and shown twice (global and per camera), plus the
+// checks and summaries around them. T and Tf are passed in so the module stays pure.
 import { effective, styleOf } from "./settings.js";
 import { untilText } from "./time.js";
 

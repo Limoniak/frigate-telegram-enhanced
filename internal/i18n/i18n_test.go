@@ -6,7 +6,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"html"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -225,13 +224,11 @@ func translates(fun ast.Expr) bool {
 var (
 	jsString = regexp.MustCompile(`"((?:[^"\\\n]|\\.)*)"`)
 	jsCall   = regexp.MustCompile(`(?:^|[^\w.$])Tf?\(\s*"((?:[^"\\\n]|\\.)*)"`)
-	dataT    = regexp.MustCompile(`data-t(?:-placeholder)?="([^"]*)"`)
 	// T("…", …) or T(`…${x}…`): a call left bilingual, or a key that changes with its values.
 	jsBilingual = regexp.MustCompile(`(?:^|[^\w.$])T\(\s*(?:"(?:[^"\\\n]|\\.)*"\s*,|` + "`" + `[^` + "`" + `]*\$\{)`)
 )
 
-// scanWeb does the same for the web interface: T("…")/Tf("…") in its scripts,
-// data-t and data-t-placeholder in its pages.
+// scanWeb does the same for the web interface: T("…")/Tf("…") in its Svelte components and scripts (web/src).
 func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[string]bool) {
 	t.Helper()
 	unquote := func(name, s string) string {
@@ -241,33 +238,7 @@ func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[stri
 		}
 		return u
 	}
-	for _, name := range []string{"ui.js"} {
-		js, err := os.ReadFile(filepath.Join(dir, name))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, m := range jsString.FindAllStringSubmatch(string(js), -1) {
-			literals[unquote(name, m[1])] = true
-		}
-		for _, m := range jsCall.FindAllStringSubmatch(string(js), -1) {
-			keys[unquote(name, m[1])] = name
-		}
-		for _, m := range jsBilingual.FindAllString(string(js), -1) {
-			t.Errorf("%s: %q: T takes one English text; use Tf for a text with values", name, m)
-		}
-	}
-	for _, name := range []string{"ui.html"} {
-		page, err := os.ReadFile(filepath.Join(dir, name))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, m := range dataT.FindAllStringSubmatch(string(page), -1) {
-			s := html.UnescapeString(m[1])
-			keys[s], literals[s] = name, true
-		}
-	}
 
-	// The new front end: T("…") in its Svelte components and scripts.
 	src := filepath.Join(dir, "..", "..", "web", "src")
 	err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || strings.HasSuffix(path, ".test.js") ||

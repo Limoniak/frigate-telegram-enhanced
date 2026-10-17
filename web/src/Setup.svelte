@@ -348,7 +348,7 @@
 
   <Card id="sec-telegram">
     <div class="flex items-start gap-3">
-      <span class="lbl mt-1">1</span>
+      <span data-step class="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[var(--accent)]/15 text-[15px] font-semibold text-[var(--accent-ink)] tabular-nums" aria-hidden="true">1</span>
       <div class="flex min-w-0 flex-col gap-1">
         <h2 class="m-0 text-lg font-semibold">{T("Telegram bot")}</h2>
         <p class="m-0 text-[var(--muted)]"><WithLink text={T("In Telegram, open %s, send /newbot and choose a name: it gives you a token. Paste it here.")} href="https://t.me/BotFather" label="@BotFather" /></p>
@@ -391,7 +391,7 @@
 
   <Card id="sec-frigate">
     <div class="flex items-start gap-3">
-      <span class="lbl mt-1">2</span>
+      <span data-step class="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[var(--accent)]/15 text-[15px] font-semibold text-[var(--accent-ink)] tabular-nums" aria-hidden="true">2</span>
       <div class="flex min-w-0 flex-col gap-1">
         <h2 class="m-0 text-lg font-semibold">{T("Frigate")}</h2>
         <p class="m-0 text-[var(--muted)]">{T("Looked for by itself on your network. If it is not found, enter its address: the one of its web page, with port 5000.")}</p>
@@ -418,7 +418,7 @@
 
   <Card id="sec-mqtt">
     <div class="flex items-start gap-3">
-      <span class="lbl mt-1">3</span>
+      <span data-step class="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[var(--accent)]/15 text-[15px] font-semibold text-[var(--accent-ink)] tabular-nums" aria-hidden="true">3</span>
       <div class="flex min-w-0 flex-col gap-1">
         <h2 class="m-0 text-lg font-semibold">{T("MQTT")}</h2>
         <p class="m-0 text-[var(--muted)]">{T("How Frigate announces its detections. Read from Frigate's configuration: usually nothing to do.")}</p>
@@ -478,7 +478,7 @@
 
   <div class="flex flex-col gap-2" id="checks" hidden={failed.length === 0}>
     {#each failed as c (c.name)}
-      <div class="notice err"><b>{c.name} — </b>{c.detail}{#if c.hint}<div class="text-[var(--muted)]">{c.hint}</div>{/if}</div>
+      <div class="notice err"><b>{c.name} —</b> {c.detail}{#if c.hint}<div class="text-[var(--muted)]">{c.hint}</div>{/if}</div>
     {/each}
     <div><button type="button" class="btn-link" onclick={() => save(true)}>{T("Save anyway")}</button></div>
   </div>

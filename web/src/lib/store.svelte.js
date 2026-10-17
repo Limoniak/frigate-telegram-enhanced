@@ -1,6 +1,6 @@
-// The state of the main interface, shared by its screens: the settings (saved by
-// themselves shortly after a change, as ui.js did), the live state (pause, mutes),
-// the connections and the recent activity.
+// The state of the main interface, shared by its screens: the settings (saved by themselves
+// shortly after a change), the live state (pause, mutes), the connections and the recent
+// activity.
 import { api as rawApi, post as rawPost } from "./api.js";
 import { T, i18n } from "./i18n.svelte.js";
 import { apply, toSend } from "./settings.js";

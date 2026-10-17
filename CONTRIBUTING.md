@@ -35,7 +35,7 @@ go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
 The CI runs the same checks on every pull request.
 
-The new interface, the setup and login pages are built from `web/` (Svelte and Tailwind).
+The web interface (setup, login and main pages) is built from `web/` (Svelte and Tailwind).
 `go build` and `go test` need no Node: the build output, `internal/web/dist/`, is committed.
 After a change in `web/`:
 
@@ -47,7 +47,7 @@ npm run build      # updates internal/web/dist/, commit it with your change
 npm run dev        # live reload, with the API of a service running on port 8431
 ```
 
-`npm run dev` serves the setup page at <http://localhost:5173/setup.html> and the new
+`npm run dev` serves the setup page at <http://localhost:5173/setup.html> and the
 interface at <http://localhost:5173/app.html>.
 
 The CI fails when `internal/web/dist/` does not match `web/`. Dependabot's npm pull
@@ -57,17 +57,15 @@ requests do not rebuild `dist/`: when the check fails on one, a maintainer runs
 Conventions:
 
 - **English** in the code, comments, tests and commit messages. Texts shown to users go
-  through the catalogs: `T("…")` in Go and JavaScript, `data-t="…"` in HTML. Every
-  catalog must translate every text: `go test ./internal/i18n/` tells which ones are
-  missing (in doubt, leave the English text and say so in the pull request).
+  through the catalogs: `T("…")` in Go and JavaScript. Every catalog must translate
+  every text: `go test ./internal/i18n/` tells which ones are missing (in doubt, leave
+  the English text and say so in the pull request).
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
   `feat:`, `fix:`, `docs:`, `test:`, `chore:`… and `!` for a breaking change
   (`feat!:`).
 - A change users can notice gets a line under *Unreleased* in
   [CHANGELOG.md](CHANGELOG.md).
-- New behavior comes with tests. The classic interface (`ui.html`, `ui.css` and `ui.js`, at
-  `/classic`) has no build step: they are embedded as they are. The new interface, the setup
-  and login pages come from `web/`.
+- New behavior comes with tests.
 
 ## Pull requests
 

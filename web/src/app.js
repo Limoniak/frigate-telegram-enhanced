@@ -1,4 +1,4 @@
-// The main interface: every screen; the classic one stays at /classic.
+// The interface: every screen.
 import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";

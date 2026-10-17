@@ -209,9 +209,6 @@ page opens one screen per topic:
   Frigate's address) and the one of the 🏠 *Home Assistant* button (empty: no button);
   a *Test ↗* link opens each address once it is valid.
 
-The classic interface stays at `/classic` until the next version (*Classic interface*
-link at the bottom of the page, and *New interface* there to come back).
-
 Every change is **saved by itself** and takes effect **immediately**, without a
 restart; the status at the top of the page confirms it. A change is only accepted if
 valid — a rejected one is reported and leaves the service on the previous settings.
@@ -329,10 +326,8 @@ go test -tags browser ./internal/web/   # web interface smoke test, needs Chrome
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-The classic interface (`/classic`) is `internal/web/ui.html`, `ui.css` and `ui.js`, embedded in
-the binary as is: no build step. The new interface, the setup and login pages are built from
-`web/` (Svelte and Tailwind) into `internal/web/dist/`, which is committed; see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+The whole web interface (setup, login and the main interface) is built from `web/` (Svelte and
+Tailwind) into `internal/web/dist/`, which is committed; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Translating
 

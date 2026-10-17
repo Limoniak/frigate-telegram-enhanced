@@ -13,7 +13,7 @@ describe("questions", () => {
     expect(events).toContain("home");
     expect(events).not.toContain("severity");
   });
-  it("has the patches of the classic interface", () => {
+  it("has the expected patches", () => {
     const opt = (id, label) => QUESTIONS(T).find((q) => q.id === id).options.find((o) => o.label === label);
     expect(opt("objects", "🚶🚗 People and cars").patch).toEqual({ labels: ["car", "person"] });
     expect(opt("night", "🌙 No notifications").patch).toEqual({ quiet_hours: [], off_hours: NIGHT });

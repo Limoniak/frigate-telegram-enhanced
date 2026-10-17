@@ -30,67 +30,6 @@ import (
 	"frigate-telegram-enhanced/internal/state"
 )
 
-func TestBrowserSmoke(t *testing.T) {
-	cams := fakeCameras{cams: []frigate.CameraInfo{
-		{Name: "garage", Zones: []string{"allee"}, Labels: []string{"person", "car"}},
-		{Name: "salon", Labels: []string{"person"}},
-	}}
-	history := fakeHistory{entries: []notifier.HistoryEntry{
-		{ID: "e1", At: time.Now(), Camera: "garage", Label: "person", Sent: true},
-		{ID: "e2", At: time.Now(), Camera: "salon", Label: "car", Reason: "label"},
-	}}
-	health := func(context.Context, i18n.Lang) []Component {
-		return []Component{{Name: "Frigate", State: StateOK, Detail: "0.16"}, {Name: "MQTT", State: StateError, Detail: "refused", Hint: "check"}}
-	}
-	_, path, ts := setup(t, "", cams, WithHistory(history, nil), WithHealth(health),
-		WithRefused(fakeRefusals{{ID: 999, Name: "Alice", At: time.Now()}}))
-
-	ctx, jsErrors := browser(t)
-
-	var cameras, activity, health2, title string
-	err := chromedp.Do(ctx,
-		chromedp.Navigate(ts.URL+"/classic"),
-		chromedp.WaitVisible(`#cameras .cam-name`),
-		into(chromedp.Text(`#cameras`), &cameras),
-		chromedp.WaitVisible(`#activity li, #activity > *`),
-		into(chromedp.Text(`#activity`), &activity),
-		chromedp.WaitVisible(`#health-errors`),
-		into(chromedp.Text(`#health-errors`), &health2),
-		// Muting a camera is saved by itself, shortly after.
-		chromedp.Click(`details.camera[data-name="salon"] label.toggle`),
-		chromedp.WaitVisible(`#status.saved`), // saved by itself, no button
-		// The language menu comes from the catalogs; in French, the page is translated.
-		chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "fr"; m.dispatchEvent(new Event("change")); 0`),
-		into(chromedp.Text(`#sec-when h2`), &title),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"garage", "salon"} {
-		if !strings.Contains(cameras, want) {
-			t.Errorf("cameras shown = %q, %s missing", cameras, want)
-		}
-	}
-	if activity == "" {
-		t.Error("recent activity empty")
-	}
-	for _, want := range []string{"MQTT", "999"} {
-		if !strings.Contains(health2, want) {
-			t.Errorf("status shown = %q, %s missing", health2, want)
-		}
-	}
-	if title != "Quand être prévenu ?" {
-		t.Errorf("title in French = %q, want Quand être prévenu ?", title)
-	}
-	saved, err := os.ReadFile(path)
-	if err != nil || !strings.Contains(string(saved), "salon") {
-		t.Errorf("override saved = %q, %v", saved, err)
-	}
-	if errs := jsErrors(); len(errs) > 0 {
-		t.Errorf("JavaScript errors: %q", errs)
-	}
-}
-
 // The overview: the day's count and health, the last notification sent, a camera
 // turned off (saved by itself), and the pause.
 func TestBrowserOverview(t *testing.T) {
@@ -208,21 +147,23 @@ func TestBrowserLanguageAuto(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
 	ctx, jsErrors := browser(t)
 	choose := func(code string) chromedp.Action[chromedp.Void] {
-		return chromedp.Evaluate[chromedp.Void](`const m = document.querySelector(".lang select"); m.value = "` + code + `"; m.dispatchEvent(new Event("change")); 0`)
+		return chromedp.Evaluate[chromedp.Void](`{ const m = document.querySelector('header select[aria-label="Language / Langue"]'); m.value = "` + code + `"; m.dispatchEvent(new Event("change", { bubbles: true })); } 0`)
 	}
 	// menu value, page language, saved choice
-	const state = `[document.querySelector(".lang select").value, document.documentElement.lang, localStorage.getItem("frigate-telegram-enhanced-lang") || "-"].join(" ")`
-	var first, forced, back string
+	const state = `[document.querySelector('header select[aria-label="Language / Langue"]').value, document.documentElement.lang, localStorage.getItem("frigate-telegram-enhanced-lang") || "-"].join(" ")`
+	var first, forced, back, nav string
 	err := chromedp.Do(ctx,
-		chromedp.Navigate(ts.URL+"/classic"),
-		chromedp.WaitVisible(`#cameras .cam-name`),
+		chromedp.Navigate(ts.URL+"/"),
+		chromedp.WaitVisible(`#cameras-list`),
 		into(chromedp.Evaluate[string](state), &first),
 		choose("de"),
 		chromedp.Reload(),
-		chromedp.WaitVisible(`#cameras .cam-name`),
+		chromedp.WaitVisible(`#cameras-list`),
 		into(chromedp.Evaluate[string](state), &forced),
 		choose("auto"),
 		into(chromedp.Evaluate[string](state), &back),
+		choose("fr"),
+		into(chromedp.Text(`#nav`), &nav),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -232,6 +173,9 @@ func TestBrowserLanguageAuto(t *testing.T) {
 	}
 	if forced != "de de de" {
 		t.Errorf("after choosing German and reloading: %q, want \"de de de\"", forced)
+	}
+	if !strings.Contains(nav, "Aperçu") {
+		t.Errorf("menu in French = %q, want Aperçu", nav)
 	}
 	if back != first {
 		t.Errorf("back to Auto: %q, want %q as on arrival", back, first)
@@ -389,39 +333,6 @@ func TestBrowserSetupFindsFrigate(t *testing.T) {
 	}
 	if url != "http://192.168.1.10:5000" || broker != "192.168.1.10:1883" || !strings.Contains(status, "192.168.1.10:1883") {
 		t.Errorf("found url %q, broker %q, status %q", url, broker, status)
-	}
-	if errs := jsErrors(); len(errs) > 0 {
-		t.Errorf("JavaScript errors: %q", errs)
-	}
-}
-
-// For a beginner: the fine settings are folded, and a sample asked for right
-// after a change goes out with that change saved.
-func TestBrowserSampleSavesFirst(t *testing.T) {
-	tester := &fakeTester{}
-	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage", Labels: []string{"person"}}}},
-		WithTester(tester))
-	ctx, jsErrors := browser(t)
-	var folded bool
-	err := chromedp.Do(ctx,
-		chromedp.Navigate(ts.URL+"/classic"),
-		chromedp.WaitVisible(`#messages .notice.info`), // first visit: welcome
-		into(chromedp.Evaluate[bool](`!document.querySelector("#questions details.more").open`), &folded),
-		chromedp.Click(`.style-card:nth-child(2)`), // "Photo only", then the sample at once
-		chromedp.Click(`#try button`),
-		chromedp.WaitVisible(`#try .result.ok`),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !folded {
-		t.Error("the More choices box is open on a first visit")
-	}
-	if saved, err := os.ReadFile(path); err != nil || !strings.Contains(string(saved), "clip: false") {
-		t.Errorf("the sample went out before the change was saved: %q, %v", saved, err)
-	}
-	if len(tester.cameras) != 1 {
-		t.Errorf("samples sent: %v", tester.cameras)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -596,7 +507,8 @@ func TestBrowserWhenMoreChoices(t *testing.T) {
 // A change made on one screen is saved even if the screen is left before the delay,
 // and the links of the footer send the pending change before leaving the page.
 func TestBrowserSavesWhenLeaving(t *testing.T) {
-	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	setupPage := NewSetup(filepath.Join(t.TempDir(), "connection.yml"), nil, &fakeProber{}, slog.New(slog.DiscardHandler), func() {})
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}}, WithSetup(setupPage))
 	ctx, jsErrors := browser(t)
 	var where string
 	err := chromedp.Do(ctx,
@@ -616,8 +528,8 @@ func TestBrowserSavesWhenLeaving(t *testing.T) {
 		chromedp.Click(`#nav a[href="#when"]`),
 		chromedp.WaitVisible(`#when`),
 		chromedp.Click(byText("", "🌙 No notifications")),
-		chromedp.Click(`footer a[href="classic"]`),
-		chromedp.WaitVisible(`footer a[href="./"]`), // the classic page
+		chromedp.Click(`footer a[href="setup"]`),
+		chromedp.WaitVisible(`#intro-first`), // the connection page
 		into(chromedp.Evaluate[string](`location.pathname`), &where),
 	)
 	if err != nil {
@@ -627,8 +539,8 @@ func TestBrowserSavesWhenLeaving(t *testing.T) {
 	if f := savedFile(t, path); !slices.Equal(hours(notifyOf(f)["off_hours"]), []string{"22:00-07:00"}) {
 		t.Errorf("the change was not saved before leaving for %s: %v", where, f)
 	}
-	if !strings.HasSuffix(where, "/classic") {
-		t.Errorf("left for %q, want the classic interface", where)
+	if !strings.HasSuffix(where, "/setup") {
+		t.Errorf("left for %q, want the connection page", where)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -818,13 +730,23 @@ func TestBrowserAdvancedControls(t *testing.T) {
 		chromedp.Evaluate[chromedp.Void](`var s = document.querySelector('[data-key="min_score"] select'); s.value = "label"; s.dispatchEvent(new Event("change", { bubbles: true })); 0`),
 		chromedp.WaitVisible(score+` input[type=number][aria-label="car"]`),
 		into(chromedp.Evaluate[string](`document.querySelector('[data-key="min_score"] select').getAttribute("aria-label")`), &scoreSelect),
-		chromedp.Evaluate[chromedp.Void](`var n = document.querySelector('[data-key="min_score"] input[type=number]'); n.value = "0.8"; n.dispatchEvent(new Event("change", { bubbles: true })); 0`),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if scoreSelect != "One value per object" {
 		t.Errorf("score mode select is named %q", scoreSelect)
+	}
+	// The new mode reaches the file before the value changes: each wait covers one save.
+	waitSaved(t, path, "a first score for car", func(f map[string]any) bool {
+		m, _ := notifyOf(f)["min_score"].(map[string]any)
+		return m["car"] == 0.7
+	})
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`var n = document.querySelector('[data-key="min_score"] input[type=number][aria-label="car"]'); n.value = "0.8"; n.dispatchEvent(new Event("change", { bubbles: true })); 0`),
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
 	waitSaved(t, path, "a score for car", func(f map[string]any) bool {
 		m, _ := notifyOf(f)["min_score"].(map[string]any)
@@ -1037,7 +959,8 @@ func TestBrowserSetupFitsAPhone(t *testing.T) {
 
 	ctx, jsErrors := browser(t)
 	var width int
-	var heading string
+	var heading, steps string
+	var stepSize float64
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		chromedp.Navigate(ts.URL+"/"),
@@ -1049,6 +972,8 @@ func TestBrowserSetupFitsAPhone(t *testing.T) {
 		chromedp.Click(`#manual summary`),
 		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
 		into(chromedp.Evaluate[string](`document.querySelector("#sec-telegram h2").textContent`), &heading),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll("[data-step]")].map(e => e.textContent.trim()).join(",")`), &steps),
+		into(chromedp.Evaluate[float64](`parseFloat(getComputedStyle(document.querySelector("#sec-telegram [data-step]")).fontSize)`), &stepSize),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1058,6 +983,12 @@ func TestBrowserSetupFitsAPhone(t *testing.T) {
 	}
 	if heading != "Telegram-Bot" {
 		t.Errorf("the Telegram card heading is %q in German, want \"Telegram-Bot\"", heading)
+	}
+	if steps != "1,2,3" {
+		t.Errorf("the step numbers are %q, want \"1,2,3\"", steps)
+	}
+	if stepSize < 15 {
+		t.Errorf("the step number is %.1f px on a 360 px screen, want at least 15 px", stepSize)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -1458,27 +1389,65 @@ func TestBrowserActivity(t *testing.T) {
 	}
 }
 
-// The menu stays inside the new interface; only the footer links to the classic one,
-// and the classic page links back.
+// The page has no link to /classic, and the old address leads to the interface.
 func TestBrowserNoClassicLinks(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	ctx, jsErrors := browser(t)
-	var inMenu, footer, back int
+	var links int
+	var where string
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/"),
 		chromedp.WaitVisible(`#nav`),
-		chromedp.WaitVisible(`footer a[href="classic"]`),
-		into(chromedp.Evaluate[int](`document.querySelectorAll('#nav a[href^="classic"]').length`), &inMenu),
-		into(chromedp.Evaluate[int](`document.querySelectorAll('footer a[href="classic"]').length`), &footer),
+		chromedp.WaitVisible(`#cameras-list`), // the footer renders once the data is loaded
+		into(chromedp.Evaluate[int](`document.querySelectorAll('a[href^="classic"]').length`), &links),
 		inEnglish(ts.URL+"/classic"),
-		chromedp.WaitVisible(`footer`),
-		into(chromedp.Evaluate[int](`[...document.querySelectorAll('footer a[href="./"]')].filter(a => a.textContent.trim() === "New interface").length`), &back),
+		chromedp.WaitVisible(`#cameras-list`),
+		into(chromedp.Evaluate[string](`location.pathname`), &where),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inMenu != 0 || footer != 1 || back != 1 {
-		t.Errorf("classic links in the menu = %d, in the footer = %d, links back in the classic footer = %d", inMenu, footer, back)
+	if links != 0 {
+		t.Errorf("classic links in the page = %d, want none", links)
+	}
+	if where != "/" {
+		t.Errorf("/classic led to %q, want /", where)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// A failing connection shows its detail and hint, a refused user is listed with
+// how to let them in, and the day's summary says something needs attention.
+func TestBrowserOverviewProblems(t *testing.T) {
+	health := func(context.Context, i18n.Lang) []Component {
+		return []Component{
+			{Name: "Frigate", State: StateOK, Detail: "0.16"},
+			{Name: "MQTT", State: StateError, Detail: "refused", Hint: "check"},
+		}
+	}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHealth(health),
+		WithRefused(fakeRefusals{{ID: 999, Name: "Alice", At: time.Now()}}))
+	ctx, jsErrors := browser(t)
+	var connections, today string
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/"),
+		chromedp.WaitVisible(`#connections`),
+		into(chromedp.Text(`#connections`), &connections),
+		into(chromedp.Text(`#today`), &today),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"MQTT — refused", "👉 check", "Alice", "999",
+		"To allow someone, add their ID to telegram.chats in config.yml"} {
+		if !strings.Contains(connections, want) {
+			t.Errorf("connections = %q, want it to contain %q", connections, want)
+		}
+	}
+	if !strings.Contains(today, "Something needs attention") {
+		t.Errorf("today = %q, want %q", today, "Something needs attention")
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
