@@ -465,6 +465,116 @@ func TestBrowserStyle(t *testing.T) {
 	}
 }
 
+// byText finds a button by its exact text, inside the optional scope.
+func byText(scope, text string) chromedp.Search {
+	return chromedp.Search(scope + `//button[normalize-space()="` + text + `"]`)
+}
+
+// The When screen: a choice is saved by itself, the recipients question shows with two
+// chats, and the page fits a phone.
+func TestBrowserWhen(t *testing.T) {
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	var page string
+	var width int
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inEnglish(ts.URL+"/#when"),
+		chromedp.WaitVisible(`#when`),
+		chromedp.Click(byText("", "🚶🚗 People and cars")),
+		chromedp.WaitVisible(`#save-status.ok`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved, err := os.ReadFile(path); err != nil || !strings.Contains(string(saved), "car") || !strings.Contains(string(saved), "person") {
+		t.Errorf("labels not saved: %q, %v", saved, err)
+	}
+	err = chromedp.Do(ctx,
+		chromedp.Click(byText("", "🌙 No notifications")),
+		chromedp.WaitVisible(`#save-status.ok`),
+		into(chromedp.Text(`#when`), &page),
+		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved, err := os.ReadFile(path); err != nil || !strings.Contains(string(saved), "off_hours") {
+		t.Errorf("off hours not saved: %q, %v", saved, err)
+	}
+	if !strings.Contains(page, "Who receives the notifications?") {
+		t.Errorf("the recipients question is missing: %q", page)
+	}
+	if width > 360 {
+		t.Errorf("the page is %d px wide on a 360 px screen", width)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The Recipients screen: limiting one chat is saved, and going back to "All the time"
+// removes it again.
+func TestBrowserRecipients(t *testing.T) {
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	famille := `//*[@data-chat="famille"]`
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inEnglish(ts.URL+"/#recipients"),
+		chromedp.WaitVisible(`#recipients`),
+		chromedp.Click(byText(famille, "🌙 Only at night")),
+		chromedp.WaitVisible(`#save-status.ok`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved, err := os.ReadFile(path); err != nil || !strings.Contains(string(saved), "famille") || !strings.Contains(string(saved), "off_hours") {
+		t.Errorf("recipient not saved: %q, %v", saved, err)
+	}
+	err = chromedp.Do(ctx,
+		chromedp.Click(byText(famille, "All the time")),
+		chromedp.WaitVisible(`#save-status.ok`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved, err := os.ReadFile(path); err != nil || strings.Contains(string(saved), "famille") {
+		t.Errorf("recipient not removed: %q, %v", saved, err)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// With a single chat there is nobody to choose between: no recipients question, no
+// Recipients screen in the menu.
+func TestBrowserWhenSingleChat(t *testing.T) {
+	yaml := strings.Replace(testConfig, "    famille: -100\n", "", 1)
+	_, _, ts := setupConfig(t, yaml, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	var page string
+	var links int
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#when"),
+		chromedp.WaitVisible(`#when`),
+		into(chromedp.Text(`#when`), &page),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('#nav a[href="#recipients"]').length`), &links),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(page, "Who receives the notifications?") {
+		t.Errorf("the recipients question shows with one chat: %q", page)
+	}
+	if links != 0 {
+		t.Errorf("the menu links to Recipients with one chat")
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
 // With a password, a page of the service's own leads to its login page (never the
 // browser's dialog), then back to the interface.
 func TestBrowserLogin(t *testing.T) {

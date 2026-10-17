@@ -59,7 +59,13 @@ func (f fakeCameras) CameraDetails(context.Context) ([]frigate.CameraInfo, error
 // the path of the override file and the server.
 func setup(t *testing.T, password string, cams fakeCameras, opts ...Option) (*config.Config, string, *httptest.Server) {
 	t.Helper()
-	cfg, err := config.Parse([]byte(testConfig))
+	return setupConfig(t, testConfig, password, cams, opts...)
+}
+
+// setupConfig is setup with its own config.yml.
+func setupConfig(t *testing.T, yaml, password string, cams fakeCameras, opts ...Option) (*config.Config, string, *httptest.Server) {
+	t.Helper()
+	cfg, err := config.Parse([]byte(yaml))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}

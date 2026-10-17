@@ -1,6 +1,6 @@
 <script>
   // The shell of the main interface: a floating pill navigation, the save status, the
-  // screens (#overview, #style), and links to the screens still in the classic
+  // screens (#overview, #style, #when, #recipients), and links to the screens still in the classic
   // interface.
   import { onMount } from "svelte";
   import { T, i18n } from "./lib/i18n.svelte.js";
@@ -9,8 +9,11 @@
   import LangMenu from "./lib/LangMenu.svelte";
   import Overview from "./Overview.svelte";
   import Style from "./Style.svelte";
+  import When from "./When.svelte";
+  import Recipients from "./Recipients.svelte";
+  import { parseRoute } from "./lib/route.js";
 
-  let route = $state(location.hash === "#style" ? "style" : "overview");
+  let route = $state(parseRoute(location.hash));
   let failed = $state("");
 
   $effect(() => {
@@ -19,16 +22,21 @@
   });
 
   onMount(() => {
-    const onHash = () => { route = location.hash === "#style" ? "style" : "overview"; };
+    const onHash = () => { route = parseRoute(location.hash); };
     addEventListener("hashchange", onHash);
     load().then(startPolling).catch((e) => { failed = T("Loading failed:\n") + e.message; });
     return () => removeEventListener("hashchange", onHash);
   });
 
+  // Recipients only matter with more than one chat.
+  const hasRecipients = $derived((app.data?.chats || []).length > 1);
+  const screens = () => [
+    ["overview", T("Overview")], ["style", T("Style")], ["when", T("When")],
+    ...(hasRecipients ? [["recipients", T("Recipients")]] : []),
+  ];
+
   // The screens not yet moved: their section in the classic interface.
   const classic = () => [
-    [T("When"), "classic#sec-when"],
-    [T("Recipients"), "classic#recipients-box"],
     [T("Cameras"), "classic#sec-cameras"],
     [T("Recent activity"), "classic#activity-box"],
     [T("Advanced settings"), "classic#advanced"],
@@ -42,8 +50,9 @@
 
 <header class="sticky top-[env(safe-area-inset-top,0px)] z-10 px-4 pt-4">
   <nav id="nav" class="mx-auto flex w-full max-w-max items-center gap-1 overflow-x-auto rounded-full bg-[var(--glass)] p-1.5 ring-1 ring-[var(--ring)] backdrop-blur-xl">
-    <a href="#overview" class="whitespace-nowrap rounded-full px-3 py-1.5 no-underline {route === 'overview' ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}" aria-current={route === "overview" ? "page" : undefined}>{T("Overview")}</a>
-    <a href="#style" class="whitespace-nowrap rounded-full px-3 py-1.5 no-underline {route === 'style' ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}" aria-current={route === "style" ? "page" : undefined}>{T("Style")}</a>
+    {#each screens() as [id, label] (id)}
+      <a href="#{id}" class="whitespace-nowrap rounded-full px-3 py-1.5 no-underline {route.screen === id ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}" aria-current={route.screen === id ? "page" : undefined}>{label}</a>
+    {/each}
     {#each classic() as [label, href] (href)}
       <a {href} class="whitespace-nowrap rounded-full px-3 py-1.5 text-[var(--muted)] no-underline">{label}</a>
     {/each}
@@ -57,7 +66,10 @@
   {#if app.warning}<div class="notice">{app.warning}</div>{/if}
   {#if app.error}<div class="notice err" role="alert">{app.error}</div>{/if}
   {#if app.data}
-    {#if route === "style"}<Style />{:else}<Overview />{/if}
+    {#if route.screen === "style"}<Style />
+    {:else if route.screen === "when"}<When />
+    {:else if route.screen === "recipients" && hasRecipients}<Recipients />
+    {:else}<Overview />{/if}
   {/if}
 </main>
 
