@@ -36,6 +36,7 @@
   // The camera's own image; when it does not load (or there is no camera), the sample.
   const liveUrl = $derived(chosen ? "api/cameras/" + encodeURIComponent(chosen) + "/latest.jpg" : "");
   let bad = $state(""); // the address that failed to load
+  let loaded = $state(""); // the address that loaded
   const live = $derived(liveUrl && bad !== liveUrl ? liveUrl : "");
   let sending = $state(false);
   let result = $state({ state: "", text: "" });
@@ -104,7 +105,7 @@
   </div>
   <div id="live-preview" class="flex flex-col items-center gap-3 lg:sticky lg:top-24 lg:col-span-5 lg:self-start">
     <span class="lbl">{T("Live preview")}</span>
-    <Phone {model} entry={sample} image={live} onerror={() => { bad = liveUrl; }} />
-    {#if live}<span class="text-[12px] text-[var(--muted)]">{Tf("Latest image of %s", chosen)}</span>{/if}
+    <Phone {model} entry={sample} image={live} onerror={() => { bad = liveUrl; }} onload={() => { loaded = liveUrl; }} />
+    {#if live && loaded === live && model.photo}<span class="text-[12px] text-[var(--muted)]">{Tf("Latest image of %s", chosen)}</span>{/if}
   </div>
 </section>

@@ -10,8 +10,9 @@ export function timeText(iso, { tz, lang }) {
 
 // hourStart is the start, in Unix seconds, of the chart's bar i (0..23, 23 the last
 // hour) when the chart was fetched at at (ms). The server counts bar i over
-// (now-(24-i)h, now-(23-i)h]: windows that end now, not on the clock's hours, so that
-// the activity filter, which takes the same window, shows what the bar counted.
+// (now-(24-i)h, now-(23-i)h] of the notifications' send times: windows that end now,
+// not on the clock's hours, so that the activity filter, which takes the same window
+// on the same instants, shows what the bar counted.
 export const hourStart = (at, i) => Math.floor(at / 1000) - (24 - i) * 3600;
 
 // untilText is the end of a pause or a mute ("until 22:30"); null means until resumed.
