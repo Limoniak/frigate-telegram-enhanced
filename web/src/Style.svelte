@@ -79,7 +79,7 @@
           {/each}
         </div></div>
     </Card>
-    {#if overrides.length}<p id="style-overrides" class="m-0 text-[var(--muted)]">{T("Applies to every camera, except those set differently in the classic interface:")} {overrides.join(", ")} · <a href="classic#sec-cameras">{T("Classic interface")}</a></p>{/if}
+    {#if overrides.length}<p id="style-overrides" class="m-0 text-[var(--muted)]">{T("Applies to every camera, except those set differently in the classic interface:")} {overrides.join(", ")} · <a href="#cameras">{T("Classic interface")}</a></p>{/if}
     {#if app.data.can_test && cams.length}
       <div id="try" class="flex flex-wrap items-center gap-3">
         <button type="button" class="btn btn-primary" disabled={sending} onclick={test}>{T("📨 Send me a sample")}</button>

@@ -6,6 +6,7 @@
   import { effective } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
   import { untilText, whenText } from "./lib/time.js";
+  import { routeHash } from "./lib/route.js";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
   import Switch from "./lib/Switch.svelte";
@@ -89,7 +90,7 @@
         {#each app.data.cameras || [] as c (c.name)}
           {@const on = effective(app.overlay, c.name).enabled !== false}
           <div class="flex items-center gap-3">
-            <span class="min-w-0 flex-1 truncate">{c.name}</span>
+            <a class="min-w-0 flex-1 truncate" href={routeHash({ screen: "cameras", camera: c.name })}>{c.name}</a>
             {#if mutes[c.name] !== undefined}
               <button type="button" class="btn-link text-[12px]" onclick={() => resume(c.name)}>🔇 {untilText(mutes[c.name], ctx)} · {T("Re-enable")}</button>
             {/if}

@@ -21,6 +21,7 @@ import (
 
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
+	"gopkg.in/yaml.v3"
 
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/frigate"
@@ -866,6 +867,168 @@ func TestBrowserSetupLanguageMenu(t *testing.T) {
 	}
 	if back != first {
 		t.Errorf("back to Auto: %q, want %q as on arrival", back, first)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// savedCameras reads the camera overrides of the saved settings file.
+func savedCameras(t *testing.T, path string) map[string]map[string]any {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var f struct {
+		Cameras map[string]map[string]any `yaml:"cameras"`
+	}
+	if err := yaml.Unmarshal(b, &f); err != nil {
+		t.Fatalf("saved settings are not YAML: %v\n%s", err, b)
+	}
+	return f.Cameras
+}
+
+// waitCameras waits (up to 5 s) for the saved camera overrides to satisfy ok.
+func waitCameras(t *testing.T, path, what string, ok func(map[string]map[string]any) bool) map[string]map[string]any {
+	t.Helper()
+	var cams map[string]map[string]any
+	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+		if cams = savedCameras(t, path); ok(cams) {
+			return cams
+		}
+	}
+	t.Fatalf("saved cameras never became %s: %v", what, cams)
+	return nil
+}
+
+// The Cameras screen: #cameras/<name> opens that card, a style, a zone and a
+// customized setting are saved under the camera, and resetting a card removes it.
+func TestBrowserCameras(t *testing.T) {
+	cams := fakeCameras{cams: []frigate.CameraInfo{
+		{Name: "garage", Zones: []string{"allee"}, Labels: []string{"person"}},
+		{Name: "entree"},
+	}}
+	_, path, ts := setup(t, "", cams)
+	if resp := do(t, ts, "PUT", "/api/settings", `{"cameras":{"ancienne":{"clip":false}}}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/settings: %d", resp.StatusCode)
+	}
+	ctx, jsErrors := browser(t)
+	garage, old := `[data-camera="garage"]`, `[data-camera="ancienne"]`
+	var open, oldExists, stillOpen bool
+	var width int
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inEnglish(ts.URL+"/#cameras/garage"),
+		chromedp.WaitVisible(`#cameras`),
+		chromedp.WaitVisible(garage+` summary`),
+		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="garage"]').open`), &open),
+		into(chromedp.Evaluate[bool](`!!document.querySelector('[data-camera="ancienne"]')`), &oldExists),
+		// The camera's switch does not open or close its card.
+		chromedp.Click(garage+` summary [role=switch]`),
+		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="garage"]').open`), &stillOpen),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !open || !oldExists || !stillOpen {
+		t.Fatalf("garage open = %v, ancienne listed = %v, garage open after its switch = %v", open, oldExists, stillOpen)
+	}
+	waitCameras(t, path, "garage disabled", func(c map[string]map[string]any) bool { return c["garage"]["enabled"] == false })
+	err = chromedp.Do(ctx,
+		chromedp.Click(garage+` summary [role=switch]`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage enabled again", func(c map[string]map[string]any) bool { return len(c["garage"]) == 0 })
+
+	err = chromedp.Do(ctx,
+		chromedp.Click(byText(`//details[@data-camera="garage"]`, "Photo only")),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage photo only", func(c map[string]map[string]any) bool {
+		return c["garage"]["clip"] == false && c["garage"]["snapshot"] == true && c["garage"]["gif"] == false
+	})
+	err = chromedp.Do(ctx, chromedp.Click(byText(`//details[@data-camera="garage"]`, "Default")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage back to default", func(c map[string]map[string]any) bool { _, ok := c["garage"]; return !ok })
+
+	err = chromedp.Do(ctx, chromedp.Click(byText(`//details[@data-camera="garage"]`, "📍 allee")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := waitCameras(t, path, "garage in allee", func(c map[string]map[string]any) bool { return len(c["garage"]) > 0 })
+	if z, _ := c["garage"]["zones"].([]any); len(z) != 1 || z[0] != "allee" {
+		t.Errorf("garage zones = %v, want [allee]", c["garage"]["zones"])
+	}
+
+	// A customized setting in "All settings for garage" is saved, then removed.
+	cooldown := garage + ` [data-key="cooldown"] input[type=checkbox]`
+	err = chromedp.Do(ctx,
+		chromedp.Click(garage+` details.more > summary`),
+		chromedp.WaitVisible(cooldown),
+		chromedp.Click(cooldown),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage cooldown customized", func(c map[string]map[string]any) bool { _, ok := c["garage"]["cooldown"]; return ok })
+	err = chromedp.Do(ctx, chromedp.Click(cooldown))
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage cooldown removed", func(c map[string]map[string]any) bool { _, ok := c["garage"]["cooldown"]; return !ok })
+
+	err = chromedp.Do(ctx,
+		chromedp.Click(old+` summary`),
+		chromedp.Click(old+` details.more > summary`),
+		chromedp.Click(byText(`//details[@data-camera="ancienne"]`, "Reset everything to default")),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c = waitCameras(t, path, "ancienne reset", func(c map[string]map[string]any) bool { _, ok := c["ancienne"]; return !ok })
+	if _, ok := c["garage"]["zones"]; !ok {
+		t.Errorf("resetting ancienne touched garage: %v", c)
+	}
+	err = chromedp.Do(ctx, into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if width > 360 {
+		t.Errorf("the page is %d px wide on a 360 px screen", width)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// Following a camera link of the overview opens that card on the Cameras screen.
+func TestBrowserCamerasLink(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}})
+	ctx, jsErrors := browser(t)
+	var open, other bool
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/"),
+		chromedp.Click(`#cameras-list a[href="#cameras/entree"]`),
+		chromedp.WaitVisible(`[data-camera="entree"] summary`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="entree"]').open`),
+		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="entree"]').open`), &open),
+		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="garage"]').open`), &other),
+		// Changing the hash on the screen opens the other card too.
+		chromedp.Evaluate[chromedp.Void](`location.hash = "#cameras/garage"; 0`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="garage"]').open`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !open || other {
+		t.Errorf("entree open = %v, garage open = %v", open, other)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
