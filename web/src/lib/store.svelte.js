@@ -135,7 +135,13 @@ export async function resetSettings() {
     app.status = { text: "", kind: "" }; // the dropped change is no longer "Saving…"
   } catch (e) {
     app.error = T("Could not go back to config.yml:\n") + e.message;
-    if (!done) touched(); // the change made before the reset is still to be sent
+    if (!done) {
+      touched(); // the change made before the reset is still to be sent
+    } else {
+      // The server went back but the reload failed: nothing on the page may be sent over it.
+      saved = JSON.stringify(app.overlay);
+      app.status = { text: "", kind: "" };
+    }
   }
 }
 

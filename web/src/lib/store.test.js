@@ -173,7 +173,9 @@ describe("store", () => {
     server.failLoad = true;
     await resetSettings();
     await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2);
+    expect(await flush()).toBe(true); // leaving, a sample or a logout flushes too
     expect(puts).toEqual([]);
+    expect(app.status.text).toBe("");
     expect(app.error.startsWith("Could not go back to config.yml:")).toBe(true);
   });
 
