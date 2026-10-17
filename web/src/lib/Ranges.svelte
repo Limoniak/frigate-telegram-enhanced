@@ -17,7 +17,7 @@
       <input type="time" class="field w-auto" aria-label={named(i, T("from"))} value={r.from} {disabled} onchange={(e) => set(i, "from", e.currentTarget.value)} />
       <span>{T("to")}</span>
       <input type="time" class="field w-auto" aria-label={named(i, T("to"))} value={r.to} {disabled} onchange={(e) => set(i, "to", e.currentTarget.value)} />
-      <button type="button" class="chip" title={T("Remove")} aria-label={T("Remove")} {disabled} onclick={() => onchange(list.filter((_, j) => j !== i))}>✕</button>
+      <button type="button" class="chip" title={T("Remove")} aria-label={named(i, T("Remove"))} {disabled} onclick={() => onchange(list.filter((_, j) => j !== i))}>✕</button>
     </div>
   {/each}
   {#if !disabled}

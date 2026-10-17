@@ -40,12 +40,12 @@
   <div class="flex flex-col gap-2" data-key={key}>
     <span>{name}</span>
     <div class="flex items-center gap-3">
-      <input {id} type="url" class="field min-w-0 flex-1" {placeholder} aria-label={label} aria-invalid={bad ? "true" : undefined} aria-describedby={bad ? id + "-error" : undefined}
+      <input {id} type="url" class="field min-w-0 flex-1" {placeholder} aria-label={label} aria-invalid={bad ? "true" : undefined} aria-describedby={bad ? id + "-hint " + id + "-error" : id + "-hint"}
         value={app.overlay[key] || ""} oninput={(e) => { drafts[key] = e.currentTarget.value; errors[key] = false; }} onchange={(e) => commit(key, e)} />
-      {#if shown && validURL(shown)}<a class="flex-none" href={shown} target="_blank" rel="noopener">{T("Test ↗")}</a>{/if}
+      {#if shown && validURL(shown)}<a class="flex-none" aria-label={name + " – " + T("Test ↗")} href={shown} target="_blank" rel="noopener">{T("Test ↗")}</a>{/if}
     </div>
     {#if bad}<p id="{id}-error" class="m-0 text-[12px] text-[var(--err)]" role="alert">{expected}</p>{/if}
-    <p class="m-0 text-[12px] text-[var(--faint)]">{hint}</p>
+    <p id="{id}-hint" class="m-0 text-[12px] text-[var(--faint)]">{hint}</p>
   </div>
 {/snippet}
 

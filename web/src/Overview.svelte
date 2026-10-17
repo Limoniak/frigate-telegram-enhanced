@@ -28,6 +28,7 @@
 </script>
 
 <section id="overview" class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+  <h1 class="sr-only">{T("Overview")}</h1>
   <div class="grid content-start gap-3 lg:col-span-7">
     <Card id="today">
       <div class="flex flex-wrap items-center justify-between gap-2">

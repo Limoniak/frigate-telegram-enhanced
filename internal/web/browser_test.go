@@ -111,11 +111,12 @@ func TestBrowserOverview(t *testing.T) {
 		WithHealth(health), WithState(st))
 
 	ctx, jsErrors := browser(t)
-	var sent, today, last, lastCamera, pause string
+	var sent, today, last, lastCamera, pause, heading string
 	err = chromedp.Do(ctx,
 		inEnglish(ts.URL+"/"),
 		chromedp.WaitVisible(`#cameras-list`),
 		chromedp.WaitVisible(`#connections`), // the health arrives last
+		into(chromedp.Evaluate[string](`document.querySelector("#overview h1")?.textContent || ""`), &heading),
 		chromedp.WaitVisible(`#sent-24h`),
 		into(chromedp.Text(`#sent-24h`), &sent),
 		into(chromedp.Text(`#today`), &today),
@@ -131,6 +132,9 @@ func TestBrowserOverview(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if heading != "Overview" {
+		t.Errorf("the landing screen's heading = %q, want Overview", heading)
 	}
 	if sent != "3" {
 		t.Errorf("sent in 24 h = %q, want 3", sent)
@@ -552,7 +556,10 @@ func TestBrowserWhenMoreChoices(t *testing.T) {
 		// Dragging (input events) changes the text only.
 		chromedp.Evaluate[chromedp.Void](`var r = document.querySelector('input[type=range]'); r.value = "0.4"; r.dispatchEvent(new Event("input", { bubbles: true })); 0`),
 		chromedp.Poll[chromedp.Void](`document.querySelector("#when").textContent.includes("40%")`),
-		into(chromedp.Evaluate[bool](`document.getElementById("save-status").hidden`), &hidden),
+		// Watch the status from the drag on, then wait past the save delay: a drag that saved would have shown it by then.
+		chromedp.Evaluate[chromedp.Void](`window.t0 = performance.now(); window.statusChanged = false; new MutationObserver(() => { window.statusChanged = true; }).observe(document.getElementById("save-status"), { attributes: true, childList: true, subtree: true, characterData: true }); 0`),
+		chromedp.Poll[chromedp.Void](`performance.now() - window.t0 > 1500`),
+		into(chromedp.Evaluate[bool](`document.getElementById("save-status").hidden && !window.statusChanged`), &hidden),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -791,7 +798,7 @@ func TestBrowserAdvancedControls(t *testing.T) {
 		chromedp.Click(`[data-key="off_hours"] button.btn-link`),
 		into(chromedp.Evaluate[string](times), &names),
 		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="quiet_hours"] input[type=time]'); i.value = "21:30"; i.dispatchEvent(new Event("change", { bubbles: true })); 0`),
-		chromedp.Click(`[data-key="quiet_hours"] div.flex-wrap:nth-of-type(2) button[aria-label="Remove"]`),
+		chromedp.Click(`[data-key="quiet_hours"] button[aria-label="Quiet hours 2 – Remove"]`),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1227,7 +1234,7 @@ func hours(v any) []string {
 func TestBrowserCameras(t *testing.T) {
 	cams := fakeCameras{cams: []frigate.CameraInfo{
 		{Name: "garage", Zones: []string{"allee"}, Labels: []string{"person"}},
-		{Name: "entree"},
+		{Name: "entree"}, {Name: "hall"}, {Name: "kitchen"}, {Name: "porch"}, {Name: "yard"}, // below garage: the page is long enough to scroll to it
 	}}
 	_, path, ts := setup(t, "", cams)
 	if resp := do(t, ts, "PUT", "/api/settings", `{"cameras":{"ancienne":{"clip":false}}}`); resp.StatusCode != http.StatusOK {
@@ -1247,6 +1254,8 @@ func TestBrowserCameras(t *testing.T) {
 		// A followed link leaves the focus on the camera's summary, with no control nested in it.
 		chromedp.Poll[chromedp.Void](`document.activeElement.tagName === "SUMMARY"`),
 		into(chromedp.Evaluate[bool](`document.activeElement.parentElement.dataset.camera === "garage"`), &focused),
+		// The card is not left under the sticky header.
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="garage"]').getBoundingClientRect().top >= document.querySelector("header").getBoundingClientRect().bottom`),
 		into(chromedp.Evaluate[int](`document.querySelectorAll('summary button, summary input').length`), &nested),
 		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="garage"]').open`), &open),
 		into(chromedp.Evaluate[bool](`!!document.querySelector('[data-camera="ancienne"]')`), &oldExists),
@@ -1312,9 +1321,23 @@ func TestBrowserCameras(t *testing.T) {
 		t.Errorf("the customize box of the cooldown is described by %q", customizes)
 	}
 	waitCameras(t, path, "garage cooldown customized", func(c map[string]map[string]any) bool { _, ok := c["garage"]["cooldown"]; return ok })
-	err = chromedp.Do(ctx, chromedp.Click(cooldown))
+	// Text that is not a duration is dropped with the customization: the field shows the inherited value again, unflagged.
+	const field = `document.querySelector('[data-camera="garage"] [data-key="cooldown"] input[type=text]')`
+	var inherited, shown, flag string
+	err = chromedp.Do(ctx,
+		into(chromedp.Evaluate[string](field+`.value`), &inherited),
+		chromedp.SendKeys(garage+` [data-key="cooldown"] input[type=text]`, "abc"+kb.Tab),
+		chromedp.Poll[chromedp.Void](field+`.getAttribute("aria-invalid") === "true"`),
+		chromedp.Click(cooldown),
+		chromedp.Poll[chromedp.Void](field+`.disabled`),
+		into(chromedp.Evaluate[string](field+`.value`), &shown),
+		into(chromedp.Evaluate[string](field+`.getAttribute("aria-invalid") || ""`), &flag),
+	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if shown != inherited || flag != "" {
+		t.Errorf("after unticking: the cooldown shows %q (aria-invalid %q), want the inherited %q unflagged", shown, flag, inherited)
 	}
 	waitCameras(t, path, "garage cooldown removed", func(c map[string]map[string]any) bool { _, ok := c["garage"]["cooldown"]; return !ok })
 
@@ -1455,6 +1478,93 @@ func TestBrowserNoClassicLinks(t *testing.T) {
 	}
 	if inMenu != 0 || footer != 1 || back != 1 {
 		t.Errorf("classic links in the menu = %d, in the footer = %d, links back in the classic footer = %d", inMenu, footer, back)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The login page's language links keep the deep link's fragment too.
+func TestBrowserLoginLanguageKeepsRoute(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	var links string
+	err := chromedp.Do(ctx,
+		chromedp.Navigate(ts.URL+"/#cameras/garage"),
+		chromedp.WaitVisible(`.login-card nav a`),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll("nav a")].map(a => new URL(a.href).hash).join("|")`), &links),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range strings.Split(links, "|") {
+		if h != "#cameras/garage" {
+			t.Errorf("language links carry the fragments %q, want #cameras/garage on each", links)
+			break
+		}
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// Logging out at once after a change saves it first.
+func TestBrowserLogoutSavesPending(t *testing.T) {
+	_, path, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#when"),
+		chromedp.WaitVisible(`.login-card input[type=password]`),
+		chromedp.SendKeys(`#password`, "s3cret"),
+		chromedp.Click(`.login-card button[type=submit]`),
+		chromedp.WaitVisible(`#when`),
+		chromedp.Click(byText("", "🚶🚗 People and cars")),
+		chromedp.Click(`#logout`), // well before the 600 ms delay
+		chromedp.WaitVisible(`.login-card`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := savedFile(t, path); !slices.Equal(strs(notifyOf(f)["labels"]), []string{"car", "person"}) {
+		t.Errorf("the change was not saved before the session ended: %v", f)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// Controls that look alike are told apart: the Test links, the hints of the addresses,
+// and the Remove buttons of the ranges and of the scores.
+func TestBrowserAdvancedNames(t *testing.T) {
+	cams := fakeCameras{cams: []frigate.CameraInfo{{Name: "garage", Labels: []string{"person", "car"}}}}
+	_, _, ts := setup(t, "", cams)
+	ctx, jsErrors := browser(t)
+	var links, describedBy, removes string
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#advanced"),
+		chromedp.WaitVisible(`#advanced`),
+		chromedp.SendKeys(`#external-url`, "https://frigate.example.org"+kb.Tab),
+		chromedp.SendKeys(`#ha-url`, "https://ha.example.org"+kb.Tab),
+		chromedp.WaitVisible(`[data-key="home_assistant_url"] a`),
+		chromedp.Click(`[data-key="quiet_hours"] button.btn-link`),
+		chromedp.Click(`[data-key="off_hours"] button.btn-link`),
+		chromedp.Evaluate[chromedp.Void](`var s = document.querySelector('[data-key="min_score"] select'); s.value = "label"; s.dispatchEvent(new Event("change", { bubbles: true })); 0`),
+		chromedp.WaitVisible(`[data-key="min_score"] button.chip`),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll('#advanced a[target=_blank]')].map(a => a.getAttribute("aria-label")).join("|")`), &links),
+		into(chromedp.Evaluate[string](`document.getElementById("external-url").getAttribute("aria-describedby").split(" ").map(id => document.getElementById(id)?.textContent).join("|")`), &describedBy),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll('#advanced button.chip[title=Remove]')].map(b => b.getAttribute("aria-label")).join("|")`), &removes),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "“Open in Frigate” link – Test ↗|“Home Assistant” button – Test ↗"; links != want {
+		t.Errorf("Test links are named %q, want %q", links, want)
+	}
+	if !strings.Contains(describedBy, "Empty: the address the service reaches Frigate at") {
+		t.Errorf("the Frigate address is described by %q, want its hint", describedBy)
+	}
+	if want := "Minimum score – car – Remove|Quiet hours 1 – Remove|Off hours 1 – Remove"; removes != want {
+		t.Errorf("Remove buttons are named %q, want %q", removes, want)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

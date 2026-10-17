@@ -32,11 +32,11 @@
       <span class="text-[12px] text-[var(--faint)]">{T("0 = no filter, 1 = certainty")}</span>
     </div>
   {:else}
-    {#each Object.entries(byLabel) as [label, score] (label)}
+    {#each Object.entries(byLabel) as [obj, score] (obj)}
       <div class="flex flex-wrap items-center gap-2">
-        <span class="min-w-16">{label}</span>
-        <input type="number" class="field w-24" min="0" max="1" step="0.05" aria-label={label} value={score} {disabled} onchange={(e) => { const n = clampScore(e.currentTarget.value); e.currentTarget.value = n; setLabel(label, n); }} />
-        <button type="button" class="chip" title={T("Remove")} aria-label={T("Remove")} {disabled} onclick={() => drop(label)}>✕</button>
+        <span class="min-w-16">{obj}</span>
+        <input type="number" class="field w-24" min="0" max="1" step="0.05" aria-label={obj} value={score} {disabled} onchange={(e) => { const n = clampScore(e.currentTarget.value); e.currentTarget.value = n; setLabel(obj, n); }} />
+        <button type="button" class="chip" title={T("Remove")} aria-label={(label ? label + " – " : "") + obj + " – " + T("Remove")} {disabled} onclick={() => drop(obj)}>✕</button>
       </div>
     {/each}
     {#if remaining.length && !disabled}
