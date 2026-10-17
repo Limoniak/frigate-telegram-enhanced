@@ -219,9 +219,9 @@ classique* en bas de page, et *Nouvelle interface* là-bas pour revenir).
 Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
 redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
 est valide — un réglage refusé est signalé et laisse le service sur les précédents.
-Les choix plus fins sont repliés sous *Plus de choix* — cadrage et place de la vidéo sur
-*Style* ; rafales, labels connus et, hors du mode `reviews`, sensibilité sur *Quand* — et
-les valeurs par défaut conviennent à la plupart des installations.
+Sur *Quand*, les choix plus fins — rafales, labels connus et, hors du mode `reviews`,
+sensibilité — sont repliés sous *Plus de choix*, et les valeurs par défaut conviennent à
+la plupart des installations.
 
 Les réglages sont enregistrés dans le volume de données (`/data/notify.yml`), à côté de
 l'état (pauses, cooldowns) et de l'activité récente : ils survivent aux redémarrages et aux mises à jour. Avec un

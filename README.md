@@ -215,9 +215,8 @@ link at the bottom of the page, and *New interface* there to come back).
 Every change is **saved by itself** and takes effect **immediately**, without a
 restart; the status at the top of the page confirms it. A change is only accepted if
 valid — a rejected one is reported and leaves the service on the previous settings.
-The finer choices are folded under *More choices* — framing and video placement on
-*Style*; bursts, known labels and, outside the `reviews` mode, sensitivity on *When* —
-and the defaults suit most installations.
+On *When*, the finer choices — bursts, known labels and, outside the `reviews` mode,
+sensitivity — are folded under *More choices*, and the defaults suit most installations.
 
 Settings are saved in the data volume (`/data/notify.yml`), next to the state (pauses,
 cooldowns) and the recent activity, so they survive restarts and updates. With a configuration file, they
