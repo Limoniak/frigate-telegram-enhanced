@@ -1,9 +1,11 @@
 package notifier
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"frigate-telegram-enhanced/internal/frigate"
 )
@@ -73,5 +75,31 @@ func TestHistoryFileCorruptedIsIgnored(t *testing.T) {
 	h := newHarness(t, "events", func(d *Deps) { d.HistoryFile = file })
 	if n := len(h.n.History()); n != 0 {
 		t.Errorf("history = %d entries, want empty", n)
+	}
+}
+
+func TestSentCountSurvivesRestart(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "history.json")
+	now := newHarness(t, "events").clock.Now()
+	entries := []storedEntry{
+		{HistoryEntry: HistoryEntry{ID: "recent", At: now.Add(-time.Hour), Camera: "garage", Label: "person", Sent: true}},
+		{HistoryEntry: HistoryEntry{ID: "old", At: now.Add(-25 * time.Hour), Camera: "garage", Label: "person", Sent: true}},
+		{HistoryEntry: HistoryEntry{ID: "filtered", At: now.Add(-2 * time.Hour), Camera: "garage", Label: "dog"}},
+	}
+	b, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHarness(t, "events", func(d *Deps) { d.HistoryFile = file })
+	if n := h.n.Count24h(); n != 1 {
+		t.Errorf("Count24h() = %d, want 1", n)
+	}
+	sent := h.n.SentTimes()
+	if len(sent) != 1 || !sent[0].Equal(now.Add(-time.Hour)) {
+		t.Errorf("SentTimes() = %v, want [%v]", sent, now.Add(-time.Hour))
 	}
 }

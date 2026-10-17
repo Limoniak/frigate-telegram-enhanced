@@ -1,5 +1,5 @@
 // web/src/lib/api.test.js
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TOKEN, api, headers, post, problem } from "./api.js";
 
 const answer = (status, body) => async () => new Response(body === undefined ? null : JSON.stringify(body), { status });
@@ -10,6 +10,8 @@ describe("headers", () => {
     expect(headers("de", true)["Content-Type"]).toBe("application/json");
   });
 });
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("api", () => {
   it("sends the headers", async () => {
@@ -27,6 +29,15 @@ describe("api", () => {
     let to = "";
     await api("api/settings", {}, { lang: "fr", next: "", fetch: answer(401), onUnauthorized: (url) => { to = url; } });
     expect(to).toBe("login?next=&lang=fr");
+  });
+});
+
+describe("api deep link", () => {
+  it("carries the page's #fragment to the login page", async () => {
+    vi.stubGlobal("location", { hash: "#cameras/garage" });
+    let to = "";
+    await api("api/settings", {}, { lang: "fr", next: "", fetch: answer(401), onUnauthorized: (url) => { to = url; } });
+    expect(to).toBe("login?next=&lang=fr#cameras/garage");
   });
 });
 

@@ -177,54 +177,51 @@ Le mode `events` n'a pas de sons : Frigate ne les publie pas sur `frigate/events
 
 `http://<ip-du-serveur>:8431/` sert une page de réglage des notifications, pensée pour se
 régler en quelques clics. Elle suit la langue du navigateur (l'anglais si elle n'est pas traduite) ; le
-sélecteur de langue de l'en-tête la change, et le choix est retenu. Sur grand écran,
-un sommaire latéral mène à chaque section.
+menu de langue de l'en-tête la change, et le choix est retenu. Un menu en pastilles en haut
+de la page ouvre un écran par sujet :
 
-L'adresse ouvre les nouveaux écrans d'aperçu et de style ; les autres réglages sont dans
-l'interface classique (`/classic`, lien en bas de la nouvelle), décrite ci-dessous :
-
-- **État** : une carte en haut de page avec les connexions à Frigate, MQTT et Telegram,
-  l'état des notifications, qui est à la maison et les caméras coupées. Quand une
-  connexion échoue, la cause en clair et le réglage à corriger (mauvais mot de passe,
-  adresse injoignable, token invalide, `localhost` utilisé dans Docker…). Pause de
-  30 min, 1 h, 8 h ou jusqu'à reprise, et réactivation des caméras coupées depuis Telegram.
-- **Modèles de notification** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou
-  *Texte seul*, chacun avec un aperçu du message tel qu'il arrivera dans Telegram.
-- **Questions simples** : quoi signaler (personnes, personnes et voitures, tout), à
-  quelle fréquence au plus, quoi faire la nuit (comme le jour, sans son, rien) et, avec
-  la présence configurée, quand quelqu'un est à la maison.
-- **Rafales** : un message par détection, ou les détections des 2 ou 5 minutes suivantes
-  ajoutées au premier message (modifié, donc sans nouvelle sonnerie). **Cadrage** : plan
-  large ou zoom sur l'objet. **Vidéo** : dans le même message que l'image, ou en réponse.
-- **Sensibilité** : un curseur de score minimal qui montre, sur l'activité récente,
-  combien de détections auraient été ignorées.
+- **Aperçu** : les notifications sur 24 h, heure par heure ; les connexions à Frigate, MQTT
+  et Telegram, avec la cause en clair et le réglage à corriger quand l'une échoue ; pause
+  de 30 min, 1 h, 8 h ou jusqu'à reprise ; qui est à la maison ; les caméras coupées, à
+  réactiver ; la dernière notification telle qu'elle est arrivée.
+- **Style** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou *Texte seul*, chacun avec un
+  aperçu du message tel qu'il arrivera dans Telegram. Plus bas : les rafales (un message par
+  détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
+  modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet) et la
+  vidéo (dans le même message que l'image, ou en réponse).
+- **Quand** : quoi signaler (personnes, personnes et voitures, tout), à quelle fréquence au
+  plus, quoi faire la nuit (comme le jour, sans son, rien) et, avec la présence configurée,
+  quand quelqu'un est à la maison. **Sensibilité** : un curseur de score minimal ; l'activité
+  récente montre combien de détections auraient été ignorées.
+- **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle,
+  d'autres objets ou seulement certaines zones (*Où ?* : partout, ou les zones définies dans
+  Frigate, en un clic). *M'envoyer un exemple* envoie une vraie notification de test. Chaque
+  caméra a son propre lien (`#cameras/<nom>`). Les alertes de cohérence signalent une caméra
+  réglée pour un objet que Frigate ne suit pas (absent de `objects.track`).
 - **Destinataires** (avec plusieurs chats) : ce que reçoit chaque personne — tout, les
-  personnes, les personnes et les voitures — et quand — tout le temps, seulement la
-  nuit, seulement le jour, sans son la nuit.
-- **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle
-  ou d'autres objets, sinon elle suit les choix du haut.
-- **Où ?** : pour une caméra qui a des zones dans Frigate, « Partout » ou seulement
-  certaines zones, en un clic.
-- **Essai** : *M'envoyer un exemple* envoie une vraie notification de test aux
-  destinataires, avec l'image en direct de la caméra et les réglages enregistrés.
-- **Activité récente** : les 50 dernières détections avec leur miniature et leur
-  issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone, score trop bas,
-  déjà signalé il y a peu…) et un lien pour régler la caméra concernée. L'historique est
-  gardé en mémoire et repart de zéro au redémarrage du service.
-- **Alertes de cohérence** : une caméra réglée pour signaler un objet que Frigate n'y
-  suit pas (absent de `objects.track`) est signalée.
-- **Réglages avancés** (repliés) : tous les réglages en détail, rangés par thème —
-  destinataires et filtrage, médias, rythme, horaires et présence, liens — en global
-  puis caméra par caméra. Les zones et les objets proposés viennent de l'API de Frigate.
-  **Liens** contient l'adresse utilisée par « Ouvrir dans Frigate » (défaut : l'adresse
-  de Frigate) et celle du bouton 🏠 *Home Assistant* (vide : pas de bouton), chacune avec
-  un bouton pour la tester.
+  personnes, les personnes et les voitures — et quand — tout le temps, seulement la nuit,
+  seulement le jour, sans son la nuit.
+- **Activité récente** (quand l'historique est disponible) : les 50 dernières détections avec
+  leur miniature et leur issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone,
+  score trop bas, déjà signalé il y a peu…) et un lien pour régler la caméra concernée.
+  Les 50 dernières détections sont conservées d'un redémarrage à l'autre.
+- **Réglages avancés** : tous les réglages globaux en détail, rangés par thème —
+  destinataires et filtrage, médias, rythme, horaires et présence, liens. Les zones et
+  les objets proposés viennent de l'API de Frigate. Les réglages propres à une caméra
+  sont dans *Caméras*, sous *Tous les réglages de* cette caméra. **Liens** contient
+  l'adresse utilisée par « Ouvrir dans Frigate » (défaut : l'adresse de Frigate) et
+  celle du bouton 🏠 *Home Assistant* (vide : pas de bouton) ; un lien *Tester ↗* ouvre
+  chaque adresse dès qu'elle est valide.
+
+L'interface classique reste à `/classic` jusqu'à la prochaine version (lien *Interface
+classique* en bas de page, et *Nouvelle interface* là-bas pour revenir).
 
 Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
 redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
 est valide — un réglage refusé est signalé et laisse le service sur les précédents.
-Les choix plus fins (cadrage, rafales, sensibilité, réglages par personne) sont repliés
-sous *Plus de choix* : les valeurs par défaut conviennent à la plupart des installations.
+Sur *Quand*, les choix plus fins — rafales, labels connus et, hors du mode `reviews`,
+sensibilité — sont repliés sous *Plus de choix*, et les valeurs par défaut conviennent à
+la plupart des installations.
 
 Les réglages sont enregistrés dans le volume de données (`/data/notify.yml`), à côté de
 l'état (pauses, cooldowns) et de l'activité récente : ils survivent aux redémarrages et aux mises à jour. Avec un

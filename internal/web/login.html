@@ -23,5 +23,12 @@
     <nav class="flex justify-center gap-3 text-[11px] uppercase text-[var(--faint)]" aria-label="Language / Langue">{{range .Langs}}<a class="no-underline aria-[current=true]:font-semibold aria-[current=true]:text-[var(--ink)]" href="login?lang={{.Code}}&amp;next={{$.Next}}"{{if .Current}} aria-current="true"{{end}}>{{.Code}}</a>{{end}}</nav>
   </div>
 </form>
+<script>
+  // Carry the page's #fragment through the login, so a deep link survives it.
+  document.querySelectorAll("nav a").forEach(function (a) { a.href += location.hash; });
+  document.querySelector("form").addEventListener("submit", function (e) {
+    e.target.action = e.target.action.split("#")[0] + location.hash;
+  });
+</script>
 </body>
 </html>

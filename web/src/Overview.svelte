@@ -6,6 +6,7 @@
   import { effective } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
   import { untilText, whenText } from "./lib/time.js";
+  import { routeHash } from "./lib/route.js";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
   import Switch from "./lib/Switch.svelte";
@@ -27,6 +28,7 @@
 </script>
 
 <section id="overview" class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+  <h1 class="sr-only">{T("Overview")}</h1>
   <div class="grid content-start gap-3 lg:col-span-7">
     <Card id="today">
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -40,7 +42,7 @@
       {#if app.activity}
         <div class="flex flex-wrap items-end gap-4">
           <span id="sent-24h" class="text-6xl font-light tracking-tight tabular-nums">{app.activity.sent}</span>
-          {#if app.history?.length}<span class="pb-2 text-[var(--muted)]">{Tf("%d ignored among the last %d detections", ignored, app.history.length)}</span>{/if}
+          {#if app.history?.length}<a class="pb-2 text-[var(--muted)]" href="#activity">{Tf("%d ignored among the last %d detections", ignored, app.history.length)}</a>{/if}
         </div>
         <div class="flex h-16 items-end gap-[3px]" aria-hidden="true">
           {#each hours as n, i (i)}<span class="flex-1 rounded-[2px] {i === 23 ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/25'}" style="height:{Math.max(4, (n / peak) * 100)}%"></span>{/each}
@@ -89,7 +91,7 @@
         {#each app.data.cameras || [] as c (c.name)}
           {@const on = effective(app.overlay, c.name).enabled !== false}
           <div class="flex items-center gap-3">
-            <span class="min-w-0 flex-1 truncate">{c.name}</span>
+            <a class="min-w-0 flex-1 truncate" href={routeHash({ screen: "cameras", camera: c.name })}>{c.name}</a>
             {#if mutes[c.name] !== undefined}
               <button type="button" class="btn-link text-[12px]" onclick={() => resume(c.name)}>🔇 {untilText(mutes[c.name], ctx)} · {T("Re-enable")}</button>
             {/if}

@@ -11,11 +11,18 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 - New look for the setup and login pages: "Nocturne", dark glass on a blue night with
   a light variant that follows the system. They are built with Svelte and Tailwind
-  (`web/`); the rest of the interface follows in the next versions.
+  (`web/`).
 - New Nocturne interface at the address of the service: an overview (notifications over
   24 h hour by hour, connections, pause, cameras, the last notification as it arrived)
-  and the notification style with a live Telegram preview. The other screens are still
-  in the classic interface, now at `/classic`, until they move.
+  and the notification style with a live Telegram preview.
+- The new interface now has every screen: When, Recipients, Cameras (with per-camera
+  settings), Recent activity and Advanced settings. The classic interface stays at
+  `/classic` until the next version.
+
+### Fixed
+
+- The number of notifications sent in the last 24 h no longer restarts at 0 after a
+  restart.
 
 ## [2.0.0] - 2026-10-16
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STYLES, apply, cameraOverrides, effective, matches, same, seconds, styleOf, toSend } from "./settings.js";
+import { STYLES, apply, cameraOverrides, clearKeys, effective, inheritsAll, matches, same, seconds, styleOf, toSend } from "./settings.js";
 
 const overlay = () => ({
   notify: { snapshot: true, clip: true, gif: false, crop: false, cooldown: "1m0s", group: "0s", labels: ["person", "car"] },
@@ -55,5 +55,18 @@ describe("styleOf and cameraOverrides", () => {
   it("lists the cameras that set one of the keys themselves", () => {
     expect(cameraOverrides(overlay(), ["snapshot", "clip", "gif"])).toEqual(["entree"]);
     expect(cameraOverrides(overlay(), ["crop"])).toEqual([]);
+  });
+});
+
+describe("inheritsAll and clearKeys", () => {
+  it("tells whether a camera sets none of the keys", () => {
+    expect(inheritsAll(overlay(), ["clip", "gif"], "garage")).toBe(true);
+    expect(inheritsAll(overlay(), ["clip", "gif"], "entree")).toBe(false);
+  });
+  it("removes those keys from the camera and leaves the others", () => {
+    const o = overlay();
+    o.cameras.garage = { snapshot: false, clip: false, labels: ["person"] };
+    clearKeys(o, ["snapshot", "clip"], "garage");
+    expect(o.cameras.garage).toEqual({ labels: ["person"] });
   });
 });

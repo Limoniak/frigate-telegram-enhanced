@@ -5,6 +5,7 @@
   import { app, change, sendTest } from "./lib/store.svelte.js";
   import { STYLES, cameraOverrides, effective, seconds, styleOf } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
+  import { routeHash } from "./lib/route.js";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
   import Switch from "./lib/Switch.svelte";
@@ -79,7 +80,7 @@
           {/each}
         </div></div>
     </Card>
-    {#if overrides.length}<p id="style-overrides" class="m-0 text-[var(--muted)]">{T("Applies to every camera, except those set differently in the classic interface:")} {overrides.join(", ")} · <a href="classic#sec-cameras">{T("Classic interface")}</a></p>{/if}
+    {#if overrides.length}<p id="style-overrides" class="m-0 text-[var(--muted)]">{T("Applies to every camera, except those set differently:")} {#each overrides as name, i (name)}{i ? ", " : ""}<a href={routeHash({ screen: "cameras", camera: name })}>{name}</a>{/each}</p>{/if}
     {#if app.data.can_test && cams.length}
       <div id="try" class="flex flex-wrap items-center gap-3">
         <button type="button" class="btn btn-primary" disabled={sending} onclick={test}>{T("📨 Send me a sample")}</button>

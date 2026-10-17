@@ -1,5 +1,4 @@
-// The main interface: the overview and the notification style. The other screens are
-// still in the classic interface (/classic) until they move here.
+// The main interface: every screen; the classic one stays at /classic.
 import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";

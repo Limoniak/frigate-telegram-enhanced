@@ -174,53 +174,49 @@ Or keep Frigate as it is and choose *Alerts and detections* in the web interface
 
 `http://<server-ip>:8431/` serves a page to configure notifications, designed to be set
 up in a few clicks. It follows the browser's language (English when it has no translation); the
-language switch in the header changes it and is remembered. On a wide screen, a side
-menu jumps to each section.
+language menu in the header changes it and is remembered. A pill menu at the top of the
+page opens one screen per topic:
 
-The address opens the new overview and style screens; the other settings are in the
-classic interface (`/classic`, link at the bottom of the new one), described below:
+- **Overview**: notifications over 24 h, hour by hour; the connections to Frigate, MQTT
+  and Telegram, with the cause in plain words and the setting to fix when one fails;
+  pause for 30 min, 1 h, 8 h or until resumed; who is home; the cameras muted, to turn
+  back on; the last notification as it arrived.
+- **Style**: photo + video, photo only, photo + GIF or text only, each with a live preview
+  of the message as it will arrive in Telegram. Below: bursts (one message per detection,
+  or detections within 2 or 5 minutes added to the first message, edited so no extra
+  sound), framing (wide shot or zoom on the object) and video (in the same message as the
+  image, or as a reply).
+- **When**: what to report (people, people and cars, everything), how often at most, what
+  to do at night (same as daytime, silent, nothing) and, with presence set up, when
+  someone is home. **Sensitivity**: a slider for the minimum score; recent activity shows
+  how many detections would have been ignored.
+- **Cameras**: one switch per camera; open it to give it another style, other objects or
+  only some zones (*Where?*: everywhere, or zones defined in Frigate, in one click).
+  *Test this camera* sends a real sample notification. Each camera has its own link
+  (`#cameras/<name>`). Consistency warnings flag a camera set to report an object that
+  Frigate does not track (missing from `objects.track`).
+- **Recipients** (only with several chats): what each person receives — every object,
+  people only, people and cars — and when — all the time, only at night, only during the
+  day, silent at night.
+- **Recent activity** (when the history is available): the last 50 detections with their
+  thumbnail and outcome — ✅ sent, or ⛔ ignored with the reason in plain words (outside the
+  zones, score too low, already reported a moment ago…) and a link to adjust the camera.
+  The last 50 detections are kept across restarts.
+- **Advanced settings**: every global setting in detail, sorted by theme — recipients
+  and filtering, media, pace, schedule and presence, links. The zones and objects offered
+  come from Frigate's API. A camera's own settings are under *Cameras*, in *All settings
+  for* that camera. **Links** holds the address used by "Open in Frigate" (default:
+  Frigate's address) and the one of the 🏠 *Home Assistant* button (empty: no button);
+  a *Test ↗* link opens each address once it is valid.
 
-- **Status**: one card at the top with the connections to Frigate, MQTT and Telegram,
-  whether notifications are active, who is home and which cameras are muted. When a
-  connection fails, the cause in plain words and the setting to fix (wrong password,
-  unreachable address, invalid token, `localhost` used inside Docker…). Pause for
-  30 min, 1 h, 8 h or until resumed, and re-enable cameras muted from Telegram.
-- **Notification styles**: photo + video, photo only, photo + GIF or text only, each
-  with a preview of the message as it will arrive in Telegram.
-- **Simple questions**: what to report (people, people and cars, everything), how often
-  at most, what to do at night (same as daytime, silent, nothing) and, with presence
-  set up, when someone is home.
-- **Bursts**: one message per detection, or detections within 2 or 5 minutes added to
-  the first message (edited, so no extra sound). **Framing**: wide shot or zoom on the
-  object. **Video**: in the same message as the image, or as a reply.
-- **Sensitivity**: a slider for the minimum score that shows, on recent activity, how
-  many detections would have been ignored.
-- **Recipients** (with several chats): what each person receives — every object, people
-  only, people and cars — and when — all the time, only at night, only during the day,
-  silent at night.
-- **Cameras**: one switch per camera; open it to give it another style or other
-  objects, otherwise it follows the choices above.
-- **Where?**: for a camera with zones defined in Frigate, "everywhere" or only some
-  zones, in one click.
-- **Try it**: the sample button sends a real test notification to the recipients, with
-  the camera's live image and the saved settings.
-- **Recent activity**: the last 50 detections with their thumbnail and outcome —
-  ✅ sent, or ⛔ ignored with the reason in plain words (outside the zones, score too
-  low, already reported a moment ago…) and a link to adjust the camera. The history is
-  kept in memory and starts over when the service restarts.
-- **Consistency warnings**: a camera set to report an object that Frigate does not
-  track on it (missing from `objects.track`) is flagged.
-- **Advanced settings** (collapsed): every setting in detail, sorted by theme —
-  recipients and filtering, media, pace, schedule and presence, links — globally, then
-  camera by camera. The zones and objects offered come from Frigate's API. **Links**
-  holds the address used by "Open in Frigate" (default: Frigate's address) and the one
-  of the 🏠 *Home Assistant* button (empty: no button), each with a button to test it.
+The classic interface stays at `/classic` until the next version (*Classic interface*
+link at the bottom of the page, and *New interface* there to come back).
 
 Every change is **saved by itself** and takes effect **immediately**, without a
 restart; the status at the top of the page confirms it. A change is only accepted if
 valid — a rejected one is reported and leaves the service on the previous settings.
-The finer choices (framing, bursts, sensitivity, per-person settings) are folded
-under *More choices*: the defaults suit most installations.
+On *When*, the finer choices — bursts, known labels and, outside the `reviews` mode,
+sensitivity — are folded under *More choices*, and the defaults suit most installations.
 
 Settings are saved in the data volume (`/data/notify.yml`), next to the state (pauses,
 cooldowns) and the recent activity, so they survive restarts and updates. With a configuration file, they

@@ -6,6 +6,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 
+const sheets = new Set(); // source names of the non-login stylesheets of this build
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
@@ -13,7 +14,7 @@ export default defineConfig({
   // Vitest's cache lives under web/node_modules, not under src/ (the root above).
   cacheDir: here("node_modules/.vite"),
   base: "./",
-  plugins: [tailwindcss(), svelte()],
+  plugins: [tailwindcss(), svelte(), { name: "reset-sheet-count", buildStart() { sheets.clear(); } }],
   build: {
     outDir: here("../internal/web/dist"),
     emptyOutDir: true,
@@ -22,11 +23,21 @@ export default defineConfig({
       output: {
         entryFileNames: "[name].js",
         chunkFileNames: "assets/[name]-[hash].js",
-        assetFileNames: (info) =>
+        assetFileNames: (info) => {
+          const names = info.names ?? [];
           // login.css is its own entry; the sheet shared by the setup page and the main
-          // interface has a fixed name too, whatever chunk it is taken from.
-          (info.names ?? []).includes("login.css") ? "login.css"
-            : (info.names ?? []).some((n) => n.endsWith(".css")) ? "app.css" : "assets/[name]-[hash][extname]",
+          // interface has a fixed name too, whatever chunk it is taken from. A second such
+          // sheet (say a <style> block added to a component) would silently replace it, so
+          // it fails the build instead.
+          if (names.includes("login.css")) return "login.css";
+          if (names.some((n) => n.endsWith(".css"))) {
+            // Vite asks once per output, so the same sheet can come twice: count names.
+            names.forEach((n) => sheets.add(n));
+            if (sheets.size > 1) throw new Error("a second stylesheet would overwrite app.css: " + [...sheets].join(", "));
+            return "app.css";
+          }
+          return "assets/[name]-[hash][extname]";
+        },
       },
     },
   },

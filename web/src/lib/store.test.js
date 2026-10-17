@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SAVE_DELAY, app, change, flush, load, pause, sendTest } from "./store.svelte.js";
+import { SAVE_DELAY, app, change, edit, flush, leave, load, pause, resetSettings, sendTest } from "./store.svelte.js";
 
 // fakeServer answers like the Go handler: settings, saves (recorded), test.
-function fakeServer({ refuse = false } = {}) {
-  const server = { down: false, hold: null, refuse };
+function fakeServer({ refuse = false, refuseReset = false } = {}) {
+  const server = { down: false, hold: null, holdReset: null, refuse, failLoad: false };
   const puts = [];
   const tests = [];
   globalThis.fetch = vi.fn(async (path, opts = {}) => {
@@ -15,7 +15,10 @@ function fakeServer({ refuse = false } = {}) {
       if (server.hold) await server.hold;
       return server.refuse ? json({ error: "invalid cooldown" }, 400) : json({ status: "ok" });
     }
+    if (path === "api/settings/reset" && server.holdReset) await server.holdReset;
+    if (path === "api/settings/reset") return refuseReset ? json({ error: "disk full" }, 500) : json({ status: "ok" });
     if (path === "api/settings") {
+      if (server.failLoad) return json({}, 500);
       return json({ mode: "reviews", timezone: "UTC", cameras: [{ name: "garage" }, { name: "entree" }], chats: ["moi"],
         overlay: { notify: { snapshot: true, clip: true, gif: false, group: "0s" }, cameras: {} }, custom: false });
     }
@@ -135,5 +138,114 @@ describe("store", () => {
     expect(puts).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
     expect(puts).toHaveLength(1);
+  });
+
+  it("edit changes the overlay and schedules the save", async () => {
+    const { puts } = fakeServer();
+    await load();
+    edit((o) => { o.external_url = "https://x.example"; });
+    expect(puts).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
+    expect(puts).toHaveLength(1);
+    expect(puts[0].external_url).toBe("https://x.example");
+  });
+
+  it("a reset cancels the save still pending", async () => {
+    const { puts, server } = fakeServer();
+    await load();
+    change({ snapshot: false });
+    let release;
+    server.holdReset = new Promise((r) => (release = r));
+    const reset = resetSettings();
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2); // the timer would fire while the reset is in flight
+    release();
+    await reset;
+    expect(puts).toEqual([]);
+    expect(app.data.custom).toBe(false);
+    expect(app.overlay.notify.snapshot).toBe(true);
+    expect(app.status.text).toBe("");
+  });
+
+  it("a reset whose reload fails does not send the older settings", async () => {
+    const { puts, server } = fakeServer();
+    await load();
+    change({ snapshot: false });
+    server.failLoad = true;
+    await resetSettings();
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2);
+    expect(await flush()).toBe(true); // leaving, a sample or a logout flushes too
+    expect(puts).toEqual([]);
+    expect(app.status.text).toBe("");
+    expect(app.error.startsWith("Could not go back to config.yml:")).toBe(true);
+  });
+
+  it("a refused reset still sends the change made before it", async () => {
+    const { puts } = fakeServer({ refuseReset: true });
+    await load();
+    change({ snapshot: false });
+    await resetSettings();
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2);
+    expect(puts.length).toBe(1);
+    expect(app.status.kind).toBe("saved");
+  });
+
+  it("a reset during a save does not let the older settings be sent after it", async () => {
+    const { puts, server } = fakeServer();
+    await load();
+    change({ snapshot: false });
+    let release;
+    server.hold = new Promise((r) => (release = r));
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY); // the save is in flight
+    change({ clip: false }); // pending behind it
+    let releaseReset;
+    server.holdReset = new Promise((r) => (releaseReset = r));
+    const reset = resetSettings();
+    release();
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2); // the timer the finished save re-armed would fire here
+    releaseReset();
+    await reset;
+    expect(puts.length).toBe(1);
+    expect(app.overlay.notify.clip).toBe(true);
+    expect(app.status.text).toBe("");
+  });
+
+  it("a refused reset shows the failure", async () => {
+    fakeServer({ refuseReset: true });
+    await load();
+    await resetSettings();
+    expect(app.error.startsWith("Could not go back to config.yml:")).toBe(true);
+    expect(app.error).toContain("disk full");
+  });
+
+  it("a reset after a save reloads the settings without the saved ones", async () => {
+    fakeServer();
+    await load();
+    change({ snapshot: false });
+    await flush();
+    expect(app.data.custom).toBe(true); // saved: the page now offers the way back
+    await resetSettings();
+    expect(app.data.custom).toBe(false);
+    expect(app.overlay.notify.snapshot).toBe(true);
+    expect(app.error).toBe("");
+  });
+
+  it("leaving a page sends the pending change first", async () => {
+    const { puts } = fakeServer();
+    await load();
+    let putsWhenLeft = -1;
+    vi.stubGlobal("location", { set href(v) { putsWhenLeft = puts.length; } });
+    change({ snapshot: false });
+    await leave("classic");
+    expect(putsWhenLeft).toBe(1); // the page is left only once the change is sent
+  });
+
+  it("leaving a page with nothing pending sends nothing", async () => {
+    const { puts } = fakeServer();
+    await load();
+    let went = "";
+    vi.stubGlobal("location", { set href(v) { went = v; } });
+    await leave("setup");
+    expect(puts).toEqual([]);
+    expect(went).toBe("setup");
   });
 });

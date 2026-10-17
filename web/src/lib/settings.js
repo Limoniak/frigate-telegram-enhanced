@@ -66,3 +66,12 @@ export const styleOf = (eff) => STYLES.find((s) => matches(s.patch, eff))?.id ??
 // cameraOverrides lists the cameras that set one of keys themselves.
 export const cameraOverrides = (overlay, keys) =>
   Object.entries(overlay.cameras).filter(([, p]) => keys.some((k) => k in p)).map(([name]) => name).sort();
+
+// inheritsAll tells whether the camera sets none of keys: it follows the global level.
+export const inheritsAll = (overlay, keys, camera) => !keys.some((k) => k in (overlay.cameras[camera] || {}));
+
+// clearKeys removes keys from the camera's overrides, which then follow the global level.
+export function clearKeys(overlay, keys, camera) {
+  const cam = overlay.cameras[camera];
+  if (cam) for (const k of keys) delete cam[k];
+}

@@ -48,6 +48,12 @@ export function change(patch, camera) {
   touched();
 }
 
+// edit applies a free-form change to the overlay (recipients, addresses), and schedules the save.
+export function edit(fn) {
+  fn(app.overlay);
+  touched();
+}
+
 function touched() {
   if (!dirty()) return;
   app.status = { text: T("Saving…"), kind: "dirty" };
@@ -113,6 +119,36 @@ export async function refreshHistory() {
   if (!v) return;
   app.history = v.entries || [];
   app.activity = v.sent_hours ? { sent: v.sent_24h, hours: v.sent_hours } : null;
+}
+
+// resetSettings goes back to config.yml (drops the saved settings), then reloads.
+export async function resetSettings() {
+  clearTimeout(saveTimer); // a pending save must not land after the reset and undo it
+  let done = false; // the server went back: the change made before must not be sent any more
+  try {
+    if (saving) await saving;
+    clearTimeout(saveTimer); // the save just finished may have re-armed it
+    const r = await post("api/settings/reset");
+    if (!r.ok) throw new Error(r.data.error || "HTTP " + r.status);
+    done = true;
+    await load();
+    app.status = { text: "", kind: "" }; // the dropped change is no longer "Saving…"
+  } catch (e) {
+    app.error = T("Could not go back to config.yml:\n") + e.message;
+    if (!done) {
+      touched(); // the change made before the reset is still to be sent
+    } else {
+      // The server went back but the reload failed: nothing on the page may be sent over it.
+      saved = JSON.stringify(app.overlay);
+      app.status = { text: "", kind: "" };
+    }
+  }
+}
+
+// leave goes to another page once the pending change is sent.
+export async function leave(href) {
+  await flush();
+  location.href = href;
 }
 
 async function stateCall(path, body) {

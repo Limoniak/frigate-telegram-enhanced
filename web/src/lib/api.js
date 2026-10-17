@@ -10,7 +10,7 @@ const toLogin = (url) => { location.href = url; };
 
 export async function api(path, opts = {}, { lang, next = "setup", fetch: f = fetch, onUnauthorized = toLogin } = {}) {
   const resp = await f(path, { ...opts, headers: { ...headers(lang, opts.body !== undefined), ...(opts.headers || {}) } });
-  if (resp.status === 401) onUnauthorized("login?next=" + next + "&lang=" + lang);
+  if (resp.status === 401) onUnauthorized("login?next=" + next + "&lang=" + lang + (globalThis.location?.hash ?? ""));
   return resp;
 }
 
