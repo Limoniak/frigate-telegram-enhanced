@@ -652,7 +652,8 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable"))
 		return
 	}
-	v := historyView{Entries: []historyEntryView{}, Now: h.now()}
+	now := h.now() // one instant: Now is the end of the last bar of SentHours
+	v := historyView{Entries: []historyEntryView{}, Now: now}
 	for _, e := range h.history.History() {
 		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != "", HasSnapshot: h.media != nil && e.Snapshot != ""})
 	}
@@ -660,7 +661,7 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 		times := h.activity.SentTimes()
 		n := len(times)
 		v.Sent24h = &n
-		v.SentHours = sentHours(times, h.now())
+		v.SentHours = sentHours(times, now)
 	}
 	writeJSON(w, http.StatusOK, v)
 }

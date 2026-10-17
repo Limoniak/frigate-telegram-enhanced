@@ -42,14 +42,16 @@ type storedEntry struct {
 	Snapshot string `json:"snapshot,omitempty"`
 }
 
-// record adds the outcome of a tracked item to the history. Called under n.mu.
-func (n *Notifier) record(t *tracked, sent bool) {
+// record adds the outcome of a tracked item to the history: sent at sentAt, or ignored
+// when sentAt is zero. Called under n.mu.
+func (n *Notifier) record(t *tracked, sentAt time.Time) {
+	sent := !sentAt.IsZero()
 	e := HistoryEntry{
 		ID: t.id, At: t.start, Camera: t.camera, Label: t.label, Sound: t.sound, SubLabel: t.subLabel,
 		Zones: slices.Clone(t.zones), Sent: sent, Link: t.link,
 	}
 	if sent {
-		e.SentAt = n.Now()
+		e.SentAt = sentAt // the instant recordSent counted, so the bar and the list agree
 	} else {
 		e.Reason = t.lastReason
 	}

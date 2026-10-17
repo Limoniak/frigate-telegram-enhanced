@@ -26,7 +26,8 @@
   const entries = $derived(inWindow.filter((e) => (!camera || e.camera === camera) && (!outcome || e.sent === (outcome === "sent"))));
   // The chart's last 24 hours, the latest first, and the one the address names.
   const hours = $derived(app.activity ? app.activity.hours.map((_, i) => hourStart(app.activity.at, i)).reverse() : []);
-  const hourOptions = $derived(route.hour && !hours.includes(route.hour) ? [route.hour, ...hours] : hours);
+  // An hour the list no longer offers (the chart moved on since) keeps its place by time.
+  const hourOptions = $derived(route.hour && !hours.includes(route.hour) ? [...hours, route.hour].sort((a, b) => b - a) : hours);
   const goHour = (v) => { location.hash = routeHash({ screen: "activity", hour: Number(v) || null }); };
   const sent = $derived(entries.filter((e) => e.sent).length);
   let all = $state(false);
