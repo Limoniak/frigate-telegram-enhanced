@@ -123,7 +123,9 @@ export async function refreshHistory() {
 
 // resetSettings goes back to config.yml (drops the saved settings), then reloads.
 export async function resetSettings() {
+  clearTimeout(saveTimer); // a pending save must not land after the reset and undo it
   try {
+    if (saving) await saving;
     const r = await post("api/settings/reset");
     if (!r.ok) throw new Error(r.data.error || "HTTP " + r.status);
     await load();

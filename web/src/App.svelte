@@ -1,9 +1,9 @@
 <script>
   // The shell of the main interface: a floating pill navigation, the save status, the
   // screens (#overview, #style, #when, #cameras, #recipients, #activity, #advanced), and the footer links.
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { T, i18n } from "./lib/i18n.svelte.js";
-  import { app, leave, load, startPolling } from "./lib/store.svelte.js";
+  import { app, flush, leave, load, startPolling } from "./lib/store.svelte.js";
   import { api } from "./lib/api.js";
   import LangMenu from "./lib/LangMenu.svelte";
   import Overview from "./Overview.svelte";
@@ -39,8 +39,17 @@
     ["advanced", T("Advanced settings")],
   ];
 
+  // A route to a screen that is not offered (one chat, no history) shows the overview.
+  const current = $derived(screens().some(([id]) => id === route.screen) ? route.screen : "overview");
+  // On a narrow screen the pills scroll: a deep link brings the current one into view.
+  $effect(() => {
+    current;
+    tick().then(() => document.querySelector('#nav [aria-current="page"]')?.scrollIntoView({ inline: "nearest", block: "nearest" }));
+  });
+
   async function logout() {
     try {
+      await flush(); // the session ends below: the pending save must go first
       await api("logout", { method: "POST" }, { lang: i18n.lang, next: "" });
     } finally {
       location.href = "login?lang=" + i18n.lang;
@@ -54,7 +63,7 @@
 <header class="sticky top-[env(safe-area-inset-top,0px)] z-10 px-4 pt-4">
   <nav id="nav" class="mx-auto flex w-full max-w-max items-center gap-1 overflow-x-auto rounded-full bg-[var(--glass)] p-1.5 ring-1 ring-[var(--ring)] backdrop-blur-xl">
     {#each screens() as [id, label] (id)}
-      <a href="#{id}" class="whitespace-nowrap rounded-full px-3 py-1.5 no-underline {route.screen === id ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}" aria-current={route.screen === id ? "page" : undefined}>{label}</a>
+      <a href="#{id}" class="whitespace-nowrap rounded-full px-3 py-1.5 no-underline {current === id ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}" aria-current={current === id ? "page" : undefined}>{label}</a>
     {/each}
     <LangMenu />
   </nav>
@@ -66,12 +75,12 @@
   {#if app.warning}<div class="notice">{app.warning}</div>{/if}
   {#if app.error}<div class="notice err" role="alert">{app.error}</div>{/if}
   {#if app.data}
-    {#if route.screen === "style"}<Style />
-    {:else if route.screen === "when"}<When />
-    {:else if route.screen === "recipients" && hasRecipients}<Recipients />
-    {:else if route.screen === "cameras"}<Cameras {route} />
-    {:else if route.screen === "activity" && app.data.can_history}<Activity />
-    {:else if route.screen === "advanced"}<Advanced />
+    {#if current === "style"}<Style />
+    {:else if current === "when"}<When />
+    {:else if current === "recipients"}<Recipients />
+    {:else if current === "cameras"}<Cameras {route} />
+    {:else if current === "activity"}<Activity />
+    {:else if current === "advanced"}<Advanced />
     {:else}<Overview />{/if}
   {/if}
 </main>

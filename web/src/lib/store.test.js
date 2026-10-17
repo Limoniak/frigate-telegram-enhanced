@@ -3,7 +3,7 @@ import { SAVE_DELAY, app, change, edit, flush, load, pause, resetSettings, sendT
 
 // fakeServer answers like the Go handler: settings, saves (recorded), test.
 function fakeServer({ refuse = false, refuseReset = false } = {}) {
-  const server = { down: false, hold: null, refuse };
+  const server = { down: false, hold: null, holdReset: null, refuse };
   const puts = [];
   const tests = [];
   globalThis.fetch = vi.fn(async (path, opts = {}) => {
@@ -15,6 +15,7 @@ function fakeServer({ refuse = false, refuseReset = false } = {}) {
       if (server.hold) await server.hold;
       return server.refuse ? json({ error: "invalid cooldown" }, 400) : json({ status: "ok" });
     }
+    if (path === "api/settings/reset" && server.holdReset) await server.holdReset;
     if (path === "api/settings/reset") return refuseReset ? json({ error: "disk full" }, 500) : json({ status: "ok" });
     if (path === "api/settings") {
       return json({ mode: "reviews", timezone: "UTC", cameras: [{ name: "garage" }, { name: "entree" }], chats: ["moi"],
@@ -146,6 +147,21 @@ describe("store", () => {
     await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
     expect(puts).toHaveLength(1);
     expect(puts[0].external_url).toBe("https://x.example");
+  });
+
+  it("a reset cancels the save still pending", async () => {
+    const { puts, server } = fakeServer();
+    await load();
+    change({ snapshot: false });
+    let release;
+    server.holdReset = new Promise((r) => (release = r));
+    const reset = resetSettings();
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY * 2); // the timer would fire while the reset is in flight
+    release();
+    await reset;
+    expect(puts).toEqual([]);
+    expect(app.data.custom).toBe(false);
+    expect(app.overlay.notify.snapshot).toBe(true);
   });
 
   it("a refused reset shows the failure", async () => {

@@ -10,15 +10,18 @@
   const fields = $derived(fieldsFor(app.data, null, T));
   const groups = $derived(GROUPS(T).map((g) => ({ ...g, fields: fields.filter((f) => g.keys.includes(f.key)) })).filter((g) => g.links || g.fields.length));
 
-  // Typed text of each address (for the invalid flag and the test link), until saved.
+  // Typed text of each address (for the test link), until saved; and the addresses
+  // found invalid when their field was left (not while typing).
   let drafts = $state({});
+  let errors = $state({});
   // A reload (reset) replaces the overlay: what was typed is forgotten with it.
-  $effect.pre(() => { app.overlay; drafts = {}; });
+  $effect.pre(() => { app.overlay; drafts = {}; errors = {}; });
   const draft = (key) => (drafts[key] ?? app.overlay[key] ?? "").trim();
   function commit(key, e) {
     const u = e.currentTarget.value.trim().replace(/\/+$/, "");
     drafts[key] = u;
     e.currentTarget.value = u;
+    errors[key] = !validURL(u);
     if (validURL(u)) edit((o) => { o[key] = u; });
   }
 
@@ -33,12 +36,12 @@
 {#snippet url(id, key, name, hint, placeholder, label, expected, fallback)}
   {@const typed = draft(key)}
   {@const shown = typed || fallback}
-  {@const bad = !validURL(typed)}
+  {@const bad = !!errors[key]}
   <div class="flex flex-col gap-2" data-key={key}>
     <span>{name}</span>
     <div class="flex items-center gap-3">
       <input {id} type="url" class="field min-w-0 flex-1" {placeholder} aria-label={label} aria-invalid={bad ? "true" : undefined} aria-describedby={bad ? id + "-error" : undefined}
-        value={app.overlay[key] || ""} oninput={(e) => (drafts[key] = e.currentTarget.value)} onchange={(e) => commit(key, e)} />
+        value={app.overlay[key] || ""} oninput={(e) => { drafts[key] = e.currentTarget.value; errors[key] = false; }} onchange={(e) => commit(key, e)} />
       {#if shown && validURL(shown)}<a class="flex-none" href={shown} target="_blank" rel="noopener">{T("Test ↗")}</a>{/if}
     </div>
     {#if bad}<p id="{id}-error" class="m-0 text-[12px] text-[var(--err)]" role="alert">{expected}</p>{/if}
@@ -48,7 +51,7 @@
 
 <section id="advanced" class="flex max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1">
-    <span class="lbl">{T("Advanced settings")}</span>
+    <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Advanced settings")}</h1>
     <p class="m-0 text-[var(--muted)]">{T("Every setting, for what the choices above don't cover. They apply to every camera, unless it has its own.")}</p>
   </div>
   {#key app.overlay}

@@ -143,6 +143,7 @@
     "Everything is ready: notifications already work with the settings below. Pick a style, then send yourself a sample to see what it looks like.": "Tutto pronto: le notifiche funzionano già con le impostazioni sottostanti. Scegli uno stile e inviati un esempio per vedere il risultato.",
     "Everything works": "Tutto funziona",
     "Everywhere": "Ovunque",
+    "Expected a duration like 60s, 5m or 1h30m": "Attesa una durata del tipo 60s, 5m o 1h30m",
     "Expected an address like https://frigate.example.com": "Atteso un indirizzo del tipo https://frigate.example.com",
     "Expected an address like https://homeassistant.example.com": "Atteso un indirizzo del tipo https://homeassistant.example.com",
     "Explosion": "Esplosione",
