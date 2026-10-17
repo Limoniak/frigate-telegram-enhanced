@@ -28,14 +28,14 @@
   </select>
   {#if !byLabel}
     <div class="flex flex-wrap items-center gap-2">
-      <input type="number" class="field w-24" min="0" max="1" step="0.05" aria-label={T("Minimum score")} value={v.default ?? 0} {disabled} onchange={(e) => onchange({ default: clampScore(e.currentTarget.value) })} />
+      <input type="number" class="field w-24" min="0" max="1" step="0.05" aria-label={T("Minimum score")} value={v.default ?? 0} {disabled} onchange={(e) => { const n = clampScore(e.currentTarget.value); e.currentTarget.value = n; onchange({ default: n }); }} />
       <span class="text-[12px] text-[var(--faint)]">{T("0 = no filter, 1 = certainty")}</span>
     </div>
   {:else}
     {#each Object.entries(byLabel) as [label, score] (label)}
       <div class="flex flex-wrap items-center gap-2">
         <span class="min-w-16">{label}</span>
-        <input type="number" class="field w-24" min="0" max="1" step="0.05" aria-label={label} value={score} {disabled} onchange={(e) => setLabel(label, e.currentTarget.value)} />
+        <input type="number" class="field w-24" min="0" max="1" step="0.05" aria-label={label} value={score} {disabled} onchange={(e) => { const n = clampScore(e.currentTarget.value); e.currentTarget.value = n; setLabel(label, n); }} />
         <button type="button" class="chip" title={T("Remove")} aria-label={T("Remove")} {disabled} onclick={() => drop(label)}>✕</button>
       </div>
     {/each}

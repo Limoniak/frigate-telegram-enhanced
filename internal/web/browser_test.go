@@ -631,6 +631,37 @@ func TestBrowserAdvanced(t *testing.T) {
 	}
 }
 
+// Going back to the config.yml settings forgets the text typed in an address field.
+func TestBrowserAdvancedResetForgetsTypedText(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	cooldown := `[data-key="cooldown"] input`
+	var invalid string
+	var alerts int
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#advanced"),
+		chromedp.WaitVisible(`#advanced`),
+		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="cooldown"] input'); i.focus(); i.select(); 0`),
+		chromedp.SendKeys(cooldown, "90s"+kb.Tab),
+		chromedp.WaitVisible(`#save-status.ok`),
+		chromedp.SendKeys(`#external-url`, "frigate.local"+kb.Tab),
+		chromedp.Evaluate[chromedp.Void](`window.confirm = () => true; 0`),
+		chromedp.Click(`#reset`),
+		chromedp.WaitNotPresent(`#reset`),
+		into(chromedp.Evaluate[string](`document.getElementById("external-url").getAttribute("aria-invalid") || ""`), &invalid),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('#advanced [role="alert"]').length`), &alerts),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invalid != "" || alerts != 0 {
+		t.Errorf("after the reset: aria-invalid %q, %d alerts", invalid, alerts)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
 // With a password, a page of the service's own leads to its login page (never the
 // browser's dialog), then back to the interface.
 func TestBrowserLogin(t *testing.T) {

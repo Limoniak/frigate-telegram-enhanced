@@ -5,6 +5,7 @@
 
   let { value, onchange, disabled = false, label = undefined } = $props();
   let invalid = $state(false);
+  $effect.pre(() => { value; invalid = false; });
 
   function commit(e) {
     const v = e.currentTarget.value.trim();

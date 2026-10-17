@@ -51,8 +51,8 @@
   {:else if field.type === "score"}
     <Score {value} {options} disabled={!custom} onchange={write} />
   {:else if field.type === "choice"}
-    <select class="field" aria-label={field.name} disabled={!custom} onchange={(e) => write(e.currentTarget.value)}>
-      {#each field.choices as [v, label] (v)}<option value={v} selected={v === (value || "skip")}>{label}</option>{/each}
+    <select class="field" aria-label={field.name} value={value || "skip"} disabled={!custom} onchange={(e) => write(e.currentTarget.value)}>
+      {#each field.choices as [v, label] (v)}<option value={v}>{label}</option>{/each}
     </select>
   {/if}
   {#if field.hint}<p class="m-0 text-[12px] text-[var(--faint)]">{field.hint}</p>{/if}

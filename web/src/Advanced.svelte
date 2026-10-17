@@ -12,10 +12,13 @@
 
   // Typed text of each address (for the invalid flag and the test link), until saved.
   let drafts = $state({});
+  // A reload (reset) replaces the overlay: what was typed is forgotten with it.
+  $effect.pre(() => { app.overlay; drafts = {}; });
   const draft = (key) => (drafts[key] ?? app.overlay[key] ?? "").trim();
   function commit(key, e) {
     const u = e.currentTarget.value.trim().replace(/\/+$/, "");
     drafts[key] = u;
+    e.currentTarget.value = u;
     if (validURL(u)) edit((o) => { o[key] = u; });
   }
 
@@ -34,11 +37,11 @@
   <div class="flex flex-col gap-2" data-key={key}>
     <span>{name}</span>
     <div class="flex items-center gap-3">
-      <input {id} type="url" class="field min-w-0 flex-1" {placeholder} aria-label={label} aria-invalid={bad ? "true" : undefined}
+      <input {id} type="url" class="field min-w-0 flex-1" {placeholder} aria-label={label} aria-invalid={bad ? "true" : undefined} aria-describedby={bad ? id + "-error" : undefined}
         value={app.overlay[key] || ""} oninput={(e) => (drafts[key] = e.currentTarget.value)} onchange={(e) => commit(key, e)} />
       {#if shown && validURL(shown)}<a class="flex-none" href={shown} target="_blank" rel="noopener">{T("Test ↗")}</a>{/if}
     </div>
-    {#if bad}<p class="m-0 text-[12px] text-[var(--err)]" role="alert">{expected}</p>{/if}
+    {#if bad}<p id="{id}-error" class="m-0 text-[12px] text-[var(--err)]" role="alert">{expected}</p>{/if}
     <p class="m-0 text-[12px] text-[var(--faint)]">{hint}</p>
   </div>
 {/snippet}
@@ -48,6 +51,7 @@
     <span class="lbl">{T("Advanced settings")}</span>
     <p class="m-0 text-[var(--muted)]">{T("Every setting, for what the choices above don't cover. They apply to every camera, unless it has its own.")}</p>
   </div>
+  {#key app.overlay}
   {#each groups as g (g.title)}
     <Card>
       <span class="lbl">{g.title}</span>
@@ -58,6 +62,7 @@
       {/if}
     </Card>
   {/each}
+  {/key}
   {#if app.data.custom}
     <div><button type="button" id="reset" class="btn" onclick={reset}>{app.data.can_connection ? T("Back to the default settings") : T("Back to the config.yml settings")}</button></div>
   {/if}
