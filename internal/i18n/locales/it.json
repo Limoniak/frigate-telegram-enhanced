@@ -352,6 +352,8 @@
     "Three steps and your notifications are running.": "Tre passaggi e le tue notifiche saranno operative.",
     "Thunder": "Tuono",
     "Time zone": "Fuso orario",
+    "To allow someone, add their ID as a recipient with the Connection link at the bottom of the page.": "Per autorizzare un utente, aggiungi il suo ID come destinatario tramite il link Connessione in fondo alla pagina.",
+    "To allow someone, add their ID to telegram.chats in config.yml (and to telegram.admins if you set it), then restart the container.": "Per autorizzare un utente, aggiungi il suo ID a telegram.chats in config.yml (e a telegram.admins se impostato), quindi riavvia il container.",
     "Train": "Treno",
     "Truck": "Camion",
     "Umbrella": "Ombrello",

@@ -1379,17 +1379,17 @@ func TestBrowserActivity(t *testing.T) {
 	}
 }
 
-// The menu stays inside the new interface, and the old /classic address leads to it.
+// The page has no link to /classic, and the old address leads to the interface.
 func TestBrowserNoClassicLinks(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	ctx, jsErrors := browser(t)
-	var inMenu, inFooter int
+	var links int
 	var where string
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/"),
 		chromedp.WaitVisible(`#nav`),
-		into(chromedp.Evaluate[int](`document.querySelectorAll('a[href^="classic"]').length`), &inMenu),
-		into(chromedp.Evaluate[int](`document.querySelectorAll('footer a[href="classic"]').length`), &inFooter),
+		chromedp.WaitVisible(`#cameras-list`), // the footer renders once the data is loaded
+		into(chromedp.Evaluate[int](`document.querySelectorAll('a[href^="classic"]').length`), &links),
 		inEnglish(ts.URL+"/classic"),
 		chromedp.WaitVisible(`#cameras-list`),
 		into(chromedp.Evaluate[string](`location.pathname`), &where),
@@ -1397,11 +1397,47 @@ func TestBrowserNoClassicLinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inMenu != 0 || inFooter != 0 {
-		t.Errorf("classic links in the page = %d, in the footer = %d, want none", inMenu, inFooter)
+	if links != 0 {
+		t.Errorf("classic links in the page = %d, want none", links)
 	}
 	if where != "/" {
 		t.Errorf("/classic led to %q, want /", where)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// A failing connection shows its detail and hint, a refused user is listed with
+// how to let them in, and the day's summary says something needs attention.
+func TestBrowserOverviewProblems(t *testing.T) {
+	health := func(context.Context, i18n.Lang) []Component {
+		return []Component{
+			{Name: "Frigate", State: StateOK, Detail: "0.16"},
+			{Name: "MQTT", State: StateError, Detail: "refused", Hint: "check"},
+		}
+	}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHealth(health),
+		WithRefused(fakeRefusals{{ID: 999, Name: "Alice", At: time.Now()}}))
+	ctx, jsErrors := browser(t)
+	var connections, today string
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/"),
+		chromedp.WaitVisible(`#connections`),
+		into(chromedp.Text(`#connections`), &connections),
+		into(chromedp.Text(`#today`), &today),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"MQTT — refused", "👉 check", "Alice", "999",
+		"To allow someone, add their ID to telegram.chats in config.yml"} {
+		if !strings.Contains(connections, want) {
+			t.Errorf("connections = %q, want it to contain %q", connections, want)
+		}
+	}
+	if !strings.Contains(today, "Something needs attention") {
+		t.Errorf("today = %q, want %q", today, "Something needs attention")
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

@@ -79,10 +79,11 @@
             <div class="flex items-center gap-3"><span class="flex-1">{c.name}</span><span class="truncate font-mono text-[11px] text-[var(--faint)]">{c.state === "ok" ? c.detail : ""}</span>
               <span class="h-1.5 w-1.5 flex-none rounded-full {c.state === 'ok' ? 'bg-[var(--accent)]' : c.state === 'warn' ? 'bg-amber-400' : 'bg-red-400'}"></span></div>
           {/each}
-          {#each problems as c (c.name)}<p class="result err m-0"><b>{c.name} — </b>{c.detail}{#if c.hint}<br>👉 {c.hint}{/if}</p>{/each}
+          {#each problems as c (c.name)}<p class="result err m-0"><b>{c.name} —</b> {c.detail}{#if c.hint}<br>👉 {c.hint}{/if}</p>{/each}
           {#if app.refused.length}
             <p class="result warn m-0"><b>{T("Telegram — users refused by the bot")}</b>
-              {#each app.refused as u (u.id)}<br>{[u.name, u.username && "@" + u.username].filter(Boolean).join(" ") || T("unknown")} · {T("ID ")}<code>{u.id}</code>{/each}</p>
+              {#each app.refused as u (u.id)}<br>{[u.name, u.username && "@" + u.username].filter(Boolean).join(" ") || T("unknown")} · {T("ID ")}<code>{u.id}</code>{/each}
+              <br>👉 {app.data.can_connection ? T("To allow someone, add their ID as a recipient with the Connection link at the bottom of the page.") : T("To allow someone, add their ID to telegram.chats in config.yml (and to telegram.admins if you set it), then restart the container.")}</p>
           {/if}
         </Card>
       {/if}
