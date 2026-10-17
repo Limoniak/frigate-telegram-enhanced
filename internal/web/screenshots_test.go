@@ -55,12 +55,16 @@ func TestScreenshots(t *testing.T) {
 		return notifier.HistoryEntry{ID: id, At: ago(m), Camera: camera, Label: label, Zones: zones, Score: score, Sent: sent,
 			Reason: reason, Thumb: "/api/events/" + id + "/thumbnail.jpg"}
 	}
+	grouped := func(e notifier.HistoryEntry) notifier.HistoryEntry { e.Grouped = true; return e }
 	history := fakeHistory{entries: []notifier.HistoryEntry{
 		entry("e1", 4, "entree", "person", []string{"porch"}, 0.91, true, ""),
 		entry("e2", 38, "garage", "car", []string{"driveway"}, 0.84, true, ""),
+		entry("e2b", 41, "garage", "car", []string{"driveway"}, 0.8, true, ""),
 		entry("e3", 95, "allee", "person", []string{"path"}, 0.52, false, "score"),
 		entry("e4", 190, "garage", "person", nil, 0.77, false, "zone"),
 		entry("e5", 410, "entree", "person", []string{"porch"}, 0.88, true, ""),
+		grouped(entry("e6", 460, "garage", "car", []string{"driveway"}, 0.8, true, "")),
+		entry("e7", 520, "allee", "person", []string{"path"}, 0.35, false, "score"),
 	}}
 	var sentTimes fakeActivity
 	for h, n := range []int{0, 0, 0, 0, 0, 1, 2, 4, 5, 2, 1, 1, 2, 1, 0, 1, 2, 3, 5, 4, 2, 1, 0, 1} {
@@ -86,7 +90,7 @@ func TestScreenshots(t *testing.T) {
 	ctx, jsErrors := browser(t)
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	shot := func(name string, width, height int, hash, ready string) chromedp.Action[chromedp.Void] {
+	shot := func(name string, width, height int, hash, ready, theme string) chromedp.Action[chromedp.Void] {
 		return func(ctx context.Context, tg *chromedp.Target) (chromedp.Void, error) {
 			var png []byte
 			err := chromedp.Do(ctx,
@@ -94,6 +98,7 @@ func TestScreenshots(t *testing.T) {
 				chromedp.Navigate(ts.URL+"/"+hash),
 				chromedp.WaitVisible(ready),
 				chromedp.Poll[chromedp.Void](`document.fonts.status === "loaded" && [...document.images].every(i => i.complete && i.naturalWidth > 0)`),
+				chromedp.Evaluate[chromedp.Void](`document.documentElement.dataset.theme = "`+theme+`"; 0`),
 				chromedp.Sleep(800*time.Millisecond), // the transitions end
 				into(chromedp.FullScreenshot(100), &png),
 			)
@@ -114,9 +119,12 @@ func TestScreenshots(t *testing.T) {
 		err := chromedp.Do(ctx,
 			chromedp.Navigate(ts.URL+"/"),
 			chromedp.Evaluate[chromedp.Void](`localStorage.setItem("frigate-telegram-enhanced-lang", "`+lang+`"); 0`),
-			shot(lang+"-overview.png", 1280, 770, "", `#last-notification img`),
-			shot(lang+"-style.png", 1280, 790, "#style", `#live-preview img`),
-			shot(lang+"-phone.png", 390, 900, "#style", `#live-preview img`),
+			shot(lang+"-overview.png", 1280, 770, "", `#last-notification img`, "dark"),
+			shot(lang+"-style.png", 1280, 790, "#style", `#live-preview img`, "dark"),
+			shot(lang+"-phone.png", 390, 900, "#style", `#live-preview img`, "dark"),
+			shot(lang+"-light.png", 1280, 790, "#style", `#live-preview img`, "light"),
+			shot(lang+"-cameras.png", 900, 760, "#cameras/garage", `[data-camera="garage"][open]`, "dark"),
+			shot(lang+"-activity.png", 1000, 900, "#activity", `#activity li img`, "dark"),
 		)
 		if err != nil {
 			t.Fatal(err)

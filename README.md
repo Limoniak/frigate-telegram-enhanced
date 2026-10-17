@@ -7,7 +7,7 @@ something is detected, then the video clip in the same message — with fine-gra
 interface to set everything up in a few clicks, and control from Telegram itself.
 
 <p align="center">
-  <img src="docs/screenshots/en/overview.png" width="820" alt="Web interface: notification styles with a preview of the Telegram message, and simple multiple-choice questions">
+  <img src="docs/images/en-overview.png" width="820" alt="Overview: notifications over 24 h, connections and cameras, next to the last notification as it arrives in Telegram">
 </p>
 
 ## Features
@@ -34,26 +34,21 @@ interface to set everything up in a few clicks, and control from Telegram itself
 
 ## A tour of the web interface
 
-<p align="center">
-  <img src="docs/images/en-overview.png" width="49%" alt="Overview: notifications over 24 h, connections and cameras, next to the last notification">
-  <img src="docs/images/en-style.png" width="49%" alt="Style: the notification styles with a live preview of the Telegram message">
-</p>
-
-<p align="center">
-  <img src="docs/images/en-phone.png" width="300" alt="The style screen on a phone">
-</p>
-
 **Pick a notification style.** Four styles — *photo + video*, *photo only*,
 *photo + GIF*, *text only* — each with a preview of the message as it will arrive in
 Telegram. One click and every camera uses it. Below, a few multiple-choice questions:
-what to report, how often at most, and what to do at night (screenshot above).
+what to report, how often at most, and what to do at night.
+
+<p align="center">
+  <img src="docs/images/en-style.png" width="820" alt="Style: four notification styles with a live preview of the Telegram message">
+</p>
 
 **Fine-tune a camera.** Each camera has an on/off switch; open it to give it another
 style, other objects or only some zones — otherwise it follows the general choices.
 *Test this camera* sends a real sample notification.
 
 <p align="center">
-  <img src="docs/screenshots/en/cameras.png" width="820" alt="An expanded camera: style, objects and zones, test button">
+  <img src="docs/images/en-cameras.png" width="700" alt="The Cameras screen with one camera expanded: style, objects and zones">
 </p>
 
 **Find out why a notification didn't arrive.** Recent activity lists the latest
@@ -62,15 +57,15 @@ selected zones, score too low, already reported a moment ago…), with a direct 
 the camera to adjust.
 
 <p align="center">
-  <img src="docs/screenshots/en/activity.png" width="820" alt="Recent activity: detections sent or ignored, with the reason">
+  <img src="docs/images/en-activity.png" width="700" alt="Recent activity: detections sent, grouped or ignored, with the reason and a thumbnail">
 </p>
 
-**On a phone, and in dark mode.** The page adapts to the screen and follows the system theme.
+**On a phone, in a light or dark theme.** The page adapts to the screen and follows the system theme (dark by default, light on the right).
 
 <p align="center">
-  <img src="docs/screenshots/en/mobile.png" width="260" alt="The interface on a phone">
+  <img src="docs/images/en-phone.png" width="260" alt="The Style screen on a phone">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/en/dark.png" width="540" alt="The interface in dark mode">
+  <img src="docs/images/en-light.png" width="540" alt="The Style screen in the light theme">
 </p>
 
 ## Requirements
