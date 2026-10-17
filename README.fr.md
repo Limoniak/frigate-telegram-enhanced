@@ -204,13 +204,14 @@ de la page ouvre un écran par sujet :
 - **Activité récente** (quand l'historique est disponible) : les 50 dernières détections avec
   leur miniature et leur issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone,
   score trop bas, déjà signalé il y a peu…) et un lien pour régler la caméra concernée.
-  L'historique est gardé en mémoire et repart de zéro au redémarrage du service.
-- **Réglages avancés** (repliés) : tous les réglages en détail, rangés par thème —
-  destinataires et filtrage, médias, rythme, horaires et présence, liens — en global
-  puis caméra par caméra. Les zones et les objets proposés viennent de l'API de Frigate.
-  **Liens** contient l'adresse utilisée par « Ouvrir dans Frigate » (défaut : l'adresse
-  de Frigate) et celle du bouton 🏠 *Home Assistant* (vide : pas de bouton), chacune avec
-  un bouton pour la tester.
+  Les 50 dernières détections sont conservées d'un redémarrage à l'autre.
+- **Réglages avancés** : tous les réglages globaux en détail, rangés par thème —
+  destinataires et filtrage, médias, rythme, horaires et présence, liens. Les zones et
+  les objets proposés viennent de l'API de Frigate. Les réglages propres à une caméra
+  sont dans *Caméras*, sous *Tous les réglages de* cette caméra. **Liens** contient
+  l'adresse utilisée par « Ouvrir dans Frigate » (défaut : l'adresse de Frigate) et
+  celle du bouton 🏠 *Home Assistant* (vide : pas de bouton) ; un lien *Tester ↗* ouvre
+  chaque adresse dès qu'elle est valide.
 
 L'interface classique reste à `/classic` jusqu'à la prochaine version (lien *Interface
 classique* en bas de page, et *Nouvelle interface* là-bas pour revenir).
@@ -218,8 +219,9 @@ classique* en bas de page, et *Nouvelle interface* là-bas pour revenir).
 Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
 redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
 est valide — un réglage refusé est signalé et laisse le service sur les précédents.
-Les choix plus fins (cadrage, rafales, sensibilité, réglages par personne) sont repliés
-sous *Plus de choix* : les valeurs par défaut conviennent à la plupart des installations.
+Les choix plus fins sont repliés sous *Plus de choix* — cadrage et place de la vidéo sur
+*Style* ; rafales, labels connus et, hors du mode `reviews`, sensibilité sur *Quand* — et
+les valeurs par défaut conviennent à la plupart des installations.
 
 Les réglages sont enregistrés dans le volume de données (`/data/notify.yml`), à côté de
 l'état (pauses, cooldowns) et de l'activité récente : ils survivent aux redémarrages et aux mises à jour. Avec un

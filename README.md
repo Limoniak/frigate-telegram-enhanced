@@ -201,12 +201,13 @@ page opens one screen per topic:
 - **Recent activity** (when the history is available): the last 50 detections with their
   thumbnail and outcome — ✅ sent, or ⛔ ignored with the reason in plain words (outside the
   zones, score too low, already reported a moment ago…) and a link to adjust the camera.
-  The history is kept in memory and starts over when the service restarts.
-- **Advanced settings** (collapsed): every setting in detail, sorted by theme —
-  recipients and filtering, media, pace, schedule and presence, links — globally, then
-  camera by camera. The zones and objects offered come from Frigate's API. **Links**
-  holds the address used by "Open in Frigate" (default: Frigate's address) and the one
-  of the 🏠 *Home Assistant* button (empty: no button), each with a button to test it.
+  The last 50 detections are kept across restarts.
+- **Advanced settings**: every global setting in detail, sorted by theme — recipients
+  and filtering, media, pace, schedule and presence, links. The zones and objects offered
+  come from Frigate's API. A camera's own settings are under *Cameras*, in *All settings
+  for* that camera. **Links** holds the address used by "Open in Frigate" (default:
+  Frigate's address) and the one of the 🏠 *Home Assistant* button (empty: no button);
+  a *Test ↗* link opens each address once it is valid.
 
 The classic interface stays at `/classic` until the next version (*Classic interface*
 link at the bottom of the page, and *New interface* there to come back).
@@ -214,8 +215,9 @@ link at the bottom of the page, and *New interface* there to come back).
 Every change is **saved by itself** and takes effect **immediately**, without a
 restart; the status at the top of the page confirms it. A change is only accepted if
 valid — a rejected one is reported and leaves the service on the previous settings.
-The finer choices (framing, bursts, sensitivity, per-person settings) are folded
-under *More choices*: the defaults suit most installations.
+The finer choices are folded under *More choices* — framing and video placement on
+*Style*; bursts, known labels and, outside the `reviews` mode, sensitivity on *When* —
+and the defaults suit most installations.
 
 Settings are saved in the data volume (`/data/notify.yml`), next to the state (pauses,
 cooldowns) and the recent activity, so they survive restarts and updates. With a configuration file, they

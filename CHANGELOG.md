@@ -11,7 +11,7 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 - New look for the setup and login pages: "Nocturne", dark glass on a blue night with
   a light variant that follows the system. They are built with Svelte and Tailwind
-  (`web/`); the rest of the interface follows in the next versions.
+  (`web/`).
 - New Nocturne interface at the address of the service: an overview (notifications over
   24 h hour by hour, connections, pause, cameras, the last notification as it arrived)
   and the notification style with a live Telegram preview.
