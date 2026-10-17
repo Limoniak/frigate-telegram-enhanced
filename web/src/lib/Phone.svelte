@@ -21,7 +21,7 @@
           <div class="relative aspect-[16/10] overflow-hidden bg-[#26313b]">
             {#if image}<img class="absolute inset-0 h-full w-full object-cover" src={image} alt="">
             {:else}
-              <div class="absolute inset-0 origin-[50%_61%] transition-transform duration-700 {model.crop ? 'scale-[1.55]' : ''}">
+              <div class="absolute inset-0 origin-[50%_80%] transition-transform duration-700 {model.crop ? 'scale-[1.55]' : ''}">
                 <img class="absolute inset-0 h-full w-full object-cover" src={sample} alt="">
                 <div class="absolute left-[43%] top-[33%] h-[58%] w-[14%] rounded-[3px] border-2 border-amber-300"></div>
               </div>

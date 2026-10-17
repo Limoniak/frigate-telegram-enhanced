@@ -361,3 +361,5 @@ translated, none left over).
 [MIT](LICENSE). The Docker image also ships a static build of
 [FFmpeg](https://ffmpeg.org/) (GPL, from [mwader/static-ffmpeg](https://github.com/wader/static-ffmpeg)),
 used only to re-encode the clips over 50 MB.
+
+The sample photo of the previews (`web/src/assets/sample.jpg`) is under the [Unsplash License](https://unsplash.com/license), see `web/src/assets/CREDITS.md`.

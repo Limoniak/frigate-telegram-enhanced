@@ -34,7 +34,7 @@ notify:
   labels: [person, car]
 `
 
-// maxPNG is the size above which a screenshot is kept as a JPEG instead.
+// maxPNG is the size above which a screenshot is too heavy for the README.
 const maxPNG = 400 << 10
 
 func TestScreenshots(t *testing.T) {
@@ -43,9 +43,9 @@ func TestScreenshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	cams := fakeCameras{cams: []frigate.CameraInfo{
-		{Name: "garage", Zones: []string{"driveway"}, Labels: []string{"person", "car"}},
-		{Name: "entree", Zones: []string{"porch"}, Labels: []string{"person", "car"}},
-		{Name: "allee", Zones: []string{"path"}, Labels: []string{"person", "car"}},
+		{Name: "garage", Zones: []string{"parking"}, Labels: []string{"person", "car"}},
+		{Name: "entree", Zones: []string{"porche"}, Labels: []string{"person", "car"}},
+		{Name: "allee", Zones: []string{"chemin"}, Labels: []string{"person", "car"}},
 	}}
 	now := time.Now()
 	ago := func(m int) time.Time { return now.Add(-time.Duration(m) * time.Minute) }
@@ -61,14 +61,14 @@ func TestScreenshots(t *testing.T) {
 	}
 	grouped := func(e notifier.HistoryEntry) notifier.HistoryEntry { e.Grouped = true; return e }
 	history := fakeHistory{entries: []notifier.HistoryEntry{
-		entry("e1", 4, "entree", "person", []string{"porch"}, 0.91, true, ""),
-		entry("e2", 38, "garage", "car", []string{"driveway"}, 0.84, true, ""),
-		entry("e2b", 41, "garage", "car", []string{"driveway"}, 0.8, true, ""),
-		entry("e3", 95, "allee", "person", []string{"path"}, 0.52, false, "score"),
+		entry("e1", 4, "entree", "person", []string{"porche"}, 0.91, true, ""),
+		entry("e2", 38, "garage", "car", []string{"parking"}, 0.84, true, ""),
+		entry("e2b", 41, "garage", "car", []string{"parking"}, 0.8, true, ""),
+		entry("e3", 95, "allee", "person", []string{"chemin"}, 0.52, false, "score"),
 		entry("e4", 190, "garage", "person", nil, 0.77, false, "zone"),
-		entry("e5", 410, "entree", "person", []string{"porch"}, 0.88, true, ""),
-		grouped(entry("e6", 460, "garage", "car", []string{"driveway"}, 0.8, true, "")),
-		entry("e7", 520, "allee", "person", []string{"path"}, 0.35, false, "score"),
+		entry("e5", 410, "entree", "person", []string{"porche"}, 0.88, true, ""),
+		grouped(entry("e6", 460, "garage", "car", []string{"parking"}, 0.8, true, "")),
+		entry("e7", 520, "allee", "person", []string{"chemin"}, 0.35, false, "score"),
 	}}
 	var sentTimes fakeActivity
 	for h, n := range []int{0, 0, 0, 0, 0, 1, 2, 4, 5, 2, 1, 1, 2, 1, 0, 1, 2, 3, 5, 4, 2, 1, 0, 1} {
@@ -109,14 +109,10 @@ func TestScreenshots(t *testing.T) {
 			if err != nil {
 				return chromedp.Void{}, err
 			}
-			file := filepath.Join(out, name)
 			if len(png) > maxPNG {
-				if err := chromedp.Do(ctx, into(chromedp.FullScreenshot(85), &png)); err != nil {
-					return chromedp.Void{}, err
-				}
-				file = file[:len(file)-len(".png")] + ".jpg"
+				t.Errorf("%s is %d KB, over %d KB: crop it", name, len(png)>>10, maxPNG>>10)
 			}
-			return chromedp.Void{}, os.WriteFile(file, png, 0o644)
+			return chromedp.Void{}, os.WriteFile(filepath.Join(out, name), png, 0o644)
 		}
 	}
 	for _, lang := range []string{"en", "fr"} {

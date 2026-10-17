@@ -367,3 +367,5 @@ texte traduit, aucun en trop).
 [MIT](LICENSE). L'image Docker contient aussi une version statique de
 [FFmpeg](https://ffmpeg.org/) (GPL, issue de [mwader/static-ffmpeg](https://github.com/wader/static-ffmpeg)),
 qui sert uniquement à ré-encoder les clips de plus de 50 Mo.
+
+La photo d'exemple des aperçus (`web/src/assets/sample.jpg`) est sous [licence Unsplash](https://unsplash.com/license), voir `web/src/assets/CREDITS.md`.

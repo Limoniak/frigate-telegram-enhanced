@@ -351,6 +351,7 @@ func TestBrowserStyle(t *testing.T) {
 	}
 	ctx, jsErrors := browser(t)
 	var overrides, preview string
+	var boxFits bool
 	var photo struct {
 		Loaded bool   `json:"loaded"`
 		Src    string `json:"src"`
@@ -365,6 +366,10 @@ func TestBrowserStyle(t *testing.T) {
 			Loaded bool   `json:"loaded"`
 			Src    string `json:"src"`
 		}](`(() => { const i = document.querySelector("#live-preview img"); return { loaded: i.complete && i.naturalWidth > 0, src: i.currentSrc } })()`), &photo),
+		// Cropping zooms the photo: the box on the person must stay inside the frame.
+		chromedp.Click(`#style-crop`),
+		chromedp.Sleep(1000*time.Millisecond), // the zoom's transition
+		into(chromedp.Evaluate[bool](`(() => { const e = document.querySelector("#live-preview .border-amber-300"), b = e.getBoundingClientRect(), f = e.parentElement.parentElement.getBoundingClientRect(); return b.top >= f.top - 1 && b.bottom <= f.bottom + 1 })()`), &boxFits),
 		chromedp.Click(`[data-style="gif"]`),
 		chromedp.WaitVisible(`#styles [data-style="gif"][aria-pressed="true"]`),
 		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview").textContent.includes("GIF")`),
@@ -379,6 +384,9 @@ func TestBrowserStyle(t *testing.T) {
 	}
 	if !photo.Loaded || !strings.Contains(photo.Src, "/assets/") {
 		t.Errorf("preview photo = %+v, want a loaded image under assets/", photo)
+	}
+	if !boxFits {
+		t.Error("with the crop on, the box on the person leaves the photo frame")
 	}
 	if !strings.Contains(overrides, "entree") {
 		t.Errorf("overrides = %q, want entree", overrides)
