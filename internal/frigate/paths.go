@@ -11,6 +11,12 @@ func EventSnapshotPath(id string) string {
 	return "/api/events/" + url.PathEscape(id) + "/snapshot.jpg?bbox=1"
 }
 
+// EventSnapshotHeightPath is the snapshot scaled down to h pixels high: enough for the
+// interface, and well under the size bound of what it relays.
+func EventSnapshotHeightPath(id string, h int) string {
+	return fmt.Sprintf("%s&h=%d", EventSnapshotPath(id), h)
+}
+
 // Cropped returns the variant of an event snapshot path cropped on the object; any
 // other path (live image…) is returned as is.
 func Cropped(snapshotPath string) string {

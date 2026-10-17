@@ -1,6 +1,7 @@
 package notifier
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -25,6 +26,7 @@ type HistoryEntry struct {
 	Zones    []string  `json:"zones"`
 	Score    float64   `json:"score,omitempty"`
 	Sent     bool      `json:"sent"`
+	SentAt   time.Time `json:"sent_at,omitzero"`  // when the notification was sent (counted per hour), zero if not sent
 	Grouped  bool      `json:"grouped,omitempty"` // added to the message of a previous notification
 	Reason   string    `json:"reason,omitempty"`  // reason for the filtering (see filter.Reason*)
 	Link     string    `json:"link,omitempty"`    // the notification's "Open in Frigate" link, empty without an address
@@ -46,7 +48,9 @@ func (n *Notifier) record(t *tracked, sent bool) {
 		ID: t.id, At: t.start, Camera: t.camera, Label: t.label, Sound: t.sound, SubLabel: t.subLabel,
 		Zones: slices.Clone(t.zones), Sent: sent, Link: t.link,
 	}
-	if !sent {
+	if sent {
+		e.SentAt = n.Now()
+	} else {
 		e.Reason = t.lastReason
 	}
 	e.Grouped = sent && t.grouped
@@ -55,7 +59,7 @@ func (n *Notifier) record(t *tracked, sent bool) {
 	}
 	if len(t.eventIDs) > 0 {
 		e.Thumb = frigate.EventThumbnailPath(t.eventIDs[0])
-		e.Snapshot = frigate.EventSnapshotPath(t.eventIDs[0])
+		e.Snapshot = frigate.EventSnapshotHeightPath(t.eventIDs[0], 720)
 	}
 	if e.At.IsZero() {
 		e.At = n.Now()
@@ -139,7 +143,8 @@ func (n *Notifier) loadHistory() {
 		e.HistoryEntry.Thumb, e.HistoryEntry.Snapshot = e.Thumb, e.Snapshot
 		n.history = append(n.history, e.HistoryEntry)
 		if e.Sent {
-			sent = append(sent, e.At)
+			// A file written before sent_at existed has only the event's start.
+			sent = append(sent, cmp.Or(e.SentAt, e.At))
 		}
 	}
 	// The history keeps only historySize entries, so the count read back is a minimum.

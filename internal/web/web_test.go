@@ -708,14 +708,18 @@ func TestHistoryGivesSentHours(t *testing.T) {
 	act := fakeActivity{now.Add(-23*time.Hour - 50*time.Minute), now.Add(-90 * time.Minute), now.Add(-10 * time.Minute), now}
 	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(fakeHistory{}, nil), WithActivity(act), WithClock(func() time.Time { return now }))
 	var v struct {
-		Sent  int   `json:"sent_24h"`
-		Hours []int `json:"sent_hours"`
+		Sent  int       `json:"sent_24h"`
+		Hours []int     `json:"sent_hours"`
+		Now   time.Time `json:"now"`
 	}
 	if err := json.NewDecoder(do(t, ts, "GET", "/api/history", "").Body).Decode(&v); err != nil {
 		t.Fatal(err)
 	}
 	want := make([]int, 24)
 	want[0], want[22], want[23] = 1, 1, 2
+	if !v.Now.Equal(now) {
+		t.Errorf("now = %v, want the server's clock %v (the bars' windows end then)", v.Now, now)
+	}
 	if v.Sent != 4 || !slices.Equal(v.Hours, want) {
 		t.Errorf("sent %d, hours %v; want 4, %v", v.Sent, v.Hours, want)
 	}

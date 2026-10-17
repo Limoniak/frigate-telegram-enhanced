@@ -632,6 +632,9 @@ func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
 
 type historyView struct {
 	Entries []historyEntryView `json:"entries"`
+	// Now is the server's clock, the end of the last hour of SentHours: the interface
+	// takes its hour windows from it, not from the browser's clock.
+	Now time.Time `json:"now"`
 	// Sent24h and SentHours: the notifications sent over 24 h, and per hour, the
 	// current hour last. Absent without an activity source.
 	Sent24h   *int  `json:"sent_24h,omitempty"`
@@ -649,7 +652,7 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable"))
 		return
 	}
-	v := historyView{Entries: []historyEntryView{}}
+	v := historyView{Entries: []historyEntryView{}, Now: h.now()}
 	for _, e := range h.history.History() {
 		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != "", HasSnapshot: h.media != nil && e.Snapshot != ""})
 	}

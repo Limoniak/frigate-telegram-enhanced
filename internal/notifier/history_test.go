@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,7 +130,7 @@ func TestHistoryKeepsLinkAndSnapshot(t *testing.T) {
 	}
 	check := func(n *Notifier) {
 		t.Helper()
-		if p, ok := n.HistorySnapshot("a"); !ok || p != frigate.EventSnapshotPath("a") {
+		if p, ok := n.HistorySnapshot("a"); !ok || p != frigate.EventSnapshotHeightPath("a", 720) {
 			t.Errorf("snapshot of a = %q %v", p, ok)
 		}
 		if _, ok := n.HistorySnapshot("inconnu"); ok {
@@ -143,4 +144,37 @@ func TestHistoryKeepsLinkAndSnapshot(t *testing.T) {
 		t.Errorf("link read back = %+v", got)
 	}
 	check(again.n)
+}
+
+// A sent entry keeps the instant of the notification, not the event's start: the
+// count per hour is made on it, and it survives a restart.
+func TestHistoryKeepsSentAt(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "history.json")
+	withFile := func(d *Deps) { d.HistoryFile = file }
+	h := newHarness(t, "events", withFile)
+	h.fr.files[frigate.EventSnapshotPath("a")] = []byte("jpeg")
+	h.clock.Add(5 * time.Minute) // the notification comes after the start of the event
+	sentAt := h.clock.Now()
+	h.send(t, "frigate/events", eventMsg("new", "a", "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("new", "b", "garage", "dog", nil))
+	h.send(t, "frigate/events", eventMsg("end", "b", "garage", "dog", nil))
+	if err := h.n.FlushHistory(); err != nil {
+		t.Fatal(err)
+	}
+
+	check := func(n *Notifier) {
+		t.Helper()
+		got := n.History()
+		if len(got) != 2 || !got[0].SentAt.IsZero() || !got[1].SentAt.Equal(sentAt) || got[1].At.Equal(sentAt) {
+			t.Errorf("history = %+v, want a sent at %v, b without", got, sentAt)
+		}
+		if b, _ := json.Marshal(got[0]); strings.Contains(string(b), "sent_at") {
+			t.Errorf("an entry not sent gives %s, want no sent_at", b)
+		}
+		if s := n.SentTimes(); len(s) != 1 || !s[0].Equal(sentAt) {
+			t.Errorf("SentTimes() = %v, want [%v]", s, sentAt)
+		}
+	}
+	check(h.n)
+	check(newHarness(t, "events", withFile).n)
 }
