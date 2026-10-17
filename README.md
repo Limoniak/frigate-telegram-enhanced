@@ -34,6 +34,15 @@ interface to set everything up in a few clicks, and control from Telegram itself
 
 ## A tour of the web interface
 
+<p align="center">
+  <img src="docs/images/en-overview.png" width="49%" alt="Overview: notifications over 24 h, connections and cameras, next to the last notification">
+  <img src="docs/images/en-style.png" width="49%" alt="Style: the notification styles with a live preview of the Telegram message">
+</p>
+
+<p align="center">
+  <img src="docs/images/en-phone.png" width="300" alt="The style screen on a phone">
+</p>
+
 **Pick a notification style.** Four styles — *photo + video*, *photo only*,
 *photo + GIF*, *text only* — each with a preview of the message as it will arrive in
 Telegram. One click and every camera uses it. Below, a few multiple-choice questions:

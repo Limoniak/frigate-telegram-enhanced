@@ -34,6 +34,15 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 
 ## L'interface web en images
 
+<p align="center">
+  <img src="docs/images/fr-overview.png" width="49%" alt="Aperçu : notifications sur 24 h, connexions et caméras, à côté de la dernière notification">
+  <img src="docs/images/fr-style.png" width="49%" alt="Style : les modèles de notification avec un aperçu en direct du message Telegram">
+</p>
+
+<p align="center">
+  <img src="docs/images/fr-phone.png" width="300" alt="L'écran Style sur un téléphone">
+</p>
+
 **Choisir un modèle de notification.** Quatre modèles — *Photo + vidéo*, *Photo seule*,
 *Photo + GIF*, *Texte seul* — chacun avec un aperçu du message tel qu'il arrivera dans
 Telegram. Un clic, et toutes les caméras l'adoptent. En dessous, quelques questions à
