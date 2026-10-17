@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -480,36 +479,148 @@ func TestBrowserWhen(t *testing.T) {
 	ctx, jsErrors := browser(t)
 	var page string
 	var width int
+	chats := `//*[@role="group"][@aria-label="Who receives the notifications?"]`
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		inEnglish(ts.URL+"/#when"),
 		chromedp.WaitVisible(`#when`),
 		chromedp.Click(byText("", "🚶🚗 People and cars")),
-		chromedp.WaitVisible(`#save-status.ok`),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved, err := os.ReadFile(path); err != nil || !strings.Contains(string(saved), "car") || !strings.Contains(string(saved), "person") {
-		t.Errorf("labels not saved: %q, %v", saved, err)
-	}
+	// "person" is already in config.yml: the saved list must be exactly the choice.
+	waitSaved(t, path, "car and person", func(f map[string]any) bool {
+		return slices.Equal(strs(notifyOf(f)["labels"]), []string{"car", "person"})
+	})
 	err = chromedp.Do(ctx,
 		chromedp.Click(byText("", "🌙 No notifications")),
-		chromedp.WaitVisible(`#save-status.ok`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := waitSaved(t, path, "off at night", func(f map[string]any) bool {
+		return slices.Equal(hours(notifyOf(f)["off_hours"]), []string{"22:00-07:00"})
+	})
+	if q := hours(notifyOf(f)["quiet_hours"]); len(q) != 0 {
+		t.Errorf("quiet hours = %v, want none", q)
+	}
+	// Choosing who receives: the chip adds the chat to the saved list.
+	err = chromedp.Do(ctx,
+		chromedp.Click(byText(chats, "famille")),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSaved(t, path, "moi and famille as recipients", func(f map[string]any) bool {
+		return slices.Equal(strs(notifyOf(f)["chats"]), []string{"famille", "moi"})
+	})
+	err = chromedp.Do(ctx,
 		into(chromedp.Text(`#when`), &page),
 		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved, err := os.ReadFile(path); err != nil || !strings.Contains(string(saved), "off_hours") {
-		t.Errorf("off hours not saved: %q, %v", saved, err)
-	}
 	if !strings.Contains(page, "Who receives the notifications?") {
 		t.Errorf("the recipients question is missing: %q", page)
 	}
 	if width > 360 {
 		t.Errorf("the page is %d px wide on a 360 px screen", width)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The folded choices of When, in events mode: the sensitivity slider only shows its
+// value while dragged and saves on release, and the known-labels pills are saved.
+func TestBrowserWhenMoreChoices(t *testing.T) {
+	_, path, ts := setupConfig(t, "mode: events\n"+testConfig, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	if resp := do(t, ts, "PUT", "/api/settings", `{"notify":{"ignore_sub_labels":["Bob"]}}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/settings: %d", resp.StatusCode)
+	}
+	ctx, jsErrors := browser(t)
+	slider := `input[type=range][aria-label="Minimum score"]`
+	var hidden bool
+	var during map[string]any
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#when"),
+		chromedp.WaitVisible(`#when`),
+		chromedp.Click(`#when details.more > summary`),
+		chromedp.WaitVisible(slider),
+		// Dragging (input events) changes the text only.
+		chromedp.Evaluate[chromedp.Void](`var r = document.querySelector('input[type=range]'); r.value = "0.4"; r.dispatchEvent(new Event("input", { bubbles: true })); 0`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#when").textContent.includes("40%")`),
+		into(chromedp.Evaluate[bool](`document.getElementById("save-status").hidden`), &hidden),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	during = savedFile(t, path)
+	if !hidden || notifyOf(during)["min_score"] != nil {
+		t.Errorf("dragging saved: status hidden = %v, saved %v", hidden, during)
+	}
+	// Releasing it saves the value.
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`document.querySelector('input[type=range]').dispatchEvent(new Event("change", { bubbles: true })); 0`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSaved(t, path, "sensitivity 0.4", func(f map[string]any) bool {
+		return notifyOf(f)["min_score"] == 0.4
+	})
+	// Known labels: "Only unknown objects" is saved, and hides the labels to ignore.
+	err = chromedp.Do(ctx,
+		chromedp.Click(byText("", "🏷 Only unknown objects")),
+		chromedp.WaitNotPresent(`#when [aria-label="Don't notify for:"]`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSaved(t, path, "only unknown objects", func(f map[string]any) bool { return notifyOf(f)["ignore_known"] == true })
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// A change made on one screen is saved even if the screen is left before the delay,
+// and the links of the footer send the pending change before leaving the page.
+func TestBrowserSavesWhenLeaving(t *testing.T) {
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	var where string
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#when"),
+		chromedp.WaitVisible(`#when`),
+		chromedp.Click(byText("", "🚶🚗 People and cars")),
+		chromedp.Click(`#nav a[href="#style"]`), // well before the 600 ms delay
+		chromedp.WaitVisible(`#styles`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSaved(t, path, "car and person", func(f map[string]any) bool {
+		return slices.Equal(strs(notifyOf(f)["labels"]), []string{"car", "person"})
+	})
+	err = chromedp.Do(ctx,
+		chromedp.Click(`#nav a[href="#when"]`),
+		chromedp.WaitVisible(`#when`),
+		chromedp.Click(byText("", "🌙 No notifications")),
+		chromedp.Click(`footer a[href="classic"]`),
+		chromedp.WaitVisible(`footer a[href="./"]`), // the classic page
+		into(chromedp.Evaluate[string](`location.pathname`), &where),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Read at once, with no waiting: the save has to be over before the page is left.
+	if f := savedFile(t, path); !slices.Equal(hours(notifyOf(f)["off_hours"]), []string{"22:00-07:00"}) {
+		t.Errorf("the change was not saved before leaving for %s: %v", where, f)
+	}
+	if !strings.HasSuffix(where, "/classic") {
+		t.Errorf("left for %q, want the classic interface", where)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -614,14 +725,28 @@ func TestBrowserAdvanced(t *testing.T) {
 	if !strings.Contains(shadow, "inset") || !strings.Contains(described, "-error") || message == "" {
 		t.Errorf("invalid duration: box-shadow %q, aria-describedby %q, message %q", shadow, described, message)
 	}
-	time.Sleep(1200 * time.Millisecond)
-	if saved, err := os.ReadFile(path); err == nil && strings.Contains(string(saved), "cooldown") {
-		t.Errorf("an invalid duration was saved: %q", saved)
+	// A valid address is saved without its trailing slash, and the Test link points to it.
+	// That save carries the whole overlay: it proves the invalid duration is not in it.
+	var link string
+	err = chromedp.Do(ctx,
+		chromedp.SendKeys(`#external-url`, "https://frigate.example.org/"+kb.Tab),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-key="external_url"] a')?.getAttribute("href") === "https://frigate.example.org"`),
+		into(chromedp.Evaluate[string](`document.querySelector('[data-key="external_url"] a').getAttribute("target") + " " + document.querySelector('[data-key="external_url"] a').getAttribute("rel")`), &link),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := waitSaved(t, path, "the valid address", func(f map[string]any) bool { return f["external_url"] == "https://frigate.example.org" })
+	if c := notifyOf(f)["cooldown"]; c != "1m0s" { // config.yml's value, still
+		t.Errorf("an invalid duration was saved: cooldown = %v", c)
+	}
+	if link != "_blank noopener" {
+		t.Errorf("Test link target and rel = %q", link)
 	}
 	err = chromedp.Do(ctx,
 		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="cooldown"] input'); i.focus(); i.select(); 0`),
 		chromedp.SendKeys(cooldown, "90s"+kb.Tab),
-		chromedp.WaitVisible(`#save-status.ok`),
+		chromedp.Evaluate[chromedp.Void](`var i = document.getElementById("external-url"); i.focus(); i.select(); 0`),
 		chromedp.SendKeys(`#external-url`, "frigate.local"),
 		// No error while typing: it comes when the field is left.
 		into(chromedp.Evaluate[int](`document.querySelectorAll('[data-key="external_url"] [role=alert]').length`), &typingAlerts),
@@ -633,18 +758,115 @@ func TestBrowserAdvanced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved, err := os.ReadFile(path)
-	if err != nil || !regexp.MustCompile(`cooldown:\s*("?)(1m30s|90s)`).Match(saved) {
-		t.Errorf("cooldown not saved: %q, %v", saved, err)
-	}
-	if strings.Contains(string(saved), "frigate.local") {
-		t.Errorf("an invalid address was saved: %q", saved)
+	f = waitSaved(t, path, "the 90 s cooldown", func(f map[string]any) bool { c := notifyOf(f)["cooldown"]; return c == "1m30s" || c == "90s" })
+	if f["external_url"] != "https://frigate.example.org" {
+		t.Errorf("an invalid address was saved: external_url = %v", f["external_url"])
 	}
 	if urlInvalid != "true" || typingAlerts != 0 || urlAlerts != 1 {
 		t.Errorf("frigate.local: aria-invalid %q, %d alerts while typing, %d once left", urlInvalid, typingAlerts, urlAlerts)
 	}
 	if width > 360 {
 		t.Errorf("the page is %d px wide on a 360 px screen", width)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The Advanced controls: time ranges, the minimum score and the chips are saved, every
+// control is named apart from its siblings, and declining the reset changes nothing.
+func TestBrowserAdvancedControls(t *testing.T) {
+	cams := fakeCameras{cams: []frigate.CameraInfo{{Name: "garage", Labels: []string{"person", "car"}}}}
+	_, path, ts := setup(t, "", cams)
+	ctx, jsErrors := browser(t)
+	var names, describedBy, scoreSelect, groups string
+	var asked int
+	const times = `JSON.stringify([...document.querySelectorAll('#advanced input[type=time]')].map(i => i.getAttribute("aria-label")))`
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#advanced"),
+		chromedp.WaitVisible(`#advanced`),
+		// Time ranges: two quiet ranges and one off range; the first one starts earlier, the second is removed.
+		chromedp.Click(`[data-key="quiet_hours"] button.btn-link`),
+		chromedp.Click(`[data-key="quiet_hours"] button.btn-link`),
+		chromedp.Click(`[data-key="off_hours"] button.btn-link`),
+		into(chromedp.Evaluate[string](times), &names),
+		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="quiet_hours"] input[type=time]'); i.value = "21:30"; i.dispatchEvent(new Event("change", { bubbles: true })); 0`),
+		chromedp.Click(`[data-key="quiet_hours"] div.flex-wrap:nth-of-type(2) button[aria-label="Remove"]`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `["Quiet hours 1 – from","Quiet hours 1 – to","Quiet hours 2 – from","Quiet hours 2 – to","Off hours 1 – from","Off hours 1 – to"]`; names != want {
+		t.Errorf("time inputs are named %s, want %s", names, want)
+	}
+	waitSaved(t, path, "one quiet range from 21:30 and one off range", func(f map[string]any) bool {
+		n := notifyOf(f)
+		return slices.Equal(hours(n["quiet_hours"]), []string{"21:30-07:00"}) && slices.Equal(hours(n["off_hours"]), []string{"22:00-07:00"})
+	})
+
+	// Minimum score: one value per object, then a value for the first object.
+	score := `[data-key="min_score"]`
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`var s = document.querySelector('[data-key="min_score"] select'); s.value = "label"; s.dispatchEvent(new Event("change", { bubbles: true })); 0`),
+		chromedp.WaitVisible(score+` input[type=number][aria-label="car"]`),
+		into(chromedp.Evaluate[string](`document.querySelector('[data-key="min_score"] select').getAttribute("aria-label")`), &scoreSelect),
+		chromedp.Evaluate[chromedp.Void](`var n = document.querySelector('[data-key="min_score"] input[type=number]'); n.value = "0.8"; n.dispatchEvent(new Event("change", { bubbles: true })); 0`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scoreSelect != "One value per object" {
+		t.Errorf("score mode select is named %q", scoreSelect)
+	}
+	waitSaved(t, path, "a score for car", func(f map[string]any) bool {
+		m, _ := notifyOf(f)["min_score"].(map[string]any)
+		return m["car"] == 0.8
+	})
+
+	// Chips: a value typed in the field and a toggled option.
+	err = chromedp.Do(ctx,
+		chromedp.SendKeys(`[data-key="labels"] input[aria-label="Objects – add…"]`, "chien"+kb.Enter),
+		chromedp.Click(byText(`//*[@data-key="labels"]`, "car")),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSaved(t, path, "chien and car added to person", func(f map[string]any) bool {
+		return slices.Equal(strs(notifyOf(f)["labels"]), []string{"car", "chien", "person"})
+	})
+
+	// Each control says what it is: the hint is tied to the field, the groups carry its name.
+	err = chromedp.Do(ctx,
+		into(chromedp.Evaluate[string](`var i = document.querySelector('[data-key="cooldown"] input'); i.getAttribute("aria-describedby").split(" ").map(id => document.getElementById(id)?.textContent).join("|")`), &describedBy),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll('#advanced [role=group]')].map(g => g.getAttribute("aria-label")).join("|")`), &groups),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(describedBy, "Per camera and per object") {
+		t.Errorf("the cooldown input is described by %q, want its hint", describedBy)
+	}
+	for _, want := range []string{"Quiet hours", "Off hours", "Objects", "Minimum score"} {
+		if !strings.Contains("|"+groups+"|", "|"+want+"|") {
+			t.Errorf("groups = %q, %s missing", groups, want)
+		}
+	}
+
+	// Declining the confirmation keeps the saved settings.
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`window.asked = 0; window.confirm = () => { window.asked++; return false; }; 0`),
+		chromedp.Click(`#reset`),
+		chromedp.Poll[chromedp.Void](`window.asked === 1`),
+		// A round trip to the server after the click: a reset sent anyway would be done by now.
+		chromedp.Evaluate[chromedp.Void](`fetch("api/settings").then(r => r.json()).then(d => { window.custom = d.custom; }); 0`),
+		chromedp.Poll[chromedp.Void](`window.custom !== undefined`),
+		into(chromedp.Evaluate[int](`window.custom ? 1 : 0`), &asked),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asked != 1 || savedFile(t, path) == nil {
+		t.Errorf("declining the reset: settings still custom = %d, file kept = %v", asked, savedFile(t, path) != nil)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -945,6 +1167,61 @@ func waitCameras(t *testing.T, path, what string, ok func(map[string]map[string]
 	return nil
 }
 
+// savedFile reads the whole saved settings file (nil while nothing is saved).
+func savedFile(t *testing.T, path string) map[string]any {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var f map[string]any
+	if err := yaml.Unmarshal(b, &f); err != nil {
+		t.Fatalf("saved settings are not YAML: %v\n%s", err, b)
+	}
+	return f
+}
+
+// notifyOf is the default (global) notification settings of a saved file.
+func notifyOf(f map[string]any) map[string]any {
+	n, _ := f["notify"].(map[string]any)
+	return n
+}
+
+// waitSaved waits (up to 5 s) for the saved file to satisfy ok.
+func waitSaved(t *testing.T, path, what string, ok func(map[string]any) bool) map[string]any {
+	t.Helper()
+	var f map[string]any
+	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+		if f = savedFile(t, path); f != nil && ok(f) {
+			return f
+		}
+	}
+	t.Fatalf("the saved settings never became %s: %v", what, f)
+	return nil
+}
+
+// strs is a saved list of text as a sorted slice.
+func strs(v any) []string {
+	var out []string
+	l, _ := v.([]any)
+	for _, x := range l {
+		out = append(out, x.(string))
+	}
+	slices.Sort(out)
+	return out
+}
+
+// hours is a saved list of time ranges as "from-to" texts.
+func hours(v any) []string {
+	var out []string
+	l, _ := v.([]any)
+	for _, x := range l {
+		r := x.(map[string]any)
+		out = append(out, r["from"].(string)+"-"+r["to"].(string))
+	}
+	return out
+}
+
 // The Cameras screen: #cameras/<name> opens that card, a style, a zone and a
 // customized setting are saved under the camera, and resetting a card removes it.
 func TestBrowserCameras(t *testing.T) {
@@ -959,6 +1236,7 @@ func TestBrowserCameras(t *testing.T) {
 	ctx, jsErrors := browser(t)
 	garage, old := `[data-camera="garage"]`, `[data-camera="ancienne"]`
 	var open, oldExists, stillOpen, focused bool
+	var customizes string
 	var nested, width int
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
@@ -1023,10 +1301,15 @@ func TestBrowserCameras(t *testing.T) {
 	err = chromedp.Do(ctx,
 		chromedp.Click(garage+` details.more > summary`),
 		chromedp.WaitVisible(cooldown),
+		// The box is described by the name of its setting, or the repeated "customize" tell nothing apart.
+		into(chromedp.Evaluate[string](`var c = document.querySelector('[data-camera="garage"] [data-key="cooldown"] input[type=checkbox]'); document.getElementById(c.getAttribute("aria-describedby")).textContent`), &customizes),
 		chromedp.Click(cooldown),
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if customizes != "Delay between two notifications" {
+		t.Errorf("the customize box of the cooldown is described by %q", customizes)
 	}
 	waitCameras(t, path, "garage cooldown customized", func(c map[string]map[string]any) bool { _, ok := c["garage"]["cooldown"]; return ok })
 	err = chromedp.Do(ctx, chromedp.Click(cooldown))
@@ -1047,6 +1330,12 @@ func TestBrowserCameras(t *testing.T) {
 	if _, ok := c["garage"]["zones"]; !ok {
 		t.Errorf("resetting ancienne touched garage: %v", c)
 	}
+	// "Everywhere" equals the global level: the zones override is removed, not stored empty.
+	err = chromedp.Do(ctx, chromedp.Click(byText(`//details[@data-camera="garage"]`, "Everywhere")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage with no zones override", func(c map[string]map[string]any) bool { _, ok := c["garage"]["zones"]; return !ok })
 	err = chromedp.Do(ctx, into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width))
 	if err != nil {
 		t.Fatal(err)
@@ -1150,11 +1439,13 @@ func TestBrowserActivity(t *testing.T) {
 func TestBrowserNoClassicLinks(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	ctx, jsErrors := browser(t)
-	var inMenu, back int
+	var inMenu, footer, back int
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/"),
 		chromedp.WaitVisible(`#nav`),
+		chromedp.WaitVisible(`footer a[href="classic"]`),
 		into(chromedp.Evaluate[int](`document.querySelectorAll('#nav a[href^="classic"]').length`), &inMenu),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('footer a[href="classic"]').length`), &footer),
 		inEnglish(ts.URL+"/classic"),
 		chromedp.WaitVisible(`footer`),
 		into(chromedp.Evaluate[int](`[...document.querySelectorAll('footer a[href="./"]')].filter(a => a.textContent.trim() === "New interface").length`), &back),
@@ -1162,8 +1453,8 @@ func TestBrowserNoClassicLinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inMenu != 0 || back != 1 {
-		t.Errorf("classic links in the menu = %d, links back in the classic footer = %d", inMenu, back)
+	if inMenu != 0 || footer != 1 || back != 1 {
+		t.Errorf("classic links in the menu = %d, in the footer = %d, links back in the classic footer = %d", inMenu, footer, back)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
