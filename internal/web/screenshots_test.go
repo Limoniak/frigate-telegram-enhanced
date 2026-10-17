@@ -49,12 +49,12 @@ func TestScreenshots(t *testing.T) {
 	}}
 	now := time.Now()
 	ago := func(m int) time.Time { return now.Add(-time.Duration(m) * time.Minute) }
-	media := fakeMedia{}
+	media := fakeMedia{files: map[string][]byte{}}
 	entry := func(id string, m int, camera, label string, zones []string, score float64, sent bool, reason string) notifier.HistoryEntry {
 		e := notifier.HistoryEntry{ID: id, At: ago(m), Camera: camera, Label: label, Zones: zones, Score: score, Sent: sent,
 			Reason: reason}
 		if label == "person" { // the others show the emoji of their label
-			media["/api/events/"+id+"/thumbnail.jpg"] = photo
+			media.files["/api/events/"+id+"/thumbnail.jpg"] = photo
 			e.Thumb = "/api/events/" + id + "/thumbnail.jpg"
 		}
 		return e

@@ -103,3 +103,44 @@ func TestSentCountSurvivesRestart(t *testing.T) {
 		t.Errorf("SentTimes() = %v, want [%v]", sent, now.Add(-time.Hour))
 	}
 }
+
+// An entry keeps the notification's link to Frigate and the path of its snapshot,
+// and both survive a restart.
+func TestHistoryKeepsLinkAndSnapshot(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "history.json")
+	withFile := func(d *Deps) { d.HistoryFile = file }
+	h := newHarness(t, "events", withFile)
+	o := h.n.Config.CurrentOverlay()
+	u := "https://frigate.maison.example"
+	o.ExternalURL = &u
+	if err := h.n.Config.ApplyOverlay(&o); err != nil {
+		t.Fatal(err)
+	}
+	h.fr.files[frigate.EventSnapshotPath("a")] = []byte("jpeg")
+	h.send(t, "frigate/events", eventMsg("new", "a", "garage", "person", nil))
+	if err := h.n.FlushHistory(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := "https://frigate.maison.example/explore?event_id=a"
+	got := h.n.History()
+	if len(got) != 1 || got[0].Link != want {
+		t.Fatalf("history = %+v, want link %q", got, want)
+	}
+	check := func(n *Notifier) {
+		t.Helper()
+		if p, ok := n.HistorySnapshot("a"); !ok || p != frigate.EventSnapshotPath("a") {
+			t.Errorf("snapshot of a = %q %v", p, ok)
+		}
+		if _, ok := n.HistorySnapshot("inconnu"); ok {
+			t.Error("an id outside the history must not give a snapshot")
+		}
+	}
+	check(h.n)
+
+	again := newHarness(t, "events", withFile)
+	if got := again.n.History(); len(got) != 1 || got[0].Link != want {
+		t.Errorf("link read back = %+v", got)
+	}
+	check(again.n)
+}

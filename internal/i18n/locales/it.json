@@ -416,6 +416,7 @@
     "host not allowed: open the interface with the server's IP address, or set a password on the Connection page": "host non autorizzato: apri l'interfaccia con l'indirizzo IP del server o imposta una password nella pagina Connessione",
     "ignored": "ignorato",
     "ignored label": "etichetta ignorata",
+    "image unavailable": "immagine non disponibile",
     "invalid Frigate external URL %q (e.g. https://frigate.example.com)": "URL esterno di Frigate non valido %q (es. https://frigate.example.com)",
     "invalid Home Assistant URL %q (e.g. https://homeassistant.example.com)": "URL di Home Assistant non valido %q (es. https://homeassistant.example.com)",
     "invalid configuration: %w": "configurazione non valida: %w",
