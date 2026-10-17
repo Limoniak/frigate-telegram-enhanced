@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GROUPS, cameraSummary, clampScore, defaultFor, fieldsFor, sensitivityEffect, untracked, validDuration, validURL } from "./fields.js";
+import { FIELDS, GROUPS, cameraSummary, clampScore, defaultFor, fieldsFor, sensitivityEffect, untracked, validDuration, validURL } from "./fields.js";
 
 const T = (s) => s;
 const Tf = (s, ...a) => { let i = 0; return s.replace(/%d/g, () => a[i++]); };
@@ -75,5 +75,34 @@ describe("cameraSummary", () => {
   });
   it("summarizes a camera that follows the defaults", () => {
     expect(cameraSummary(data, overlay({}), null, "garage", ctx)).toBe("Photo + video · person · default");
+  });
+  it("names the style of each kind", () => {
+    const say = (cam) => cameraSummary(data, overlay(cam), null, "garage", ctx);
+    expect(say({ clip: false })).toBe("Photo only · person");
+    expect(say({ clip: false, gif: true })).toBe("Photo + GIF · person");
+    expect(say({ snapshot: false, clip: false })).toBe("Text only · person");
+    expect(say({ snapshot: false, clip: true })).toBe("custom style · person");
+  });
+  it("lists the zones and the objects", () => {
+    expect(cameraSummary(data, overlay({ labels: [], zones: ["allee", "porche"] }), null, "garage", ctx))
+      .toBe("Photo + video · all objects · 📍 allee, porche");
+  });
+  it("warns about an object Frigate does not track", () => {
+    const d = { cameras: [{ name: "garage", labels: ["car"] }] };
+    expect(cameraSummary(d, overlay({}), null, "garage", ctx)).toBe("⚠️ object not tracked by Frigate · Photo + video · person · default");
+  });
+  it("says a camera is muted", () => {
+    const live = { mutes: [{ camera: "garage", until: null }] };
+    expect(cameraSummary(data, overlay({}), live, "garage", ctx)).toBe("🔇 muted until resumed · Photo + video · person · default");
+    expect(cameraSummary(data, overlay({}), { mutes: [{ camera: "entree", until: null }] }, "garage", ctx)).not.toContain("🔇");
+  });
+});
+
+describe("FIELDS", () => {
+  const hint = (data) => FIELDS(T, data).find((f) => f.key === "chats").hint;
+  it("points to the Connection page or to config.yml for the chats", () => {
+    expect(hint({ can_connection: true })).toMatch(/Connection page/);
+    expect(hint({ can_connection: false })).toMatch(/config\.yml/);
+    expect(hint(null)).toMatch(/config\.yml/);
   });
 });

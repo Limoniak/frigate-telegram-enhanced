@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SAVE_DELAY, app, change, edit, flush, load, pause, resetSettings, sendTest } from "./store.svelte.js";
+import { SAVE_DELAY, app, change, edit, flush, leave, load, pause, resetSettings, sendTest } from "./store.svelte.js";
 
 // fakeServer answers like the Go handler: settings, saves (recorded), test.
 function fakeServer({ refuse = false, refuseReset = false } = {}) {
@@ -170,5 +170,37 @@ describe("store", () => {
     await resetSettings();
     expect(app.error.startsWith("Could not go back to config.yml:")).toBe(true);
     expect(app.error).toContain("disk full");
+  });
+
+  it("a reset after a save reloads the settings without the saved ones", async () => {
+    fakeServer();
+    await load();
+    change({ snapshot: false });
+    await flush();
+    expect(app.data.custom).toBe(true); // saved: the page now offers the way back
+    await resetSettings();
+    expect(app.data.custom).toBe(false);
+    expect(app.overlay.notify.snapshot).toBe(true);
+    expect(app.error).toBe("");
+  });
+
+  it("leaving a page sends the pending change first", async () => {
+    const { puts } = fakeServer();
+    await load();
+    let putsWhenLeft = -1;
+    globalThis.location = { set href(v) { putsWhenLeft = puts.length; } };
+    change({ snapshot: false });
+    await leave("classic");
+    expect(putsWhenLeft).toBe(1); // the page is left only once the change is sent
+  });
+
+  it("leaving a page with nothing pending sends nothing", async () => {
+    const { puts } = fakeServer();
+    await load();
+    let went = "";
+    globalThis.location = { set href(v) { went = v; } };
+    await leave("setup");
+    expect(puts).toEqual([]);
+    expect(went).toBe("setup");
   });
 });
