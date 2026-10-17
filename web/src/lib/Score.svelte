@@ -3,7 +3,7 @@
   import { T } from "./i18n.svelte.js";
   import { clampScore } from "./fields.js";
 
-  let { value, options, onchange, disabled = false } = $props();
+  let { value, options, onchange, disabled = false, label = undefined, describedby = undefined } = $props();
   const v = $derived(value && typeof value === "object" ? value : { default: 0 });
   const byLabel = $derived(v.by_label && Object.keys(v.by_label).length ? v.by_label : null);
   const remaining = $derived(options.filter((o) => !(byLabel && o in byLabel)));
@@ -21,8 +21,8 @@
   }
 </script>
 
-<div class="flex flex-col gap-2">
-  <select class="field" aria-label={T("Minimum score")} {disabled} onchange={mode}>
+<div role={label ? "group" : undefined} aria-label={label} aria-describedby={describedby} class="flex flex-col gap-2">
+  <select class="field" aria-label={byLabel ? T("One value per object") : T("One value for every object")} {disabled} onchange={mode}>
     <option value="global" selected={!byLabel}>{T("One value for every object")}</option>
     <option value="label" selected={!!byLabel}>{T("One value per object")}</option>
   </select>

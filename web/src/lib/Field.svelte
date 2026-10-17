@@ -13,6 +13,8 @@
 
   let { field, camera = null } = $props();
 
+  const uid = $props.id();
+  const hint = $derived(field.hint ? uid + "-hint" : undefined); // ties the hint to the control
   const patch = $derived(camera ? app.overlay.cameras[camera] || {} : app.overlay.notify);
   const inherited = $derived(camera ? app.overlay.notify[field.key] : undefined);
   const custom = $derived(!camera || field.key in patch);
@@ -32,28 +34,28 @@
 
 <div class="flex flex-col gap-2" data-key={field.key}>
   <div class="flex items-center justify-between gap-3">
-    <span class="min-w-0">{field.name}</span>
+    <span id="{uid}-name" class="min-w-0">{field.name}</span>
     <span class="flex flex-none items-center gap-3">
       {#if camera}
-        <label class="flex items-center gap-2 text-[12px] text-[var(--muted)]"><input type="checkbox" checked={custom} onchange={toggle} />{T("customize")}</label>
+        <label class="flex items-center gap-2 text-[12px] text-[var(--muted)]"><input type="checkbox" checked={custom} aria-describedby="{uid}-name" onchange={toggle} />{T("customize")}</label>
       {/if}
       {#if field.type === "bool"}
-        <Switch checked={!!value} label={field.name} disabled={!custom} onchange={write} />
+        <Switch checked={!!value} label={field.name} describedby={hint} disabled={!custom} onchange={write} />
       {/if}
     </span>
   </div>
   {#if field.type === "chips"}
-    <Chips label={field.name} {options} value={Array.isArray(value) ? value : []} free={field.free} disabled={!custom} onchange={write} />
+    <Chips label={field.name} describedby={hint} {options} value={Array.isArray(value) ? value : []} free={field.free} disabled={!custom} onchange={write} />
   {:else if field.type === "duration"}
-    <Duration label={field.name} {value} disabled={!custom} onchange={write} />
+    <Duration label={field.name} describedby={hint} {value} disabled={!custom} onchange={write} />
   {:else if field.type === "ranges"}
-    <Ranges {value} disabled={!custom} onchange={write} />
+    <Ranges label={field.name} describedby={hint} {value} disabled={!custom} onchange={write} />
   {:else if field.type === "score"}
-    <Score {value} {options} disabled={!custom} onchange={write} />
+    <Score label={field.name} describedby={hint} {value} {options} disabled={!custom} onchange={write} />
   {:else if field.type === "choice"}
-    <select class="field" aria-label={field.name} value={value || "skip"} disabled={!custom} onchange={(e) => write(e.currentTarget.value)}>
+    <select class="field" aria-label={field.name} aria-describedby={hint} value={value || "skip"} disabled={!custom} onchange={(e) => write(e.currentTarget.value)}>
       {#each field.choices as [v, label] (v)}<option value={v}>{label}</option>{/each}
     </select>
   {/if}
-  {#if field.hint}<p class="m-0 text-[12px] text-[var(--faint)]">{field.hint}</p>{/if}
+  {#if field.hint}<p id={hint} class="m-0 text-[12px] text-[var(--faint)]">{field.hint}</p>{/if}
 </div>

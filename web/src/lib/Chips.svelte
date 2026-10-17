@@ -3,7 +3,7 @@
   // that are not in the list. Values chosen earlier but no longer offered stay shown.
   import { T } from "./i18n.svelte.js";
 
-  let { options, value, free = false, disabled = false, label = undefined, onchange } = $props();
+  let { options, value, free = false, disabled = false, label = undefined, describedby = undefined, onchange } = $props();
 
   const shown = $derived([...options, ...value.filter((v) => !options.includes(v))]);
   const toggle = (opt) => onchange(value.includes(opt) ? value.filter((x) => x !== opt) : [...value, opt]);
@@ -15,11 +15,11 @@
   }
 </script>
 
-<div role={label ? "group" : undefined} aria-label={label} class="flex flex-wrap items-center gap-2">
+<div role={label ? "group" : undefined} aria-label={label} aria-describedby={describedby} class="flex flex-wrap items-center gap-2">
   {#each shown as opt (opt)}
     <button type="button" class="chip" aria-pressed={value.includes(opt)} {disabled} onclick={() => toggle(opt)}>{opt}</button>
   {/each}
   {#if free && !disabled}
-    <input type="text" class="field w-32" placeholder={T("add…")} aria-label={T("add…")} onchange={add} />
+    <input type="text" class="field w-32" placeholder={T("add…")} aria-label={label ? label + " – " + T("add…") : T("add…")} onchange={add} />
   {/if}
 </div>

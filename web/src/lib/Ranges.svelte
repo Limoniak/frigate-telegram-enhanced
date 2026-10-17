@@ -2,19 +2,21 @@
   // Time ranges (from, to), as for quiet hours; a range may cross midnight.
   import { T } from "./i18n.svelte.js";
 
-  let { value, onchange, disabled = false } = $props();
+  let { value, onchange, disabled = false, label = undefined, describedby = undefined } = $props();
   const list = $derived(Array.isArray(value) ? value : []);
 
+  // Every row names its field and its number, or the inputs of the rows are alike.
+  const named = (i, what) => (label ? `${label} ${i + 1} – ${what}` : what);
   const set = (i, key, v) => onchange(list.map((r, j) => (j === i ? { ...r, [key]: v } : r)));
 </script>
 
-<div class="flex flex-col gap-2">
+<div role={label ? "group" : undefined} aria-label={label} aria-describedby={describedby} class="flex flex-col gap-2">
   {#each list as r, i (i)}
     <div class="flex flex-wrap items-center gap-2">
       <span>{T("from")}</span>
-      <input type="time" class="field w-auto" aria-label={T("from")} value={r.from} {disabled} onchange={(e) => set(i, "from", e.currentTarget.value)} />
+      <input type="time" class="field w-auto" aria-label={named(i, T("from"))} value={r.from} {disabled} onchange={(e) => set(i, "from", e.currentTarget.value)} />
       <span>{T("to")}</span>
-      <input type="time" class="field w-auto" aria-label={T("to")} value={r.to} {disabled} onchange={(e) => set(i, "to", e.currentTarget.value)} />
+      <input type="time" class="field w-auto" aria-label={named(i, T("to"))} value={r.to} {disabled} onchange={(e) => set(i, "to", e.currentTarget.value)} />
       <button type="button" class="chip" title={T("Remove")} aria-label={T("Remove")} {disabled} onclick={() => onchange(list.filter((_, j) => j !== i))}>✕</button>
     </div>
   {/each}

@@ -556,13 +556,17 @@ func TestBrowserWhenSingleChat(t *testing.T) {
 	yaml := strings.Replace(testConfig, "    famille: -100\n", "", 1)
 	_, _, ts := setupConfig(t, yaml, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
 	ctx, jsErrors := browser(t)
-	var page string
+	var page, current string
 	var links int
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#when"),
 		chromedp.WaitVisible(`#when`),
 		into(chromedp.Text(`#when`), &page),
 		into(chromedp.Evaluate[int](`document.querySelectorAll('#nav a[href="#recipients"]').length`), &links),
+		// A link to a screen that is not offered shows the overview, and the menu says so.
+		chromedp.Evaluate[chromedp.Void](`location.hash = "#recipients"; 0`),
+		chromedp.WaitVisible(`#overview`),
+		into(chromedp.Text(`#nav [aria-current=page]`), &current),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -572,6 +576,9 @@ func TestBrowserWhenSingleChat(t *testing.T) {
 	}
 	if links != 0 {
 		t.Errorf("the menu links to Recipients with one chat")
+	}
+	if current != "Overview" {
+		t.Errorf("current menu entry for #recipients with one chat = %q, want Overview", current)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -584,8 +591,8 @@ func TestBrowserAdvanced(t *testing.T) {
 	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
 	ctx, jsErrors := browser(t)
 	cooldown := `[data-key="cooldown"] input`
-	var invalid, urlInvalid string
-	var width int
+	var invalid, urlInvalid, shadow, described, message string
+	var typingAlerts, urlAlerts, width int
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		inEnglish(ts.URL+"/#advanced"),
@@ -593,12 +600,19 @@ func TestBrowserAdvanced(t *testing.T) {
 		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="cooldown"] input'); i.focus(); i.select(); 0`),
 		chromedp.SendKeys(cooldown, "5 minutes"+kb.Tab),
 		into(chromedp.Evaluate[string](`document.querySelector('[data-key="cooldown"] input').getAttribute("aria-invalid") || ""`), &invalid),
+		// The flag is visible: a red outline, and a message the field points to.
+		into(chromedp.Evaluate[string](`getComputedStyle(document.querySelector('[data-key="cooldown"] input')).boxShadow`), &shadow),
+		into(chromedp.Evaluate[string](`document.querySelector('[data-key="cooldown"] input').getAttribute("aria-describedby") || ""`), &described),
+		into(chromedp.Text(`[data-key="cooldown"] [role=alert]`), &message),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if invalid != "true" {
 		t.Errorf("aria-invalid = %q for 5 minutes", invalid)
+	}
+	if !strings.Contains(shadow, "inset") || !strings.Contains(described, "-error") || message == "" {
+		t.Errorf("invalid duration: box-shadow %q, aria-describedby %q, message %q", shadow, described, message)
 	}
 	time.Sleep(1200 * time.Millisecond)
 	if saved, err := os.ReadFile(path); err == nil && strings.Contains(string(saved), "cooldown") {
@@ -608,8 +622,12 @@ func TestBrowserAdvanced(t *testing.T) {
 		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="cooldown"] input'); i.focus(); i.select(); 0`),
 		chromedp.SendKeys(cooldown, "90s"+kb.Tab),
 		chromedp.WaitVisible(`#save-status.ok`),
-		chromedp.SendKeys(`#external-url`, "frigate.local"+kb.Tab),
+		chromedp.SendKeys(`#external-url`, "frigate.local"),
+		// No error while typing: it comes when the field is left.
+		into(chromedp.Evaluate[int](`document.querySelectorAll('[data-key="external_url"] [role=alert]').length`), &typingAlerts),
+		chromedp.SendKeys(`#external-url`, kb.Tab),
 		into(chromedp.Evaluate[string](`document.getElementById("external-url").getAttribute("aria-invalid") || ""`), &urlInvalid),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('[data-key="external_url"] [role=alert]').length`), &urlAlerts),
 		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
 	)
 	if err != nil {
@@ -622,8 +640,8 @@ func TestBrowserAdvanced(t *testing.T) {
 	if strings.Contains(string(saved), "frigate.local") {
 		t.Errorf("an invalid address was saved: %q", saved)
 	}
-	if urlInvalid != "true" {
-		t.Errorf("aria-invalid = %q for frigate.local", urlInvalid)
+	if urlInvalid != "true" || typingAlerts != 0 || urlAlerts != 1 {
+		t.Errorf("frigate.local: aria-invalid %q, %d alerts while typing, %d once left", urlInvalid, typingAlerts, urlAlerts)
 	}
 	if width > 360 {
 		t.Errorf("the page is %d px wide on a 360 px screen", width)
@@ -689,6 +707,30 @@ func TestBrowserLogin(t *testing.T) {
 	}
 	if errText == "" {
 		t.Error("no error shown for a wrong password")
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// A deep link survives the login: the fragment is carried through the form.
+func TestBrowserLoginKeepsRoute(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	var hash string
+	err := chromedp.Do(ctx,
+		chromedp.Navigate(ts.URL+"/#cameras/garage"),
+		chromedp.WaitVisible(`.login-card input[type=password]`),
+		chromedp.SendKeys(`#password`, "s3cret"),
+		chromedp.Click(`.login-card button[type=submit]`), // Submit() would skip the submit event
+		chromedp.WaitVisible(`#cameras`),
+		into(chromedp.Evaluate[string](`location.hash`), &hash),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hash != "#cameras/garage" {
+		t.Errorf("location.hash after login = %q, want #cameras/garage", hash)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -916,28 +958,36 @@ func TestBrowserCameras(t *testing.T) {
 	}
 	ctx, jsErrors := browser(t)
 	garage, old := `[data-camera="garage"]`, `[data-camera="ancienne"]`
-	var open, oldExists, stillOpen bool
-	var width int
+	var open, oldExists, stillOpen, focused bool
+	var nested, width int
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		inEnglish(ts.URL+"/#cameras/garage"),
 		chromedp.WaitVisible(`#cameras`),
 		chromedp.WaitVisible(garage+` summary`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="garage"]').open`),
+		// A followed link leaves the focus on the camera's summary, with no control nested in it.
+		chromedp.Poll[chromedp.Void](`document.activeElement.tagName === "SUMMARY"`),
+		into(chromedp.Evaluate[bool](`document.activeElement.parentElement.dataset.camera === "garage"`), &focused),
+		into(chromedp.Evaluate[int](`document.querySelectorAll('summary button, summary input').length`), &nested),
 		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="garage"]').open`), &open),
 		into(chromedp.Evaluate[bool](`!!document.querySelector('[data-camera="ancienne"]')`), &oldExists),
 		// The camera's switch does not open or close its card.
-		chromedp.Click(garage+` summary [role=switch]`),
+		chromedp.Click(`[role=switch][aria-label="Notifications for garage"]`),
 		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="garage"]').open`), &stillOpen),
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !focused || nested != 0 {
+		t.Errorf("summary focused = %v, %d controls nested in summaries", focused, nested)
 	}
 	if !open || !oldExists || !stillOpen {
 		t.Fatalf("garage open = %v, ancienne listed = %v, garage open after its switch = %v", open, oldExists, stillOpen)
 	}
 	waitCameras(t, path, "garage disabled", func(c map[string]map[string]any) bool { return c["garage"]["enabled"] == false })
 	err = chromedp.Do(ctx,
-		chromedp.Click(garage+` summary [role=switch]`),
+		chromedp.Click(`[role=switch][aria-label="Notifications for garage"]`),
 	)
 	if err != nil {
 		t.Fatal(err)
