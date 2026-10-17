@@ -949,7 +949,8 @@ func TestBrowserSetupFitsAPhone(t *testing.T) {
 
 	ctx, jsErrors := browser(t)
 	var width int
-	var heading string
+	var heading, steps string
+	var stepSize float64
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		chromedp.Navigate(ts.URL+"/"),
@@ -961,6 +962,8 @@ func TestBrowserSetupFitsAPhone(t *testing.T) {
 		chromedp.Click(`#manual summary`),
 		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
 		into(chromedp.Evaluate[string](`document.querySelector("#sec-telegram h2").textContent`), &heading),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll("[data-step]")].map(e => e.textContent.trim()).join(",")`), &steps),
+		into(chromedp.Evaluate[float64](`parseFloat(getComputedStyle(document.querySelector("#sec-telegram [data-step]")).fontSize)`), &stepSize),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -970,6 +973,12 @@ func TestBrowserSetupFitsAPhone(t *testing.T) {
 	}
 	if heading != "Telegram-Bot" {
 		t.Errorf("the Telegram card heading is %q in German, want \"Telegram-Bot\"", heading)
+	}
+	if steps != "1,2,3" {
+		t.Errorf("the step numbers are %q, want \"1,2,3\"", steps)
+	}
+	if stepSize < 15 {
+		t.Errorf("the step number is %.1f px on a 360 px screen, want at least 15 px", stepSize)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
