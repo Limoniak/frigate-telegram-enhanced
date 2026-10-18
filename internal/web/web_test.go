@@ -241,7 +241,6 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 		{name: "app sheet without password", method: "GET", path: "/app.css", want: http.StatusUnauthorized},
 		{name: "classic redirect without password", method: "GET", path: "/classic", want: http.StatusFound},
 		{name: "write without password", method: "PUT", path: "/api/settings", body: "{}", want: http.StatusUnauthorized},
-		{name: "camera image without password", method: "GET", path: "/api/cameras/garage/latest.jpg", want: http.StatusUnauthorized},
 		{name: "snapshot without password", method: "GET", path: "/api/history/a/snapshot", want: http.StatusUnauthorized},
 		{name: "right password", method: "GET", path: "/api/settings", auth: []string{"s3cret"}, want: http.StatusOK},
 	} {
@@ -659,41 +658,6 @@ func TestHistorySnapshotAndLink(t *testing.T) {
 		if resp := do(t, ts, "GET", "/api/history/"+id+"/snapshot", ""); resp.StatusCode != http.StatusNotFound {
 			t.Errorf("snapshot of %s: status = %d, want 404", id, resp.StatusCode)
 		}
-	}
-}
-
-func TestCameraLatest(t *testing.T) {
-	var asked []string
-	media := fakeMedia{files: map[string][]byte{"/api/garage/latest.jpg?h=360": []byte("live")}, asked: &asked}
-	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(fakeHistory{}, media))
-
-	resp := do(t, ts, "GET", "/api/cameras/garage/latest.jpg", "")
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK || string(body) != "live" ||
-		resp.Header.Get("Content-Type") != "image/jpeg" || resp.Header.Get("Cache-Control") != "no-store" {
-		t.Errorf("latest: %d %q %v", resp.StatusCode, body, resp.Header)
-	}
-	if !slices.Equal(asked, []string{"/api/garage/latest.jpg?h=360"}) {
-		t.Errorf("asked %v", asked)
-	}
-
-	asked = nil
-	for _, name := range []string{"..", "a%2Fb", "a%20b"} {
-		if resp := do(t, ts, "GET", "/api/cameras/"+name+"/latest.jpg", ""); resp.StatusCode != http.StatusNotFound {
-			t.Errorf("%q: status = %d, want 404", name, resp.StatusCode)
-		}
-	}
-	if len(asked) != 0 {
-		t.Errorf("invalid names reached Frigate: %v", asked)
-	}
-
-	if resp := do(t, ts, "GET", "/api/cameras/entree/latest.jpg", ""); resp.StatusCode != http.StatusBadGateway {
-		t.Errorf("Frigate failing: status = %d, want 502", resp.StatusCode)
-	}
-
-	_, _, bare := setup(t, "", fakeCameras{})
-	if resp := do(t, bare, "GET", "/api/cameras/garage/latest.jpg", ""); resp.StatusCode != http.StatusNotFound {
-		t.Errorf("without media: status = %d, want 404", resp.StatusCode)
 	}
 }
 

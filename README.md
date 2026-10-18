@@ -187,8 +187,8 @@ page opens one screen per topic:
   pause for 30 min, 1 h, 8 h or until resumed; who is home; the cameras muted, to turn
   back on; the last notification as it arrived.
 - **Style**: photo + video, photo only, photo + GIF or text only, each with a live preview
-  of the message as it will arrive in Telegram, on the latest image of the camera chosen for
-  the sample (the sample photo when Frigate gives none). Below: bursts (one message per detection,
+  of the message as it will arrive in Telegram, on a sample photo (zoomed on the person
+  when the image is cropped on the object). Below: bursts (one message per detection,
   or detections within 2 or 5 minutes added to the first message, edited so no extra
   sound), framing (wide shot or zoom on the object) and video (in the same message as the
   image, or as a reply).

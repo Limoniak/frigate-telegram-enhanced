@@ -189,8 +189,8 @@ de la page ouvre un écran par sujet :
   de 30 min, 1 h, 8 h ou jusqu'à reprise ; qui est à la maison ; les caméras coupées, à
   réactiver ; la dernière notification telle qu'elle est arrivée.
 - **Style** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou *Texte seul*, chacun avec un
-  aperçu du message tel qu'il arrivera dans Telegram, sur la dernière image de la caméra
-  choisie pour l'exemple (la photo d'exemple quand Frigate n'en donne pas). Plus bas : les rafales (un message par
+  aperçu du message tel qu'il arrivera dans Telegram, sur une photo d'exemple (zoomée sur
+  la personne quand l'image est recadrée sur l'objet). Plus bas : les rafales (un message par
   détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
   modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet) et la
   vidéo (dans le même message que l'image, ou en réponse).

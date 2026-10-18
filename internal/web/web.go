@@ -14,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -119,12 +118,8 @@ type Media interface {
 // maxThumb bounds the size of a thumbnail relayed from Frigate.
 const maxThumb = 1 << 20
 
-// maxLatest bounds the size of a snapshot or a camera image relayed from Frigate.
+// maxLatest bounds the size of a snapshot relayed from Frigate.
 const maxLatest = 2 << 20
-
-// cameraName is what a camera name may contain to be relayed: nothing that could
-// change the path asked of Frigate.
-var cameraName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // State of a connection, as the interface shows it.
 const (
@@ -256,7 +251,6 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("GET /api/health", h.guard(http.HandlerFunc(h.getHealth)))
 	mux.Handle("GET /api/history/{id}/thumb", h.guard(http.HandlerFunc(h.thumb)))
 	mux.Handle("GET /api/history/{id}/snapshot", h.guard(http.HandlerFunc(h.snapshot)))
-	mux.Handle("GET /api/cameras/{name}/latest.jpg", h.guard(http.HandlerFunc(h.cameraLatest)))
 	if h.setup != nil {
 		h.setup.mount(mux, h.guard)
 	}
@@ -708,25 +702,6 @@ func (h *Handler) historyImage(w http.ResponseWriter, r *http.Request, path func
 	}
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
-	w.Write(img)
-}
-
-// cameraLatest relays the latest image of a camera.
-func (h *Handler) cameraLatest(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	if h.media == nil || !cameraName.MatchString(name) {
-		http.NotFound(w, r)
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-	img, err := h.media.GetBytes(ctx, frigate.LatestPath(name)+"?h=360", maxLatest)
-	if err != nil {
-		http.Error(w, h.lang(r).T("image unavailable"), http.StatusBadGateway)
-		return
-	}
-	w.Header().Set("Content-Type", "image/jpeg")
-	w.Header().Set("Cache-Control", "no-store")
 	w.Write(img)
 }
 

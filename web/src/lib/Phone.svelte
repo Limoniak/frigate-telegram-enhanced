@@ -1,13 +1,11 @@
 <script>
   // A Telegram phone (dark theme) showing a notification: model says which media and
-  // blocks it has (preview.js), entry what it is about. image is a thumbnail URL, or
-  // empty for the sample photo, with a box on the person. A live image is a camera's
-  // own: no box, no zoom, and onerror and onload say whether it loads (the caller
-  // then passes the sample instead).
+  // blocks it has (preview.js), entry what it is about. image is a thumbnail URL (no
+  // box, no zoom), or empty for the sample photo, with a box on the person.
   import sample from "../assets/sample.jpg";
   import { T, Tf } from "./i18n.svelte.js";
   import { labelText } from "./labels.js";
-  let { model, entry, image = "", onerror = undefined, onload = undefined } = $props();
+  let { model, entry, image = "" } = $props();
   const media = $derived(model.inMessage ?? model.reply);
 </script>
 
@@ -21,7 +19,7 @@
       <div class="overflow-hidden rounded-[14px] rounded-bl-[4px] bg-[#182533]">
         {#if model.photo}
           <div class="relative aspect-[16/10] overflow-hidden bg-[#26313b]">
-            {#if image}<img class="absolute inset-0 h-full w-full object-cover" src={image} alt="" {onerror} {onload}>
+            {#if image}<img class="absolute inset-0 h-full w-full object-cover" src={image} alt="">
             {:else}
               <div class="absolute inset-0 origin-[50%_80%] transition-transform duration-700 {model.crop ? 'scale-[1.55]' : ''}">
                 <img class="absolute inset-0 h-full w-full object-cover" src={sample} alt="">
