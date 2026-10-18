@@ -126,7 +126,9 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	} else {
 		file, err = n.download(ctx, path, maxUploadSize)
 	}
-	if errors.Is(err, frigate.ErrTooLarge) {
+	// cut: a clip over the limit, of which only the beginning came (see download).
+	cut := errors.Is(err, frigate.ErrTooLarge) && file != ""
+	if errors.Is(err, frigate.ErrTooLarge) && !cut {
 		text := n.tooLargeText(path)
 		n.deliver(ctx, chats, "text", telegram.InputFile{},
 			func(ctx context.Context, chatID int64, chat string, _ telegram.InputFile) (telegram.Message, error) {
@@ -134,11 +136,22 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 			}, nil)
 		return
 	}
-	if err != nil {
+	if err != nil && !cut {
 		n.Log.Warn("media unavailable", "kind", kind, "event_id", t.id, "path", path, "err", err)
+		// Without its clip, the notification gets the GIF, unless it is already coming.
+		if kind == "video" && t.gifPath != "" && !n.Config.ForCamera(t.camera).GIF {
+			n.goAsync(func() { n.sendFollowUp(ctx, t, "animation", t.gifPath, chats, 0, inPlace) })
+		}
 		return
 	}
 	defer os.Remove(file)
+	var note string
+	if cut {
+		note = n.cutText(path)
+		n.mu.Lock()
+		t.clipNote = note
+		n.mu.Unlock()
+	}
 	name := "clip.mp4"
 	if kind == "animation" {
 		name = "preview.gif"
@@ -157,7 +170,7 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 				// Message deleted in the meantime, for example: fall back to a reply.
 				n.Log.Warn("replacing the image failed, sending as a reply", "kind", kind, "chat", chat, "err", err)
 			}
-			o := telegram.SendOptions{Silent: true, ReplyTo: m.id}
+			o := telegram.SendOptions{Silent: true, ReplyTo: m.id, Caption: note}
 			if kind == "animation" {
 				return n.Telegram.SendAnimation(ctx, chatID, f, o)
 			}
@@ -177,6 +190,7 @@ func (n *Notifier) waitRecorded(ctx context.Context, t *tracked) error {
 	if end == 0 {
 		return nil
 	}
+	end += frigate.ClipPadding // the clip runs past the end of the event
 	// Counted in polls rather than clock time: the wait stays bounded whatever Now returns.
 	polls := int(n.RecordingWait / n.RecordingPoll)
 	for attempt := 0; ; attempt++ {
@@ -211,18 +225,21 @@ func recordedUntil(recs []frigate.Recording) float64 {
 }
 
 // fetchClip downloads a clip that Telegram accepts. A clip over the upload limit
-// gives frigate.ErrTooLarge (a link is sent instead), unless compress_clips has
-// it re-encoded under the limit.
+// gives frigate.ErrTooLarge with its beginning (or without a file: a link is sent
+// instead), unless compress_clips has it re-encoded under the limit.
 func (n *Notifier) fetchClip(ctx context.Context, path string) (string, error) {
 	if !n.Config.Global().CompressClips {
 		file, err := n.download(ctx, path, maxUploadSize)
 		if errors.Is(err, frigate.ErrTooLarge) {
-			n.Log.Warn("clip over the Telegram limit, sending a link", "path", path, "limit_mb", maxUploadSize>>20)
+			n.Log.Warn("clip over the Telegram limit, sending its beginning", "path", path, "limit_mb", maxUploadSize>>20, "beginning", file != "")
 		}
 		return file, err
 	}
 	file, err := n.download(ctx, path, maxCompressInput)
 	if err != nil {
+		if file != "" {
+			os.Remove(file)
+		}
 		if errors.Is(err, frigate.ErrTooLarge) {
 			n.Log.Warn("clip too large even to re-encode, sending a link", "path", path, "limit_mb", maxCompressInput>>20)
 		}
@@ -257,6 +274,17 @@ func (n *Notifier) download(ctx context.Context, path string, max int64) (string
 		start := time.Now()
 		file, err := n.Frigate.DownloadToFile(ctx, path, max)
 		n.Metrics.MediaDownload.Observe(time.Since(start).Seconds())
+		if errors.Is(err, frigate.ErrTooLarge) {
+			// The beginning of a clip over max: cut after its last complete fragment.
+			if file != "" && !(isMP4(path) && trimmed(file)) {
+				os.Remove(file)
+				file = ""
+			}
+			if file != "" {
+				n.repairClip(file, path)
+			}
+			return file, err
+		}
 		if err != nil && file != "" { // partly received (frigate.ErrIncomplete)
 			if n.keepCompletePart(file, path) {
 				err = nil
@@ -308,18 +336,33 @@ func (n *Notifier) keepCompletePart(file, path string) bool {
 	return true
 }
 
+// trimmed cuts an MP4 file after its last complete fragment; false if none is.
+func trimmed(file string) bool {
+	frags, err := mp4fix.Trim(file)
+	return err == nil && frags > 0
+}
+
 func isMP4(path string) bool {
 	p, _, _ := strings.Cut(path, "?")
 	return strings.HasSuffix(p, ".mp4")
 }
 
 func (n *Notifier) tooLargeText(path string) string {
-	l := n.Config.Language
-	text := l.T("🎬 Clip too large for Telegram (over 50 MB).")
-	if base := n.Config.ExternalURL(); base != "" {
-		text += "\n<a href=\"" + html.EscapeString(base+path) + "\">" + l.T("Download the clip") + "</a>"
+	return n.Config.Language.T("🎬 Clip too large for Telegram (over 50 MB).") + n.clipLink(path)
+}
+
+// cutText notes, under a clip over 50 MB, that only its beginning was sent.
+func (n *Notifier) cutText(path string) string {
+	return n.Config.Language.T("🎬 Clip over 50 MB: here is its beginning.") + n.clipLink(path)
+}
+
+// clipLink is the line linking to the whole clip in Frigate, empty without an address.
+func (n *Notifier) clipLink(path string) string {
+	base := n.Config.ExternalURL()
+	if base == "" {
+		return ""
 	}
-	return text
+	return "\n<a href=\"" + html.EscapeString(base+path) + "\">" + n.Config.Language.T("Download the clip") + "</a>"
 }
 
 // acquireMedia blocks until it gets a slot of the download pool (clip/GIF), or

@@ -21,16 +21,26 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ### Added
 
-- Style preview with the chosen camera's latest image (the sample photo when there is
-  none).
 - Recent activity filters (camera, outcome, hour) and lines that open on the snapshot with
   "Open in Frigate"; the bars of the 24 h chart open that hour's activity, and the same
   hours can be picked in a menu.
 - Theme menu: Auto, Light or Dark (the interface, the setup page and the login page
   follow it).
-- API: `GET /api/cameras/{name}/latest.jpg`, `GET /api/history/{id}/snapshot`; `link`,
+- API: `GET /api/history/{id}/snapshot`; `link`,
   `has_snapshot` and `sent_at` per entry and `now` in `/api/history`. The history file
   keeps the link, the snapshot and the send time.
+- Outage alerts on Telegram: Frigate not responding (`frigate/available`) or a camera
+  at 0 fps in Frigate's stats for 2 minutes, then a message when it is back. Cameras
+  turned off in Frigate are not reported. On by default; *Outage alerts* in the advanced
+  settings (`notify.outage_alerts`) turns them off.
+- Clips start 4 s before the event and end 4 s after it, as in Frigate's interface:
+  a review of 2 s used to give a clip of 2 s. In `events` mode, Frigate 0.17 or later.
+- When Frigate cannot give the clip, the notification gets the GIF instead of keeping
+  the image alone.
+- A clip over 50 MB is no longer replaced by a link: its beginning (its first 50 MB, cut
+  after the last complete fragment, no re-encoding) takes the image's place, with a link
+  to the whole clip in the caption. *Compress clips over 50 MB* still sends the whole
+  clip re-encoded.
 
 ### Removed
 

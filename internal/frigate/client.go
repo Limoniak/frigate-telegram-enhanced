@@ -173,7 +173,8 @@ func (c *Client) GetBytes(ctx context.Context, path string, max int64) ([]byte, 
 
 // DownloadToFile writes a resource to a temporary file (clips) and returns its path.
 // The caller must remove the file. If Frigate stops sending before the end, it
-// returns ErrIncomplete, with the path of what was received if anything was.
+// returns ErrIncomplete, with the path of what was received if anything was. Over
+// max bytes, it returns ErrTooLarge with the path of the first max bytes.
 func (c *Client) DownloadToFile(ctx context.Context, path string, max int64) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -184,9 +185,6 @@ func (c *Client) DownloadToFile(ctx context.Context, path string, max int64) (st
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.ContentLength > max {
-		return "", ErrTooLarge
-	}
 	f, err := os.CreateTemp("", "frigate-*")
 	if err != nil {
 		return "", err
@@ -199,7 +197,11 @@ func (c *Client) DownloadToFile(ctx context.Context, path string, max int64) (st
 		err = cerr
 	}
 	if err == nil && n > max {
-		err = ErrTooLarge
+		if err := os.Truncate(f.Name(), max); err != nil {
+			os.Remove(f.Name())
+			return "", err
+		}
+		return f.Name(), ErrTooLarge
 	}
 	if err != nil && errors.Is(context.Cause(ctx), ErrIncomplete) {
 		err = ErrIncomplete

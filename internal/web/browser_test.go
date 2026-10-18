@@ -472,51 +472,22 @@ func TestBrowserStyle(t *testing.T) {
 	}
 }
 
-// The preview shows the camera's own image (no box, no zoom) with its caption, and
-// the sample photo when the image does not load.
-func TestBrowserStyleCameraImage(t *testing.T) {
-	photo, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "assets", "sample.jpg"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	cams := fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}}
-	media := fakeMedia{files: map[string][]byte{"/api/garage/latest.jpg?h=360": photo, "/api/entree/latest.jpg?h=360": photo}}
-	_, _, ts := setup(t, "", cams, WithHistory(fakeHistory{}, media), WithTester(&fakeTester{}))
-	_, _, bare := setup(t, "", cams, WithTester(&fakeTester{}))
-
-	const state = `(() => { const i = document.querySelector("#live-preview img"); return { ok: !!i && i.complete && i.naturalWidth > 0, src: i ? i.currentSrc : "", box: !!document.querySelector("#live-preview .border-amber-300"), text: document.querySelector("#live-preview").textContent } })()`
-	type view struct {
-		OK   bool   `json:"ok"`
-		Src  string `json:"src"`
-		Box  bool   `json:"box"`
-		Text string `json:"text"`
-	}
+// The preview shows the sample photo, with its box on the person.
+func TestBrowserStyleSamplePhoto(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}}, WithTester(&fakeTester{}))
+	var src string
 	ctx, jsErrors := browser(t)
-	var live, other, fallback view
-	err = chromedp.Do(ctx,
+	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#style"),
-		chromedp.WaitVisible(`#live-preview`),
 		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector("#live-preview img"); return !!i && i.complete && i.naturalWidth > 0 })()`),
-		into(chromedp.Evaluate[view](state), &live),
-		chromedp.SetValue(`#try select`, "entree"),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview img").currentSrc.includes("/entree/")`),
-		into(chromedp.Evaluate[view](state), &other),
-		inEnglish(bare.URL+"/#style"),
-		chromedp.WaitVisible(`#live-preview`),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview .border-amber-300") !== null`),
-		into(chromedp.Evaluate[view](state), &fallback),
+		chromedp.WaitVisible(`#live-preview .border-amber-300`),
+		into(chromedp.Evaluate[string](`document.querySelector("#live-preview img").currentSrc`), &src),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !live.OK || !strings.HasSuffix(live.Src, "/api/cameras/garage/latest.jpg") || live.Box || !strings.Contains(live.Text, "Latest image of garage") {
-		t.Errorf("with the camera image: %+v", live)
-	}
-	if !strings.Contains(other.Src, "/api/cameras/entree/latest.jpg") || !strings.Contains(other.Text, "Latest image of entree") {
-		t.Errorf("after choosing entree: %+v", other)
-	}
-	if !fallback.OK || !strings.Contains(fallback.Src, "/assets/") || !fallback.Box || strings.Contains(fallback.Text, "Latest image") {
-		t.Errorf("without the camera image: %+v", fallback)
+	if !strings.Contains(src, "/assets/") {
+		t.Errorf("preview image %q, want the sample photo", src)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -2062,54 +2033,6 @@ func TestBrowserThemeFollowsTheSystem(t *testing.T) {
 	}
 	if setupLight < half || setupDark >= half {
 		t.Errorf("setup page: saved light on a dark system %d, saved dark on a light one %d", setupLight, setupDark)
-	}
-	if errs := jsErrors(); len(errs) > 0 {
-		t.Errorf("JavaScript errors: %q", errs)
-	}
-}
-
-// gatedMedia holds every image back until gate is closed.
-type gatedMedia struct {
-	fakeMedia
-	gate chan struct{}
-}
-
-func (g gatedMedia) GetBytes(ctx context.Context, path string, max int64) ([]byte, error) {
-	select {
-	case <-g.gate:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-	return g.fakeMedia.GetBytes(ctx, path, max)
-}
-
-// The caption of the camera's image appears once the image is there, and not at all
-// for the text-only style, which shows no image.
-func TestBrowserStyleCaptionFollowsTheImage(t *testing.T) {
-	photo, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "assets", "sample.jpg"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	media := gatedMedia{fakeMedia: fakeMedia{files: map[string][]byte{"/api/garage/latest.jpg?h=360": photo}}, gate: make(chan struct{})}
-	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}}, WithHistory(fakeHistory{}, media), WithTester(&fakeTester{}))
-	const caption = `document.querySelector("#live-preview").textContent.includes("Latest image of garage")`
-	var before, after bool
-	ctx, jsErrors := browser(t)
-	err = chromedp.Do(ctx,
-		inEnglish(ts.URL+"/#style"),
-		chromedp.WaitVisible(`#live-preview img`),
-		into(chromedp.Evaluate[bool](caption), &before), // the image is still on its way
-		chromedp.Func(func(context.Context, *chromedp.Target) error { close(media.gate); return nil }),
-		chromedp.Poll[chromedp.Void](caption),
-		chromedp.Click(`#styles [data-style="text"]`),
-		chromedp.Poll[chromedp.Void](`!`+caption+` && !document.querySelector("#live-preview img")`),
-		into(chromedp.Evaluate[bool](caption), &after),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if before || after {
-		t.Errorf("caption before the image loaded: %v, with the text-only style: %v; want neither", before, after)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

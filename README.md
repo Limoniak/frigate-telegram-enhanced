@@ -13,7 +13,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 ## Features
 
 - **reviews** mode (grouped alerts, Frigate ≥ 0.14, the default) or **events** mode (one message per detected object)
-- Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, a link to the clip instead, or the clip re-encoded under 50 MB (*Compress clips over 50 MB*, off by default)
+- Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, the beginning of the clip (its first 50 MB) with a link to the whole clip, or the whole clip re-encoded under 50 MB (*Compress clips over 50 MB*, off by default)
 - **Sounds** (reviews mode): barking, smoke alarm, speech… heard by Frigate's audio detection, notified like objects — `🐕 Barking — garage`, see [Sounds](#sounds)
 - Frigate's GenAI description added to the caption as soon as it is available
 - Frigate's labels (custom classification such as your car's name, faces, license plates) added to the caption as soon as Frigate knows them — `🏷 clio 3`
@@ -30,6 +30,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
 - **Per-recipient settings**: e.g. you get everything, the family only people at night
 - After an MQTT outage, detections missed during the last hour are caught up from Frigate
+- **Outage alerts**: a Telegram message when Frigate stops responding or a camera sends no more images for 2 minutes, and another when it is back (*Outage alerts* in the advanced settings to turn them off)
 - Persistent state, `/healthz`, Prometheus metrics, multi-arch distroless image (amd64 and arm64)
 
 ## A tour of the web interface
@@ -186,8 +187,8 @@ page opens one screen per topic:
   pause for 30 min, 1 h, 8 h or until resumed; who is home; the cameras muted, to turn
   back on; the last notification as it arrived.
 - **Style**: photo + video, photo only, photo + GIF or text only, each with a live preview
-  of the message as it will arrive in Telegram, on the latest image of the camera chosen for
-  the sample (the sample photo when Frigate gives none). Below: bursts (one message per detection,
+  of the message as it will arrive in Telegram, on a sample photo (zoomed on the person
+  when the image is cropped on the object). Below: bursts (one message per detection,
   or detections within 2 or 5 minutes added to the first message, edited so no extra
   sound), framing (wide shot or zoom on the object) and video (in the same message as the
   image, or as a reply).

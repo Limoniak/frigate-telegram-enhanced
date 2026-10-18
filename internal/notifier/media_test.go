@@ -1,9 +1,11 @@
 package notifier
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -154,8 +156,8 @@ func sentLink(h *harness) bool {
 }
 
 // The event ends at 1790604030 while Frigate has only stored the recording up to
-// 1790604025: the clip is only fetched once the segment covering the end is stored,
-// otherwise Frigate would answer with a clip cut short.
+// 1790604025: the clip is only fetched once the segment covering its end (the event's
+// plus the padding) is stored, otherwise Frigate would answer with a clip cut short.
 func TestClipWaitsForTheRecording(t *testing.T) {
 	h := newHarness(t, "events")
 	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
@@ -175,7 +177,7 @@ func TestClipWaitsForTheRecording(t *testing.T) {
 	if strings.Join(order, ",") != strings.Join(want, ",") {
 		t.Errorf("calls = %v, want %v", order, want)
 	}
-	if h.fr.recArgs[0] != "garage 1790604000 1790604031" {
+	if h.fr.recArgs[0] != "garage 1790604000 1790604035" {
 		t.Errorf("recordings asked for %q", h.fr.recArgs[0])
 	}
 	if len(h.tg.byMethod("editMessageMedia:video")) != 2 {
@@ -198,6 +200,50 @@ func TestClipSentWhenRecordingStaysIncomplete(t *testing.T) {
 	}
 	if len(h.tg.byMethod("editMessageMedia:video")) != 2 {
 		t.Error("the clip must be sent after the wait")
+	}
+}
+
+// A clip over 50 MB: its complete fragments replace the image, with a note and the
+// link to the whole clip.
+func TestLargeClipSendsItsBeginning(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	clip := frigate.EventClipPath(evID)
+	begin := bytes.Join([][]byte{
+		mp4Box("ftyp", []byte("isom")), mp4Box("moov", nil),
+		mp4Box("moof", nil), mp4Box("mdat", []byte("image1")),
+	}, nil)
+	h.fr.heads[clip] = append(slices.Clone(begin), mp4Box("moof", nil)[:6]...)
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	v := h.tg.byMethod("editMessageMedia:video")
+	if len(v) != 2 {
+		t.Fatalf("videos = %d, want 2", len(v))
+	}
+	if v[0].Data != string(begin) && v[1].Data != string(begin) {
+		t.Errorf("video = %q, want the complete fragments", v[0].Data)
+	}
+	for _, c := range v {
+		if !strings.Contains(c.Text, "here is its beginning") || !strings.Contains(c.Text, "https://nvr.example"+clip) {
+			t.Errorf("caption = %q, want the note and the link", c.Text)
+		}
+	}
+	if n := len(h.tg.byMethod("sendMessage")); n != 0 {
+		t.Errorf("%d text messages, want none (no link alone)", n)
+	}
+}
+
+// A clip Frigate cannot give is replaced by the GIF, in the same message.
+func TestGIFWhenTheClipIsUnavailable(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventGIFPath(evID)] = []byte("gif")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	if len(h.tg.byMethod("editMessageMedia:video")) != 0 || len(h.tg.byMethod("editMessageMedia:animation")) != 2 {
+		t.Errorf("want the GIF in place of the missing clip, got %d calls", h.tg.count())
 	}
 }
 

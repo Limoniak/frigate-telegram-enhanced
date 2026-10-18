@@ -13,7 +13,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 ## Fonctionnalités
 
 - Mode **reviews** (alertes regroupées, Frigate ≥ 0.14, par défaut) ou **events** (un message par objet détecté)
-- Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, un lien vers le clip, ou le clip ré-encodé sous 50 Mo (*Compresser les clips de plus de 50 Mo*, désactivé par défaut)
+- Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, le début du clip (ses 50 premiers Mo) avec un lien vers le clip entier, ou le clip entier ré-encodé sous 50 Mo (*Compresser les clips de plus de 50 Mo*, désactivé par défaut)
 - **Sons** (mode reviews) : aboiement, alarme incendie, parole… entendus par la détection audio de Frigate, notifiés comme les objets — `🐕 Aboiement — garage`, voir [Sons](#sons)
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
 - Étiquettes de Frigate (classification personnalisée comme le nom de ta voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
@@ -30,6 +30,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
 - **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
+- **Alertes de panne** : un message Telegram quand Frigate ne répond plus ou qu'une caméra n'envoie plus d'images pendant 2 minutes, et un autre à son retour (*Alertes de panne* dans les réglages avancés pour les couper)
 - État persistant, `/healthz`, métriques Prometheus, image distroless multi-arch (amd64 et arm64)
 
 ## L'interface web en images
@@ -188,8 +189,8 @@ de la page ouvre un écran par sujet :
   de 30 min, 1 h, 8 h ou jusqu'à reprise ; qui est à la maison ; les caméras coupées, à
   réactiver ; la dernière notification telle qu'elle est arrivée.
 - **Style** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou *Texte seul*, chacun avec un
-  aperçu du message tel qu'il arrivera dans Telegram, sur la dernière image de la caméra
-  choisie pour l'exemple (la photo d'exemple quand Frigate n'en donne pas). Plus bas : les rafales (un message par
+  aperçu du message tel qu'il arrivera dans Telegram, sur une photo d'exemple (zoomée sur
+  la personne quand l'image est recadrée sur l'objet). Plus bas : les rafales (un message par
   détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
   modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet) et la
   vidéo (dans le même message que l'image, ou en réponse).
