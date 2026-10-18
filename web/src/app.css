@@ -53,8 +53,8 @@ body {
   background-attachment: fixed;
 }
 /* A computer screen is seen from further away than a phone: everything a bit larger. */
-@media (min-width: 1200px) { #app > * { zoom: 1.12; } }
-@media (min-width: 1600px) { #app > * { zoom: 1.25; } }
+@media (min-width: 1200px) { #app > * { zoom: 1.05; } }
+@media (min-width: 1600px) { #app > * { zoom: 1.1; } }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @layer base { a { color: var(--accent-ink); } } /* in a layer: a link's own text-* class wins */
 

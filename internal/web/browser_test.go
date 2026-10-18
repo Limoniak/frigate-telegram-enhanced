@@ -2077,3 +2077,31 @@ func TestBrowserPhoneMenu(t *testing.T) {
 		t.Errorf("JavaScript errors: %q", errs)
 	}
 }
+
+// The save status floats over the page, which doesn't move, and "Saved" fades after a
+// moment.
+func TestBrowserSaveStatusFloats(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	var before, after float64
+	var position string
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#overview"),
+		chromedp.WaitVisible(`#cameras-list`),
+		into(chromedp.Evaluate[float64](`document.querySelector("main").getBoundingClientRect().top`), &before),
+		chromedp.Click(`#cameras-list [role=switch][aria-label="garage"]`),
+		chromedp.WaitVisible(`#save-status.ok`),
+		into(chromedp.Evaluate[float64](`document.querySelector("main").getBoundingClientRect().top`), &after),
+		into(chromedp.Evaluate[string](`getComputedStyle(document.querySelector("#save-status")).position`), &position),
+		chromedp.WaitNotVisible(`#save-status`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before != after || position != "fixed" {
+		t.Errorf("page moved from %v to %v, status position %q", before, after, position)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
