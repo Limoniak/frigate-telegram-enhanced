@@ -123,7 +123,7 @@ func TestScreenshots(t *testing.T) {
 			shot(lang+"-style.png", 1280, 790, "#style", `#live-preview img`, "dark"),
 			shot(lang+"-phone.png", 390, 900, "#style", `#live-preview img`, "dark"),
 			shot(lang+"-light.png", 1280, 790, "#style", `#live-preview img`, "light"),
-			shot(lang+"-cameras.png", 900, 760, "#cameras/garage", `[data-camera="garage"][open]`, "dark"),
+			shot(lang+"-cameras.png", 900, 840, "#cameras/garage", `[data-camera="garage"][open]`, "dark"),
 			shot(lang+"-activity.png", 1000, 900, "#activity", `#activity li`, "dark"),
 		)
 		if err != nil {

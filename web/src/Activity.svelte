@@ -42,7 +42,7 @@
     .filter(Boolean).join(" · ");
 </script>
 
-<section id="activity" class="flex max-w-3xl flex-col gap-4">
+<section id="activity" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1">
     <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Recent activity")}</h1>
     <p class="m-0 text-[var(--muted)]">{T("Frigate's latest detections and what happened to them — handy to understand why a notification didn't arrive.")}</p>
@@ -79,7 +79,7 @@
               <img class="h-12 w-12 flex-none rounded-xl object-cover" loading="lazy" alt="" src={url + "/thumb"}
                 onerror={() => { broken[k] = true; }} />
             {:else}
-              <span class="thumb flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-[var(--field)] text-xl">{labelEmoji(e.label, e.sound)}</span>
+              <span class="thumb flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-[var(--accent)]/10 text-xl">{labelEmoji(e.label, e.sound)}</span>
             {/if}
             <span class="min-w-0 flex-1">
               <span class="block">{labelText(e.label, e.sound, T)}{e.sub_label ? " · 🏷 " + e.sub_label : ""}</span>
@@ -103,7 +103,7 @@
               {:else if e.has_thumb && !broken[k]}
                 <img class="big w-full rounded-xl" alt="" src={url + "/thumb"} onerror={() => { broken[k] = true; }} />
               {:else}
-                <span class="thumb flex h-24 items-center justify-center rounded-xl bg-[var(--field)] text-4xl">{labelEmoji(e.label, e.sound)}</span>
+                <span class="thumb flex h-24 items-center justify-center rounded-xl bg-[var(--accent)]/10 text-4xl">{labelEmoji(e.label, e.sound)}</span>
               {/if}
               {#if e.link}<a href={e.link} target="_blank" rel="noopener">{T("🔗 Open in Frigate")}</a>{/if}
             </div>

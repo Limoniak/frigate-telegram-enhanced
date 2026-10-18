@@ -15,6 +15,20 @@ export function timeText(iso, { tz, lang }) {
 // on the same instants, shows what the bar counted.
 export const hourStart = (at, i) => Math.floor(at / 1000) - (24 - i) * 3600;
 
+// chartTicks are the clock's 00:00, 06:00, 12:00 and 18:00 in the chart's 24 hours
+// ending at at (ms), in the time zone tz: t in Unix seconds and x, the share of the
+// chart from its left edge. Quarter-hour steps also find them in a zone offset by 30 or
+// 45 min.
+export function chartTicks(at, tz) {
+  const end = Math.floor(at / 1000), start = end - 86400, ticks = [];
+  const clock = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" });
+  for (let t = Math.ceil(start / 900) * 900; t < end; t += 900) {
+    const [h, m] = clock.format(t * 1000).split(":").map(Number);
+    if (m === 0 && h % 6 === 0) ticks.push({ t, x: (t - start) / 86400 });
+  }
+  return ticks;
+}
+
 // untilText is the end of a pause or a mute ("until 22:30"); null means until resumed.
 export function untilText(iso, { tz, lang, T, now = new Date() }) {
   if (!iso) return T("until resumed");

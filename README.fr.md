@@ -182,7 +182,7 @@ Le mode `events` n'a pas de sons : Frigate ne les publie pas sur `frigate/events
 `http://<ip-du-serveur>:8431/` sert une page de réglage des notifications, pensée pour se
 régler en quelques clics. Elle suit la langue du navigateur (l'anglais si elle n'est pas traduite) ; le
 menu de langue de l'en-tête la change, et le choix est retenu. Un menu en pastilles en haut
-de la page ouvre un écran par sujet :
+de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie en liste) :
 
 - **Aperçu** : les notifications sur 24 h, heure par heure ; les connexions à Frigate, MQTT
   et Telegram, avec la cause en clair et le réglage à corriger quand l'une échoue ; pause

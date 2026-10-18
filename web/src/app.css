@@ -11,9 +11,9 @@
 }
 
 :root {
-  --bg: #05070a; --ink: #e4e4e7; --muted: #a1a1aa; --faint: #71717a;
+  --bg: #05070a; --ink: #e4e4e7; --muted: #a1a1aa; --faint: #8a8a94; /* 4.5:1 at least on the cards, small text included */
   --glass: rgba(255, 255, 255, 0.035); --glass-hi: rgba(255, 255, 255, 0.08);
-  --shell: rgba(255, 255, 255, 0.025); --ring: rgba(255, 255, 255, 0.08);
+  --ring: rgba(255, 255, 255, 0.08);
   --field: rgba(0, 0, 0, 0.4); --accent: #2aabee; --accent-ink: #7cc8f5;
   --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
   --ok: #7cc8f5; --err: #fca5a5; --warn: #fcd34d;
@@ -22,9 +22,9 @@
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #eef4fa; --ink: #0f172a; --muted: #475569; --faint: #64748b;
+    --bg: #eef4fa; --ink: #0f172a; --muted: #475569; --faint: #57657a;
     --glass: rgba(255, 255, 255, 0.72); --glass-hi: rgba(255, 255, 255, 0.9);
-    --shell: rgba(15, 23, 42, 0.03); --ring: rgba(15, 23, 42, 0.08);
+    --ring: rgba(15, 23, 42, 0.08);
     --field: rgba(255, 255, 255, 0.95); --accent: #1e96c8; --accent-ink: #0b6fa0;
     --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
     --ok: #0b6fa0; --err: #b91c1c; --warn: #a16207;
@@ -33,9 +33,9 @@
   }
 }
 :root[data-theme="light"] {
-  --bg: #eef4fa; --ink: #0f172a; --muted: #475569; --faint: #64748b;
+  --bg: #eef4fa; --ink: #0f172a; --muted: #475569; --faint: #57657a;
   --glass: rgba(255, 255, 255, 0.72); --glass-hi: rgba(255, 255, 255, 0.9);
-  --shell: rgba(15, 23, 42, 0.03); --ring: rgba(15, 23, 42, 0.08);
+  --ring: rgba(15, 23, 42, 0.08);
   --field: rgba(255, 255, 255, 0.95); --accent: #1e96c8; --accent-ink: #0b6fa0;
   --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
   --ok: #0b6fa0; --err: #b91c1c; --warn: #a16207;
@@ -52,8 +52,11 @@ body {
     var(--bg);
   background-attachment: fixed;
 }
+/* A computer screen is seen from further away than a phone: everything a bit larger. */
+@media (min-width: 1200px) { #app > * { zoom: 1.12; } }
+@media (min-width: 1600px) { #app > * { zoom: 1.25; } }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-a { color: var(--accent-ink); }
+@layer base { a { color: var(--accent-ink); } } /* in a layer: a link's own text-* class wins */
 
 /* Shared building blocks, used by the Svelte pages and by login.html. */
 .lbl { font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }

@@ -30,6 +30,16 @@
   });
   const groups = () => [["0s", T("One message per detection")], ["2m", T("📦 Group over 2 min")], ["5m", T("📦 Group over 5 min")]];
 
+  // On a phone the preview comes after every setting: a floating button brings it up
+  // while it is out of sight.
+  let preview = $state();
+  let previewSeen = $state(true);
+  $effect(() => {
+    const o = new IntersectionObserver(([e]) => { previewSeen = e.isIntersecting; });
+    o.observe(preview);
+    return () => o.disconnect();
+  });
+
   let pick = $state("");
   // The camera of the sample: the one picked while it is still enabled, else the first.
   const chosen = $derived(cams.includes(pick) ? pick : cams[0]);
@@ -98,8 +108,15 @@
       </div>
     {/if}
   </div>
-  <div id="live-preview" class="flex flex-col items-center gap-3 lg:sticky lg:top-24 lg:col-span-5 lg:self-start">
+  <div id="live-preview" bind:this={preview} class="flex flex-col items-center gap-3 lg:sticky lg:top-24 lg:col-span-5 lg:self-start">
     <span class="lbl">{T("Live preview")}</span>
     <Phone {model} entry={sample} />
   </div>
+  {#if !previewSeen}
+    <!-- lg:hidden on the wrapper: .btn's display would win over it on the button. -->
+    <div class="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-10 -translate-x-1/2 lg:hidden">
+      <button type="button" id="see-preview" class="btn btn-primary shadow-lg"
+        onclick={() => preview.scrollIntoView({ behavior: "smooth", block: "center" })}>👁 {T("Live preview")}</button>
+    </div>
+  {/if}
 </section>

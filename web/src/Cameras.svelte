@@ -69,7 +69,7 @@
   <div class="flex flex-col gap-2"><div>{title}</div>{#if hint}<div class="text-[12px] text-[var(--faint)]">{hint}</div>{/if}{@render body()}</div>
 {/snippet}
 
-<section id="cameras" class="flex max-w-3xl flex-col gap-4">
+<section id="cameras" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1">
     <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Cameras")}</h1>
   </div>
@@ -80,17 +80,17 @@
     {@const zones = unionOf(app.data, "zones", name)}
     {@const current = eff.zones || []}
     {@const result = results[name]}
-    <div class="relative rounded-[22px] bg-[var(--shell)] p-[5px] ring-1 ring-[var(--ring)] {on ? '' : 'opacity-70'}">
+    <div class="relative rounded-[20px] bg-[var(--glass)] shadow-[inset_0_1px_1px_var(--glass-hi)] ring-1 ring-[var(--ring)] {on ? '' : 'opacity-70'}">
       <!-- The switch sits over the summary's left padding, not inside it: no interactive content in a summary. -->
-      <div class="absolute left-[21px] top-[23px] z-[1]">
+      <div class="absolute left-[16px] top-[18px] z-[1]">
         <Switch checked={on} label={T("Notifications for ") + name} onchange={(v) => change({ enabled: v }, name)} />
       </div>
       <details data-camera={name} bind:this={cards[name]}>
-        <summary class="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-[17px] bg-[var(--glass)] py-4 pl-[68px] pr-4 shadow-[inset_0_1px_1px_var(--glass-hi)]">
+        <summary class="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-[20px] py-4 pl-[68px] pr-4">
           <span class="min-w-0 flex-none font-medium">{name}</span>
           <span class="min-w-0 flex-1 basis-40 text-[12px] text-[var(--muted)]">{cameraSummary(app.data, app.overlay, app.live, name, ctx)}</span>
         </summary>
-        <div class="mt-[5px] flex flex-col gap-5 rounded-[17px] bg-[var(--glass)] p-5 shadow-[inset_0_1px_1px_var(--glass-hi)]">
+        <div class="flex flex-col gap-5 border-t border-[var(--ring)] p-5">
           {#snippet style()}<Pills label={T("Notification style")} options={styles} camera={name} />{/snippet}
           {@render question(T("Notification style"), null, style)}
           {#snippet what()}
