@@ -5,7 +5,7 @@
   import { app, change, pause, resume } from "./lib/store.svelte.js";
   import { effective } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
-  import { hourStart, timeText, untilText, whenText } from "./lib/time.js";
+  import { chartTicks, hourStart, timeText, untilText, whenText } from "./lib/time.js";
   import { routeHash } from "./lib/route.js";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
@@ -42,18 +42,24 @@
       {#if app.activity}
         <div class="flex flex-wrap items-end gap-4">
           <span id="sent-24h" class="text-6xl font-light tracking-tight tabular-nums">{app.activity.sent}</span>
-          {#if app.history?.length}<a class="pb-2 text-[var(--muted)]" href="#activity">{Tf("%d ignored among the last %d detections", ignored, app.history.length)}</a>{/if}
+          {#if app.history?.length}<a class="pb-2 text-[var(--muted)] no-underline hover:text-[var(--accent-ink)]" href="#activity">{Tf("%d ignored among the last %d detections", ignored, app.history.length)} <span class="text-[var(--faint)]" aria-hidden="true">›</span></a>{/if}
         </div>
         <div class="flex h-16 items-end gap-[3px]">
           {#each hours as n, i (i)}
             {@const start = hourStart(app.activity.at, i)}
-            <a class="flex h-full flex-1 items-end" href={routeHash({ screen: "activity", hour: start })}
-              aria-label={Tf("%d sent between %s and %s", n, timeText(start * 1000, ctx), timeText((start + 3600) * 1000, ctx))}>
-              <span class="block w-full rounded-[2px] {i === 23 ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/25'}" style="height:{Math.max(4, (n / peak) * 100)}%"></span>
+            {@const label = Tf("%d sent between %s and %s", n, timeText(start * 1000, ctx), timeText((start + 3600) * 1000, ctx))}
+            <a class="group flex h-full flex-1 items-end" href={routeHash({ screen: "activity", hour: start })} aria-label={label} title={label}>
+              <span class="block w-full rounded-[2px] transition-colors group-hover:bg-[var(--accent)]/70 group-focus-visible:bg-[var(--accent)]/70 {i === 23 ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/25'}" style="height:{Math.max(4, (n / peak) * 100)}%"></span>
             </a>
           {/each}
         </div>
-        <div class="flex justify-between font-mono text-[11px] text-[var(--faint)]"><span>−24 h</span><span>{T("now")}</span></div>
+        <!-- The clock's hours under the bars, each centered on its instant; those that would run into "now" are left out. -->
+        <div class="relative h-4 font-mono text-[11px] text-[var(--faint)]" aria-hidden="true">
+          {#each chartTicks(app.activity.at, tz) as k (k.t)}
+            {#if k.x > 0.04 && k.x < 0.86}<span class="absolute -translate-x-1/2 {k.x > 0.7 ? 'max-sm:hidden' : ''}" style="left:{k.x * 100}%">{timeText(k.t * 1000, ctx)}</span>{/if}
+          {/each}
+          <span class="absolute right-0">{T("now")}</span>
+        </div>
       {/if}
     </Card>
 
@@ -98,7 +104,7 @@
         {#each app.data.cameras || [] as c (c.name)}
           {@const on = effective(app.overlay, c.name).enabled !== false}
           <div class="flex items-center gap-3">
-            <a class="min-w-0 flex-1 truncate" href={routeHash({ screen: "cameras", camera: c.name })}>{c.name}</a>
+            <a class="min-w-0 flex-1 truncate text-[var(--ink)] no-underline hover:text-[var(--accent-ink)]" href={routeHash({ screen: "cameras", camera: c.name })}>{c.name} <span class="text-[var(--faint)]" aria-hidden="true">›</span></a>
             {#if mutes[c.name] !== undefined}
               <button type="button" class="btn-link text-[12px]" onclick={() => resume(c.name)}>🔇 {untilText(mutes[c.name], ctx)} · {T("Re-enable")}</button>
             {/if}

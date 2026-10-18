@@ -1,8 +1,8 @@
 <script>
   // The shell of the main interface: a floating pill navigation, the save status, the
   // screens (#overview, #style, #when, #cameras, #recipients, #activity, #advanced), and the footer links.
-  import { onMount, tick } from "svelte";
-  import { T, i18n } from "./lib/i18n.svelte.js";
+  import { onMount } from "svelte";
+  import { T, Tf, i18n } from "./lib/i18n.svelte.js";
   import { app, flush, leave, load, startPolling } from "./lib/store.svelte.js";
   import { api } from "./lib/api.js";
   import LangMenu from "./lib/LangMenu.svelte";
@@ -18,6 +18,8 @@
 
   let route = $state(parseRoute(location.hash));
   let failed = $state("");
+  let menu = $state(false); // the screens' list, opened from its button on a narrow screen
+  let nav = $state();
 
   $effect(() => {
     document.documentElement.lang = i18n.lang;
@@ -25,7 +27,7 @@
   });
 
   onMount(() => {
-    const onHash = () => { route = parseRoute(location.hash); };
+    const onHash = () => { route = parseRoute(location.hash); menu = false; };
     addEventListener("hashchange", onHash);
     load().then(startPolling).catch((e) => { failed = T("Loading failed:\n") + e.message; });
     return () => removeEventListener("hashchange", onHash);
@@ -42,12 +44,6 @@
 
   // A route to a screen that is not offered (one chat, no history) shows the overview.
   const current = $derived(screens().some(([id]) => id === route.screen) ? route.screen : "overview");
-  // On a narrow screen the pills scroll: a deep link brings the current one into view.
-  $effect(() => {
-    current;
-    tick().then(() => document.querySelector('#nav [aria-current="page"]')?.scrollIntoView({ inline: "nearest", block: "nearest" }));
-  });
-
   async function logout() {
     try {
       await flush(); // the session ends below: the pending save must go first
@@ -61,11 +57,21 @@
   const goTo = (href) => (e) => { e.preventDefault(); leave(href); };
 </script>
 
+<svelte:window onkeydown={(e) => { if (e.key === "Escape") menu = false; }} onclick={(e) => { if (menu && !nav.contains(e.target)) menu = false; }} />
+
 <header class="sticky top-[env(safe-area-inset-top,0px)] z-10 px-4 pt-4">
-  <nav id="nav" class="mx-auto flex w-full max-w-max items-center gap-1 overflow-x-auto rounded-full bg-[var(--glass)] p-1.5 ring-1 ring-[var(--ring)] backdrop-blur-xl">
-    {#each screens() as [id, label] (id)}
-      <a href="#{id}" class="whitespace-nowrap rounded-full px-3 py-1.5 no-underline {current === id ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}" aria-current={current === id ? "page" : undefined}>{label}</a>
-    {/each}
+  <!-- Under lg the screens fold into a list under a button: the pills no longer fit on one line. -->
+  <nav id="nav" bind:this={nav} class="relative mx-auto flex w-full items-center gap-1 rounded-full bg-[var(--glass)] p-1.5 ring-1 ring-[var(--ring)] backdrop-blur-xl lg:max-w-max">
+    <button type="button" class="flex flex-1 items-center gap-2 rounded-full px-3 py-1.5 text-left text-[var(--ink)] lg:hidden" aria-expanded={menu} aria-controls="screens"
+      onclick={() => { menu = !menu; }}>
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      <span class="sr-only">{T("Menu")} · </span>{Object.fromEntries(screens())[current]}
+    </button>
+    <div id="screens" class="{menu ? 'flex' : 'hidden'} absolute inset-x-0 top-full mt-2 flex-col gap-1 rounded-[20px] bg-[var(--bg)] p-1.5 ring-1 ring-[var(--ring)] lg:static lg:mt-0 lg:flex lg:flex-row lg:bg-transparent lg:p-0 lg:ring-0">
+      {#each screens() as [id, label] (id)}
+        <a href="#{id}" class="whitespace-nowrap rounded-full px-3 py-2 no-underline lg:py-1.5 {current === id ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}" aria-current={current === id ? "page" : undefined} onclick={() => { menu = false; }}>{label}</a>
+      {/each}
+    </div>
     <LangMenu />
     <ThemeMenu />
   </nav>
@@ -89,7 +95,7 @@
 
 <footer class="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 pb-10 text-[12px] text-[var(--faint)]">
   {#if app.data}
-    <span>{T("mode ") + app.data.mode} · {app.data.timezone}</span>
+    <span>{app.data.mode === "events" ? T("Notifications for Frigate's events") : T("Notifications for Frigate's alerts (reviews)")} · {Tf("time zone %s", app.data.timezone)}</span>
     <span class="flex-1"></span>
     {#if app.data.can_connection}<a href="setup" onclick={goTo("setup")}>{T("Connection")}</a>{/if}
     {#if app.data.auth}<button type="button" class="btn-link" id="logout" onclick={logout}>{T("Log out")}</button>{/if}

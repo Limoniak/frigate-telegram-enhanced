@@ -180,7 +180,7 @@ Or keep Frigate as it is and choose *Alerts and detections* in the web interface
 `http://<server-ip>:8431/` serves a page to configure notifications, designed to be set
 up in a few clicks. It follows the browser's language (English when it has no translation); the
 language menu in the header changes it and is remembered. A pill menu at the top of the
-page opens one screen per topic:
+page opens one screen per topic (on a phone, a ☰ button folds it into a list):
 
 - **Overview**: notifications over 24 h, hour by hour; the connections to Frigate, MQTT
   and Telegram, with the cause in plain words and the setting to fix when one fails;

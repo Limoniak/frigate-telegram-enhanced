@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { locale, timeText, untilText, hourStart, whenText } from "./time.js";
+import { chartTicks, locale, timeText, untilText, hourStart, whenText } from "./time.js";
 
 const T = (s) => s;
 const now = new Date("2026-10-17T19:30:00Z"); // 21:30 in Paris
 
 describe("time", () => {
   it("English uses the 24-hour British locale", () => expect(locale("en")).toBe("en-GB"));
+  it("chartTicks: the clock's 00, 06, 12 and 18 h in the zone, placed in the 24 h", () => {
+    const ticks = chartTicks(now.getTime(), "Europe/Paris"); // 21:30 → from 21:30 the day before
+    expect(ticks.map((k) => timeText(k.t * 1000, { tz: "Europe/Paris", lang: "fr" }))).toEqual(["00:00", "06:00", "12:00", "18:00"]);
+    expect(ticks[0].x).toBeCloseTo(2.5 / 24);
+    expect(chartTicks(now.getTime(), "Asia/Kolkata").map((k) => timeText(k.t * 1000, { tz: "Asia/Kolkata", lang: "fr" }))).toEqual(["06:00", "12:00", "18:00", "00:00"]);
+  });
   it("timeText shows the time in the service's time zone", () => {
     expect(timeText("2026-10-17T19:47:05Z", { tz: "Europe/Paris", lang: "fr" })).toBe("21:47");
   });

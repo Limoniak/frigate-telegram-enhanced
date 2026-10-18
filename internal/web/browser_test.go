@@ -73,7 +73,7 @@ func TestBrowserOverview(t *testing.T) {
 		into(chromedp.Evaluate[string](`[...document.querySelectorAll('#today a[href^="#activity/"]')].at(-1).getAttribute("aria-label")`), &barLabel),
 		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
 		chromedp.Click(`#today a[href^="#activity/"]:last-of-type`),
-		chromedp.WaitVisible(`#activity`),
+		chromedp.WaitVisible(`section#activity`),
 		into(chromedp.Evaluate[string](`location.hash`), &barHash),
 		chromedp.EmulateViewport(1280, 900),
 		chromedp.Navigate(ts.URL+"/#overview"),
@@ -293,6 +293,9 @@ func browser(t *testing.T) (ctx context.Context, jsErrors func() []string) {
 	}
 }
 
+// A screen is waited for as section#<id>: chromedp's search for #<id> also finds the
+// menu's links to it, hidden on a phone, and would wait for them to show.
+
 // inEnglish opens url with the page in English, whatever the language of the browser:
 // the menu's choice is kept in the page's storage.
 func inEnglish(url string) chromedp.Action[chromedp.Void] {
@@ -439,9 +442,9 @@ func TestBrowserStyle(t *testing.T) {
 		into(chromedp.Evaluate[bool](`(() => { const e = document.querySelector("#live-preview .border-amber-300"), b = e.getBoundingClientRect(), f = e.parentElement.parentElement.getBoundingClientRect(); return b.top >= f.top - 1 && b.bottom <= f.bottom + 1 })()`), &boxFits),
 		chromedp.Click(`[data-style="gif"]`),
 		chromedp.WaitVisible(`#styles [data-style="gif"][aria-pressed="true"]`),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview").textContent.includes("GIF")`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview")?.textContent.includes("GIF")`),
 		chromedp.Click(`#style-in-place`),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview").textContent.includes("As a reply")`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#live-preview")?.textContent.includes("As a reply")`),
 		into(chromedp.Text(`#live-preview`), &preview),
 		chromedp.Click(`#try button`), // the pending change is saved first
 		chromedp.WaitVisible(`#try-result.ok`),
@@ -510,7 +513,7 @@ func TestBrowserWhen(t *testing.T) {
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		inEnglish(ts.URL+"/#when"),
-		chromedp.WaitVisible(`#when`),
+		chromedp.WaitVisible(`section#when`),
 		chromedp.Click(byText("", "🚶🚗 People and cars")),
 	)
 	if err != nil {
@@ -573,12 +576,12 @@ func TestBrowserWhenMoreChoices(t *testing.T) {
 	var during map[string]any
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#when"),
-		chromedp.WaitVisible(`#when`),
+		chromedp.WaitVisible(`section#when`),
 		chromedp.Click(`#when details.more > summary`),
 		chromedp.WaitVisible(slider),
 		// Dragging (input events) changes the text only.
 		chromedp.Evaluate[chromedp.Void](`var r = document.querySelector('input[type=range]'); r.value = "0.4"; r.dispatchEvent(new Event("input", { bubbles: true })); 0`),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#when").textContent.includes("40%")`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#when")?.textContent.includes("40%")`),
 		// Watch the status from the drag on, then wait past the save delay: a drag that saved would have shown it by then.
 		chromedp.Evaluate[chromedp.Void](`window.t0 = performance.now(); window.statusChanged = false; new MutationObserver(() => { window.statusChanged = true; }).observe(document.getElementById("save-status"), { attributes: true, childList: true, subtree: true, characterData: true }); 0`),
 		chromedp.Poll[chromedp.Void](`performance.now() - window.t0 > 1500`),
@@ -624,7 +627,7 @@ func TestBrowserSavesWhenLeaving(t *testing.T) {
 	var where string
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#when"),
-		chromedp.WaitVisible(`#when`),
+		chromedp.WaitVisible(`section#when`),
 		chromedp.Click(byText("", "🚶🚗 People and cars")),
 		chromedp.Click(`#nav a[href="#style"]`), // well before the 600 ms delay
 		chromedp.WaitVisible(`#styles`),
@@ -637,7 +640,7 @@ func TestBrowserSavesWhenLeaving(t *testing.T) {
 	})
 	err = chromedp.Do(ctx,
 		chromedp.Click(`#nav a[href="#when"]`),
-		chromedp.WaitVisible(`#when`),
+		chromedp.WaitVisible(`section#when`),
 		chromedp.Click(byText("", "🌙 No notifications")),
 		chromedp.Click(`footer a[href="setup"]`),
 		chromedp.WaitVisible(`#intro-first`), // the connection page
@@ -667,7 +670,7 @@ func TestBrowserRecipients(t *testing.T) {
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		inEnglish(ts.URL+"/#recipients"),
-		chromedp.WaitVisible(`#recipients`),
+		chromedp.WaitVisible(`section#recipients`),
 		chromedp.Click(byText(famille, "🌙 Only at night")),
 		chromedp.WaitVisible(`#save-status.ok`),
 	)
@@ -702,12 +705,12 @@ func TestBrowserWhenSingleChat(t *testing.T) {
 	var links int
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#when"),
-		chromedp.WaitVisible(`#when`),
+		chromedp.WaitVisible(`section#when`),
 		into(chromedp.Text(`#when`), &page),
 		into(chromedp.Evaluate[int](`document.querySelectorAll('#nav a[href="#recipients"]').length`), &links),
 		// A link to a screen that is not offered shows the overview, and the menu says so.
 		chromedp.Evaluate[chromedp.Void](`location.hash = "#recipients"; 0`),
-		chromedp.WaitVisible(`#overview`),
+		chromedp.WaitVisible(`section#overview`),
 		into(chromedp.Text(`#nav [aria-current=page]`), &current),
 	)
 	if err != nil {
@@ -738,7 +741,7 @@ func TestBrowserAdvanced(t *testing.T) {
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		inEnglish(ts.URL+"/#advanced"),
-		chromedp.WaitVisible(`#advanced`),
+		chromedp.WaitVisible(`section#advanced`),
 		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="cooldown"] input'); i.focus(); i.select(); 0`),
 		chromedp.SendKeys(cooldown, "5 minutes"+kb.Tab),
 		into(chromedp.Evaluate[string](`document.querySelector('[data-key="cooldown"] input').getAttribute("aria-invalid") || ""`), &invalid),
@@ -815,7 +818,7 @@ func TestBrowserAdvancedControls(t *testing.T) {
 	const times = `JSON.stringify([...document.querySelectorAll('#advanced input[type=time]')].map(i => i.getAttribute("aria-label")))`
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#advanced"),
-		chromedp.WaitVisible(`#advanced`),
+		chromedp.WaitVisible(`section#advanced`),
 		// Time ranges: two quiet ranges and one off range; the first one starts earlier, the second is removed.
 		chromedp.Click(`[data-key="quiet_hours"] button.btn-link`),
 		chromedp.Click(`[data-key="quiet_hours"] button.btn-link`),
@@ -923,7 +926,7 @@ func TestBrowserAdvancedResetForgetsTypedText(t *testing.T) {
 	var alerts int
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#advanced"),
-		chromedp.WaitVisible(`#advanced`),
+		chromedp.WaitVisible(`section#advanced`),
 		chromedp.Evaluate[chromedp.Void](`var i = document.querySelector('[data-key="cooldown"] input'); i.focus(); i.select(); 0`),
 		chromedp.SendKeys(cooldown, "90s"+kb.Tab),
 		chromedp.WaitVisible(`#save-status.ok`),
@@ -986,7 +989,7 @@ func TestBrowserLoginKeepsRoute(t *testing.T) {
 		chromedp.WaitVisible(`.login-card input[type=password]`),
 		chromedp.SendKeys(`#password`, "s3cret"),
 		chromedp.Click(`.login-card button[type=submit]`), // Submit() would skip the submit event
-		chromedp.WaitVisible(`#cameras`),
+		chromedp.WaitVisible(`section#cameras`),
 		into(chromedp.Evaluate[string](`location.hash`), &hash),
 	)
 	if err != nil {
@@ -1291,9 +1294,9 @@ func TestBrowserCameras(t *testing.T) {
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
 		inEnglish(ts.URL+"/#cameras/garage"),
-		chromedp.WaitVisible(`#cameras`),
+		chromedp.WaitVisible(`section#cameras`),
 		chromedp.WaitVisible(garage+` summary`),
-		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="garage"]').open`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="garage"]')?.open`),
 		// A followed link leaves the focus on the camera's summary, with no control nested in it.
 		chromedp.Poll[chromedp.Void](`document.activeElement.tagName === "SUMMARY"`),
 		into(chromedp.Evaluate[bool](`document.activeElement.parentElement.dataset.camera === "garage"`), &focused),
@@ -1423,12 +1426,12 @@ func TestBrowserCamerasLink(t *testing.T) {
 		inEnglish(ts.URL+"/"),
 		chromedp.Click(`#cameras-list a[href="#cameras/entree"]`),
 		chromedp.WaitVisible(`[data-camera="entree"] summary`),
-		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="entree"]').open`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="entree"]')?.open`),
 		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="entree"]').open`), &open),
 		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="garage"]').open`), &other),
 		// Changing the hash on the screen opens the other card too.
 		chromedp.Evaluate[chromedp.Void](`location.hash = "#cameras/garage"; 0`),
-		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="garage"]').open`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="garage"]')?.open`),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1470,7 +1473,7 @@ func TestBrowserActivity(t *testing.T) {
 		into(chromedp.Text(`#activity li[data-id="x1"]`), &first),
 		chromedp.Click(`#activity li[data-id="x1"] a`),
 		chromedp.WaitVisible(`[data-camera="porte d'entrée"] summary`),
-		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="porte d\'entrée"]').open`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('[data-camera="porte d\'entrée"]')?.open`),
 		into(chromedp.Evaluate[string](`location.hash`), &hash),
 		into(chromedp.Evaluate[bool](`document.querySelector('[data-camera="porte d\'entrée"]').open`), &open),
 	)
@@ -1545,7 +1548,7 @@ func TestBrowserActivityFilters(t *testing.T) {
 		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector('#activity li[data-id="a1"] img.big'); return !!i && i.complete && i.naturalWidth > 0 && i.src.endsWith("/api/history/a1/snapshot") })()`),
 		into(chromedp.Evaluate[struct{ Href, Target, Rel string }](`(() => { const a = document.querySelector('#activity li[data-id="a1"] a[href*="event_id=a1"]'); return { Href: a.href, Target: a.target, Rel: a.rel } })()`), &link),
 		chromedp.Click(`#activity li[data-id="a3"] button[aria-expanded]`),
-		chromedp.Poll[chromedp.Void](`document.querySelector('#activity li[data-id="a3"] button[aria-expanded]').getAttribute("aria-expanded") == "true"`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('#activity li[data-id="a3"] button[aria-expanded]')?.getAttribute("aria-expanded") == "true"`),
 		into(chromedp.Evaluate[string](`String(document.querySelectorAll('#activity li[data-id="a3"] a[target=_blank]').length)`), &noLink),
 		into(chromedp.Evaluate[int](`document.documentElement.scrollWidth`), &width),
 		// An hour from the address.
@@ -1556,7 +1559,7 @@ func TestBrowserActivityFilters(t *testing.T) {
 		into(chromedp.Evaluate[string](ids), &hourRows),
 		into(chromedp.Text(`#activity-hour`), &banner),
 		chromedp.Evaluate[chromedp.Void](`location.hash = "#activity/`+strconv.FormatInt(now.Add(-12*time.Hour).Unix(), 10)+`"; 0`),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("No detection in this hour.")`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list")?.textContent.includes("No detection in this hour.")`),
 		into(chromedp.Evaluate[string](ids), &none),
 		into(chromedp.Text(`#activity-list`), &empty),
 		chromedp.Click(`#activity-hour button`),
@@ -1695,7 +1698,7 @@ func TestBrowserLogoutSavesPending(t *testing.T) {
 		chromedp.WaitVisible(`.login-card input[type=password]`),
 		chromedp.SendKeys(`#password`, "s3cret"),
 		chromedp.Click(`.login-card button[type=submit]`),
-		chromedp.WaitVisible(`#when`),
+		chromedp.WaitVisible(`section#when`),
 		chromedp.Click(byText("", "🚶🚗 People and cars")),
 		chromedp.Click(`#logout`), // well before the 600 ms delay
 		chromedp.WaitVisible(`.login-card`),
@@ -1720,7 +1723,7 @@ func TestBrowserAdvancedNames(t *testing.T) {
 	var links, describedBy, removes string
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#advanced"),
-		chromedp.WaitVisible(`#advanced`),
+		chromedp.WaitVisible(`section#advanced`),
 		chromedp.SendKeys(`#external-url`, "https://frigate.example.org"+kb.Tab),
 		chromedp.SendKeys(`#ha-url`, "https://ha.example.org"+kb.Tab),
 		chromedp.WaitVisible(`[data-key="home_assistant_url"] a`),
@@ -1801,10 +1804,10 @@ func TestBrowserActivityHours(t *testing.T) {
 		into(chromedp.Evaluate[string](ids), &withIgnored),
 		// An hour with only an ignored detection, seen as sent only.
 		chromedp.Evaluate[chromedp.Void](at(-5*time.Hour)),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("No detection matches these filters.")`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list")?.textContent.includes("No detection matches these filters.")`),
 		into(chromedp.Evaluate[string](ids), &filtered),
 		chromedp.Evaluate[chromedp.Void](at(-12*time.Hour)),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("No detection in this hour.")`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list")?.textContent.includes("No detection in this hour.")`),
 		into(chromedp.Evaluate[string](ids), &none),
 		into(chromedp.Evaluate[string](`document.querySelector("#activity-hour-pick").getAttribute("aria-label")`), &label),
 	)
@@ -1840,7 +1843,7 @@ func TestBrowserActivityOlderHour(t *testing.T) {
 	ctx, jsErrors := browser(t)
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#activity/"+strconv.FormatInt(now.Add(-10*time.Hour).Unix(), 10)),
-		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list").textContent.includes("older than the last 50 detections")`),
+		chromedp.Poll[chromedp.Void](`document.querySelector("#activity-list")?.textContent.includes("older than the last 50 detections")`),
 		into(chromedp.Text(`#activity-list`), &list),
 	)
 	if err != nil {
@@ -1927,7 +1930,7 @@ func TestBrowserActivityImageFallbacks(t *testing.T) {
 		chromedp.Poll[chromedp.Void](`(() => { const i = document.querySelector('#activity li[data-id="thumb"] img.big'); return !!i && i.complete && i.naturalWidth > 0 && i.src.endsWith("/api/history/thumb/thumb") })()`),
 		into(chromedp.Evaluate[string](`document.querySelector('#activity li[data-id="thumb"] img.big').src`), &big),
 		chromedp.Click(`#activity li[data-id="none"] button[aria-expanded]`),
-		chromedp.Poll[chromedp.Void](`document.querySelector('#activity li[data-id="none"] button[aria-expanded]').getAttribute("aria-expanded") == "true"`),
+		chromedp.Poll[chromedp.Void](`document.querySelector('#activity li[data-id="none"] button[aria-expanded]')?.getAttribute("aria-expanded") == "true"`),
 		into(chromedp.Evaluate[int](`document.querySelectorAll('#activity li[data-id="none"] img').length`), &imgs),
 	)
 	if err != nil {
@@ -2033,6 +2036,42 @@ func TestBrowserThemeFollowsTheSystem(t *testing.T) {
 	}
 	if setupLight < half || setupDark >= half {
 		t.Errorf("setup page: saved light on a dark system %d, saved dark on a light one %d", setupLight, setupDark)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// On a phone the screens fold into a list under a button, and the style's preview,
+// below every setting, has a button bringing it up.
+func TestBrowserPhoneMenu(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	var folded, open, closed, button, seen bool
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(360, 740),
+		inEnglish(ts.URL+"/#overview"),
+		chromedp.WaitVisible(`section#overview`),
+		into(chromedp.Evaluate[bool](`!document.querySelector('#nav a[href="#style"]').checkVisibility()`), &folded),
+		chromedp.Click(`#nav button[aria-controls=screens]`),
+		into(chromedp.Evaluate[bool](`document.querySelector('#nav a[href="#style"]').checkVisibility()`), &open),
+		chromedp.Click(`#nav a[href="#style"]`),
+		chromedp.WaitVisible(`section#style`),
+		into(chromedp.Evaluate[bool](`!document.querySelector('#nav a[href="#style"]').checkVisibility()`), &closed),
+		chromedp.Poll[chromedp.Void](`!!document.querySelector("#see-preview")`),
+		into(chromedp.Evaluate[bool](`document.querySelector("#see-preview").checkVisibility()`), &button),
+		chromedp.Click(`#see-preview`),
+		chromedp.Poll[chromedp.Void](`!document.querySelector("#see-preview")`),
+		into(chromedp.Evaluate[bool](`(() => { const r = document.querySelector("#live-preview").getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0 })()`), &seen),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !folded || !open || !closed {
+		t.Errorf("menu folded=%v, open after its button=%v, closed after a link=%v", folded, open, closed)
+	}
+	if !button || !seen {
+		t.Errorf("preview button shown=%v, preview in view after it=%v", button, seen)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)

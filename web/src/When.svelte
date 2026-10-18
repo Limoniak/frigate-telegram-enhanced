@@ -26,7 +26,7 @@
   <div class="flex flex-col gap-2"><div>{title}</div>{#if hint}<div class="text-[12px] text-[var(--faint)]">{hint}</div>{/if}{@render body()}</div>
 {/snippet}
 
-<section id="when" class="flex max-w-3xl flex-col gap-4">
+<section id="when" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1"><span class="lbl">{T("When")}</span><h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("When should you be notified?")}</h1></div>
   <Card>
     {#if (app.data.chats || []).length > 1}

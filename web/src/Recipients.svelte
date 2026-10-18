@@ -8,7 +8,7 @@
   import Pills from "./lib/Pills.svelte";
 </script>
 
-<section id="recipients" class="flex max-w-3xl flex-col gap-4">
+<section id="recipients" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1"><h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Recipients")}</h1><p class="m-0 text-[var(--muted)]">{T("By default, everyone receives everything the cameras send. Here, limit someone to some objects or some hours.")}</p></div>
   {#each app.data.chats || [] as chat (chat)}
     <Card>
