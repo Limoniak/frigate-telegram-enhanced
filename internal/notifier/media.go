@@ -136,6 +136,10 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	}
 	if err != nil {
 		n.Log.Warn("media unavailable", "kind", kind, "event_id", t.id, "path", path, "err", err)
+		// Without its clip, the notification gets the GIF, unless it is already coming.
+		if kind == "video" && t.gifPath != "" && !n.Config.ForCamera(t.camera).GIF {
+			n.goAsync(func() { n.sendFollowUp(ctx, t, "animation", t.gifPath, chats, 0, inPlace) })
+		}
 		return
 	}
 	defer os.Remove(file)
@@ -177,6 +181,7 @@ func (n *Notifier) waitRecorded(ctx context.Context, t *tracked) error {
 	if end == 0 {
 		return nil
 	}
+	end += frigate.ClipPadding // the clip runs past the end of the event
 	// Counted in polls rather than clock time: the wait stays bounded whatever Now returns.
 	polls := int(n.RecordingWait / n.RecordingPoll)
 	for attempt := 0; ; attempt++ {

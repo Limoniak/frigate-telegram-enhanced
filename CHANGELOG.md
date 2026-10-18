@@ -33,6 +33,10 @@ never a breaking 3.0, while `:latest` follows `main`.
   at 0 fps in Frigate's stats for 2 minutes, then a message when it is back. Cameras
   turned off in Frigate are not reported. On by default; *Outage alerts* in the advanced
   settings (`notify.outage_alerts`) turns them off.
+- Clips start 4 s before the event and end 4 s after it, as in Frigate's interface:
+  a review of 2 s used to give a clip of 2 s. In `events` mode, Frigate 0.17 or later.
+- When Frigate cannot give the clip, the notification gets the GIF instead of keeping
+  the image alone.
 
 ### Removed
 

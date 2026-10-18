@@ -26,7 +26,15 @@ func Cropped(snapshotPath string) string {
 	return snapshotPath
 }
 
-func EventClipPath(id string) string { return "/api/events/" + url.PathEscape(id) + "/clip.mp4" }
+// ClipPadding is the time, in seconds, added before and after an event in its clip,
+// as Frigate's interface does: without it, a review of 2 s gives a clip of 2 s.
+const ClipPadding = 4
+
+// EventClipPath returns the clip of an event. Frigate only applies the padding from
+// 0.17 on; earlier versions ignore it.
+func EventClipPath(id string) string {
+	return fmt.Sprintf("/api/events/%s/clip.mp4?padding=%d", url.PathEscape(id), ClipPadding)
+}
 
 func EventGIFPath(id string) string { return "/api/events/" + url.PathEscape(id) + "/preview.gif" }
 
@@ -36,10 +44,11 @@ func ReviewGIFPath(id string) string {
 
 func LatestPath(camera string) string { return "/api/" + url.PathEscape(camera) + "/latest.jpg" }
 
-// RecordingClipPath returns the clip of a camera's recordings between two instants.
+// RecordingClipPath returns the clip of a camera's recordings between two instants,
+// widened by ClipPadding on each side.
 func RecordingClipPath(camera string, start, end float64) string {
 	return fmt.Sprintf("/api/%s/start/%d/end/%d/clip.mp4",
-		url.PathEscape(camera), int64(math.Floor(start)), int64(math.Ceil(end)))
+		url.PathEscape(camera), int64(math.Floor(start))-ClipPadding, int64(math.Ceil(end))+ClipPadding)
 }
 
 // EventThumbnailPath returns the thumbnail (small, cropped on the object) of an event.
