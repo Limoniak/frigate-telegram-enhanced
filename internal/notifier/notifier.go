@@ -125,6 +125,7 @@ type tracked struct {
 	gifPath      string
 	link         string
 	description  string
+	clipNote     string // HTML: the clip sent is only the beginning (over 50 MB)
 	lastReason   string
 
 	notified, silent, ended bool
@@ -377,7 +378,7 @@ func (n *Notifier) captionData(t *tracked) captionData {
 	return captionData{
 		Label: t.label, Sound: t.sound, SubLabel: t.subLabel, Camera: t.camera, Zones: t.zones,
 		Score: t.score, HasScore: t.hasScore, Start: t.start,
-		Description: t.description, Link: t.link,
+		Description: t.description, Link: t.link, ClipNote: t.clipNote,
 	}
 }
 

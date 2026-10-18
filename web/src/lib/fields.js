@@ -48,7 +48,7 @@ export const FIELDS = (T, data) => [
     hint: T("The clip (or GIF) replaces the image in the notification, instead of arriving as a new message.") },
   { key: "gif", type: "bool", name: T("Send an animated GIF") },
   { key: "compress_clips", type: "bool", globalOnly: true, name: T("Compress clips over 50 MB"),
-    hint: T("Telegram refuses videos over 50 MB: they are re-encoded at a lower quality instead of being sent as a link. Uses the server's CPU for a few seconds to a few minutes.") },
+    hint: T("Telegram refuses videos over 50 MB: they are re-encoded at a lower quality instead of being cut to their beginning. Uses the server's CPU for a few seconds to a few minutes.") },
   { key: "outage_alerts", type: "bool", globalOnly: true, name: T("Outage alerts"),
     hint: T("A message when Frigate stops responding or a camera sends no more images for 2 minutes, and another when it is back.") },
   { key: "genai_description", type: "bool", name: T("Add the GenAI description"),

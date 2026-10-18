@@ -180,8 +180,13 @@ func TestDownloadToFile(t *testing.T) {
 	if string(b) != "mp4data" {
 		t.Errorf("content = %q", b)
 	}
-	if _, err := c.DownloadToFile(context.Background(), "/clip.mp4", 3); !errors.Is(err, ErrTooLarge) {
+	path, err = c.DownloadToFile(context.Background(), "/clip.mp4", 3)
+	if !errors.Is(err, ErrTooLarge) {
 		t.Errorf("err = %v, want ErrTooLarge", err)
+	}
+	defer os.Remove(path)
+	if b, _ := os.ReadFile(path); string(b) != "mp4" {
+		t.Errorf("beginning kept = %q, want the first 3 bytes", b)
 	}
 }
 

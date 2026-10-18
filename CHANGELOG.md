@@ -37,6 +37,10 @@ never a breaking 3.0, while `:latest` follows `main`.
   a review of 2 s used to give a clip of 2 s. In `events` mode, Frigate 0.17 or later.
 - When Frigate cannot give the clip, the notification gets the GIF instead of keeping
   the image alone.
+- A clip over 50 MB is no longer replaced by a link: its beginning (its first 50 MB, cut
+  after the last complete fragment, no re-encoding) takes the image's place, with a link
+  to the whole clip in the caption. *Compress clips over 50 MB* still sends the whole
+  clip re-encoded.
 
 ### Removed
 

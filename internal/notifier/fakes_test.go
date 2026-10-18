@@ -26,6 +26,7 @@ type fakeFrigate struct {
 	tooLarge map[string]bool
 	stalls   map[string]bool  // stalling download: files[path] is only partly received
 	sizes    map[string]int64 // clip of this size (sparse file), checked against max
+	heads    map[string][]byte // clip over max: its beginning, returned with ErrTooLarge
 	calls    []string
 	events   []frigate.APIEvent
 	reviews  map[string]frigate.Review
@@ -45,7 +46,7 @@ type fakeFrigate struct {
 }
 
 func newFakeFrigate() *fakeFrigate {
-	return &fakeFrigate{files: map[string][]byte{}, fails: map[string]int{}, tooLarge: map[string]bool{}, stalls: map[string]bool{}, sizes: map[string]int64{}, reviews: map[string]frigate.Review{}}
+	return &fakeFrigate{files: map[string][]byte{}, fails: map[string]int{}, tooLarge: map[string]bool{}, stalls: map[string]bool{}, sizes: map[string]int64{}, heads: map[string][]byte{}, reviews: map[string]frigate.Review{}}
 }
 
 func (f *fakeFrigate) GetBytes(_ context.Context, path string, _ int64) ([]byte, error) {
@@ -80,7 +81,22 @@ func (f *fakeFrigate) DownloadToFile(ctx context.Context, path string, max int64
 	}
 	f.mu.Lock()
 	size, sized := f.sizes[path]
+	head, cut := f.heads[path]
+	if cut {
+		f.calls = append(f.calls, path)
+	}
 	f.mu.Unlock()
+	if cut {
+		tmp, err := os.CreateTemp("", "fake-*")
+		if err != nil {
+			return "", err
+		}
+		defer tmp.Close()
+		if _, err := tmp.Write(head); err != nil {
+			return "", err
+		}
+		return tmp.Name(), frigate.ErrTooLarge
+	}
 	if sized && size > max {
 		return "", frigate.ErrTooLarge
 	}
