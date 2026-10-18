@@ -31,6 +31,7 @@
     "<b>Cameras</b>": "<b>Caméras</b>",
     "<b>Commands</b>\n/menu — control panel with buttons\n/pause [duration] [camera] — pause (1 h by default, 0 = until /resume)\n/resume [camera] — resume (no argument: resume everything)\n/status — service status\n/cameras — list cameras\n/snapshot [camera] — live image\n/last [camera] — latest event\nDurations: 30m, 2h, 1h30m, 1d": "<b>Commandes</b>\n/menu — tableau de contrôle avec boutons\n/pause [durée] [caméra] — pause (1 h par défaut, 0 = jusqu'à /resume)\n/resume [caméra] — reprendre (sans argument : tout reprendre)\n/status — état du service\n/cameras — liste des caméras\n/snapshot [caméra] — image en direct\n/last [caméra] — dernier événement\nDurées : 30m, 2h, 1h30m, 1d",
     "<b>Status</b>\n": "<b>État</b>\n",
+    "A message when Frigate stops responding or a camera sends no more images for 2 minutes, and another when it is back.": "Un message quand Frigate ne répond plus ou qu'une caméra n'envoie plus d'images pendant 2 minutes, et un autre à son retour.",
     "A person walks up to the front door.": "Une personne s'approche de la porte d'entrée.",
     "A person's ID is positive, a group's is negative (-100…).": "L'ID d'une personne est positif, celui d'un groupe est négatif (-100…).",
     "A short animated preview instead of the video.": "Un court aperçu animé au lieu de la vidéo.",
@@ -268,6 +269,7 @@
     "Out of the last %d detections, %d would be ignored for a low score, including %d that were sent.": "Sur les %d dernières détections, %d seraient ignorées pour score trop bas, dont %d qui ont été envoyées.",
     "Out of the last %d detections, %d would be ignored for a low score.": "Sur les %d dernières détections, %d seraient ignorées pour score trop bas.",
     "Out of the last %d detections: %d sent, %d ignored.": "Sur les %d dernières détections : %d envoyée(s), %d ignorée(s).",
+    "Outage alerts": "Alertes de panne",
     "Outcome": "Résultat",
     "Overview": "Aperçu",
     "Pace": "Rythme",
@@ -544,8 +546,12 @@
     "🔕 Silent": "🔕 Sans son",
     "🔕 Silent at night": "🔕 Sans son la nuit",
     "🔗 Open in Frigate": "🔗 Ouvrir dans Frigate",
+    "🔴 Camera %s sends no images": "🔴 La caméra %s n'envoie plus d'images",
+    "🔴 Frigate is not responding: no notifications until it is back": "🔴 Frigate ne répond plus : aucune notification jusqu'à son retour",
     "🚪 Nobody at home": "🚪 Personne à la maison",
     "🚶 People": "🚶 Personnes",
-    "🚶🚗 People and cars": "🚶🚗 Personnes et voitures"
+    "🚶🚗 People and cars": "🚶🚗 Personnes et voitures",
+    "🟢 Camera %s is back (down since %s)": "🟢 La caméra %s est de retour (en panne depuis %s)",
+    "🟢 Frigate is back (down since %s)": "🟢 Frigate est de retour (en panne depuis %s)"
   }
 }

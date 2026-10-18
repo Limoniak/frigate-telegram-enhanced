@@ -5,7 +5,7 @@
 const DURATIONS = new Set(["cooldown", "group", "sub_label_wait", "clip_delay"]);
 const LISTS = new Set(["chats", "labels", "zones", "ignore_sub_labels", "severity"]);
 const RANGES = new Set(["quiet_hours", "off_hours"]);
-const BOOLS = new Set(["enabled", "ignore_known", "ignore_stationary", "snapshot", "crop", "clip", "media_in_place", "gif", "compress_clips", "genai_description"]);
+const BOOLS = new Set(["enabled", "ignore_known", "ignore_stationary", "snapshot", "crop", "clip", "media_in_place", "gif", "compress_clips", "outage_alerts", "genai_description"]);
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 

@@ -49,6 +49,8 @@ export const FIELDS = (T, data) => [
   { key: "gif", type: "bool", name: T("Send an animated GIF") },
   { key: "compress_clips", type: "bool", globalOnly: true, name: T("Compress clips over 50 MB"),
     hint: T("Telegram refuses videos over 50 MB: they are re-encoded at a lower quality instead of being sent as a link. Uses the server's CPU for a few seconds to a few minutes.") },
+  { key: "outage_alerts", type: "bool", globalOnly: true, name: T("Outage alerts"),
+    hint: T("A message when Frigate stops responding or a camera sends no more images for 2 minutes, and another when it is back.") },
   { key: "genai_description", type: "bool", name: T("Add the GenAI description"),
     hint: T("When Frigate publishes it, it is added to the notification's caption.") },
   { key: "group", type: "duration", globalOnly: true, name: T("Group bursts over"),
@@ -67,7 +69,7 @@ export const FIELDS = (T, data) => [
 // (global only), which is not a notification setting.
 export const GROUPS = (T) => [
   { title: T("Recipients and filtering"),
-    keys: ["enabled", "chats", "labels", "zones", "min_score", "ignore_stationary", "severity"] },
+    keys: ["enabled", "chats", "outage_alerts", "labels", "zones", "min_score", "ignore_stationary", "severity"] },
   { title: T("Labels"), keys: ["ignore_sub_labels", "ignore_known", "sub_label_wait"] },
   { title: T("Media"),
     keys: ["snapshot", "crop", "clip", "media_in_place", "gif", "compress_clips", "clip_delay", "genai_description"] },

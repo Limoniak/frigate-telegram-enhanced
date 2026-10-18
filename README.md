@@ -30,6 +30,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
 - **Per-recipient settings**: e.g. you get everything, the family only people at night
 - After an MQTT outage, detections missed during the last hour are caught up from Frigate
+- **Outage alerts**: a Telegram message when Frigate stops responding or a camera sends no more images for 2 minutes, and another when it is back (*Outage alerts* in the advanced settings to turn them off)
 - Persistent state, `/healthz`, Prometheus metrics, multi-arch distroless image (amd64 and arm64)
 
 ## A tour of the web interface

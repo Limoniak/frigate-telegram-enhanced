@@ -23,6 +23,7 @@ import (
 	"frigate-telegram-enhanced/internal/metrics"
 	"frigate-telegram-enhanced/internal/mqttsub"
 	"frigate-telegram-enhanced/internal/notifier"
+	"frigate-telegram-enhanced/internal/outage"
 	"frigate-telegram-enhanced/internal/server"
 	"frigate-telegram-enhanced/internal/state"
 	"frigate-telegram-enhanced/internal/telegram"
@@ -106,6 +107,25 @@ func run(parent context.Context, cfg *config.Config, connectionPath string, tgOp
 		topics = append(topics, cfg.Presence.Topics...)
 		handle = presenceRouter(cfg.Presence, st, log, notif.Handle)
 		log.Info("presence tracked", "topics", cfg.Presence.Topics)
+	}
+	watch := outage.New(cfg.MQTT.TopicPrefix, cfg.Language, cfg.Location, func(text string) {
+		if !cfg.Global().OutageAlerts {
+			return
+		}
+		go func() { // Handle runs on the MQTT client's goroutine: never wait for Telegram there
+			for _, chat := range cfg.Global().Chats {
+				if _, err := tg.SendMessage(ctx, cfg.ChatID(chat), text, telegram.SendOptions{}); err != nil {
+					log.Warn("outage alert not sent", "chat", chat, "err", err)
+				}
+			}
+		}()
+	})
+	topics = append(topics, watch.Topics()...)
+	next := handle
+	handle = func(topic string, payload []byte) {
+		if !watch.Handle(topic, payload) {
+			next(topic, payload)
+		}
 	}
 	// lostAt: start of the current MQTT outage (UnixNano), 0 when connected. On
 	// reconnection, the notifier catches up from Frigate on what was missed.

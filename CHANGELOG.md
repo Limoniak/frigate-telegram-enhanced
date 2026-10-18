@@ -31,6 +31,10 @@ never a breaking 3.0, while `:latest` follows `main`.
 - API: `GET /api/cameras/{name}/latest.jpg`, `GET /api/history/{id}/snapshot`; `link`,
   `has_snapshot` and `sent_at` per entry and `now` in `/api/history`. The history file
   keeps the link, the snapshot and the send time.
+- Outage alerts on Telegram: Frigate not responding (`frigate/available`) or a camera
+  at 0 fps in Frigate's stats for 2 minutes, then a message when it is back. Cameras
+  turned off in Frigate are not reported. On by default; *Outage alerts* in the advanced
+  settings (`notify.outage_alerts`) turns them off.
 
 ### Removed
 
