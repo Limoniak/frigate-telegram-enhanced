@@ -21,6 +21,8 @@ never a breaking 3.0, while `:latest` follows `main`.
 - The interface is larger on a computer screen, its cards have a single frame, and its
   faint text is more contrasted (the login card too); the one-column screens are centered. The footer says in plain words which Frigate
   notifications the service follows and its time zone.
+- The save status floats at the bottom of the screen instead of shifting the page, and
+  "Saved" fades after a moment; empty cards show while the interface loads.
 - On a phone, the screens fold into a list under a ☰ button, and a floating button brings
   up the style's live preview.
 - The 24 h chart marks 00:00, 06:00, 12:00 and 18:00 under its bars, and shows each bar's count on hover; the cameras

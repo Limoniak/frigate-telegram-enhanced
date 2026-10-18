@@ -20,6 +20,13 @@
   let failed = $state("");
   let menu = $state(false); // the screens' list, opened from its button on a narrow screen
   let nav = $state();
+  let faded = $state(false);
+  $effect(() => {
+    faded = false;
+    if (app.status.kind !== "saved") return;
+    const t = setTimeout(() => { faded = true; }, 2500);
+    return () => clearTimeout(t);
+  });
 
   $effect(() => {
     document.documentElement.lang = i18n.lang;
@@ -75,8 +82,10 @@
     <LangMenu />
     <ThemeMenu />
   </nav>
-  <p id="save-status" class="result m-0 mt-2 text-center {app.status.kind === 'saved' ? 'ok' : ''}" role="status" hidden={!app.status.text}>{app.status.text}</p>
 </header>
+<!-- Floating, so that it never shifts the page, and click-through, so that it never covers a control; "Saved" fades after a moment, "Saving…" and "Not saved" stay. Under lg it sits above the style's preview button. -->
+<p id="save-status" class="result pointer-events-none fixed bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] lg:bottom-4 left-1/2 z-20 m-0 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--bg)] px-4 py-2 shadow-lg ring-1 ring-[var(--ring)] {app.status.kind === 'saved' ? 'ok' : ''}"
+  role="status" hidden={!app.status.text || faded}>{app.status.text}</p>
 
 <main class="mx-auto flex max-w-6xl flex-col gap-5 px-4 pb-16 pt-6">
   {#if failed}<div class="notice err">{failed}</div>{/if}
@@ -90,6 +99,12 @@
     {:else if current === "activity"}<Activity {route} />
     {:else if current === "advanced"}<Advanced />
     {:else}<Overview />{/if}
+  {:else if !failed}
+    <!-- Until the settings arrive: the overview's cards, empty, so that the page doesn't look broken. -->
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-12" aria-busy="true">
+      <div class="grid h-48 animate-pulse place-items-center rounded-[20px] bg-[var(--glass)] text-[var(--muted)] ring-1 ring-[var(--ring)] lg:col-span-7" role="status">{T("Loading…")}</div>
+      <div class="h-48 animate-pulse rounded-[20px] bg-[var(--glass)] ring-1 ring-[var(--ring)] lg:col-span-5"></div>
+    </div>
   {/if}
 </main>
 

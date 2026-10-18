@@ -113,8 +113,8 @@
     <Phone {model} entry={sample} />
   </div>
   {#if !previewSeen}
-    <!-- lg:hidden on the wrapper: .btn's display would win over it on the button. -->
-    <div class="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-10 -translate-x-1/2 lg:hidden">
+    <!-- lg:hidden on the wrapper: .btn's display would win over it on the button. On the right: the save status floats in the middle. -->
+    <div class="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-10 lg:hidden">
       <button type="button" id="see-preview" class="btn btn-primary shadow-lg"
         onclick={() => preview.scrollIntoView({ behavior: "smooth", block: "center" })}>👁 {T("Live preview")}</button>
     </div>

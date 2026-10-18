@@ -218,6 +218,7 @@
     "Live image: /snapshot [camera]": "Imagen en directo: /snapshot [cámara]",
     "Live preview": "Vista previa en vivo",
     "Loading failed:\n": "Error de carga:\n",
+    "Loading…": "Cargando…",
     "Log in": "Iniciar sesión",
     "Log out": "Cerrar sesión",
     "Looked for by itself on your network. If it is not found, enter its address: the one of its web page, with port 5000.": "Se busca automáticamente en tu red. Si no se encuentra, indica su dirección: la de su página web, con el puerto 5000.",
