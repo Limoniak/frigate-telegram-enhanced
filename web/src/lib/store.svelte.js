@@ -118,7 +118,7 @@ export async function refreshHistory() {
   const v = await getJSON("api/history").catch(() => null);
   if (!v) return;
   app.history = v.entries || [];
-  app.activity = v.sent_hours ? { sent: v.sent_24h, hours: v.sent_hours, at: Date.parse(v.now) || Date.now() } : null;
+  app.activity = v.sent_hours ? { sent: v.sent_24h, hours: v.sent_hours, hour: Date.parse(v.hour) / 1000 } : null;
 }
 
 // resetSettings goes back to config.yml (drops the saved settings), then reloads.
@@ -163,6 +163,20 @@ async function stateCall(path, body) {
 
 export const pause = (minutes) => stateCall("api/pause", { minutes });
 export const resume = (camera) => stateCall("api/resume", camera ? { camera } : {});
+
+// removeWebhook removes the bot's webhook. The bot reads again at its next poll, a few
+// seconds later: the connections are checked again after it. Returns whether it was removed.
+export async function removeWebhook() {
+  try {
+    const r = await post("api/telegram/webhook/delete", {});
+    if (!r.ok) throw new Error(r.data.error || "HTTP " + r.status);
+    setTimeout(refreshHealth, 6000);
+    return true;
+  } catch (e) {
+    app.error = T("Action failed:\n") + e.message;
+    return false;
+  }
+}
 
 // sendTest sends a sample notification with the saved settings: pending changes first.
 export async function sendTest(camera) {

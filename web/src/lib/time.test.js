@@ -6,11 +6,13 @@ const now = new Date("2026-10-17T19:30:00Z"); // 21:30 in Paris
 
 describe("time", () => {
   it("English uses the 24-hour British locale", () => expect(locale("en")).toBe("en-GB"));
-  it("chartTicks: the clock's 00, 06, 12 and 18 h in the zone, placed in the 24 h", () => {
-    const ticks = chartTicks(now.getTime(), "Europe/Paris"); // 21:30 → from 21:30 the day before
+  it("chartTicks: the bars of the clock's 00, 06, 12 and 18 h in the zone", () => {
+    const paris = Date.parse("2026-10-17T19:00:00Z") / 1000; // 21:00 → bars from 22:00 the day before
+    const ticks = chartTicks(paris, "Europe/Paris");
     expect(ticks.map((k) => timeText(k.t * 1000, { tz: "Europe/Paris", lang: "fr" }))).toEqual(["00:00", "06:00", "12:00", "18:00"]);
-    expect(ticks[0].x).toBeCloseTo(2.5 / 24);
-    expect(chartTicks(now.getTime(), "Asia/Kolkata").map((k) => timeText(k.t * 1000, { tz: "Asia/Kolkata", lang: "fr" }))).toEqual(["06:00", "12:00", "18:00", "00:00"]);
+    expect(ticks[0].x).toBe(2 / 24);
+    const kolkata = Date.parse("2026-10-17T19:30:00Z") / 1000; // 01:00 there
+    expect(chartTicks(kolkata, "Asia/Kolkata").map((k) => timeText(k.t * 1000, { tz: "Asia/Kolkata", lang: "fr" }))).toEqual(["06:00", "12:00", "18:00", "00:00"]);
   });
   it("timeText shows the time in the service's time zone", () => {
     expect(timeText("2026-10-17T19:47:05Z", { tz: "Europe/Paris", lang: "fr" })).toBe("21:47");
@@ -26,9 +28,8 @@ describe("time", () => {
     expect(whenText("2026-10-17T19:00:00Z", ctx)).toBe("21:00");
     expect(whenText("2026-10-16T19:00:00Z", ctx)).toBe("yesterday 21:00");
   });
-  it("hourStart: bar i covers (now-(24-i)h, now-(23-i)h], the last bar the last hour", () => {
-    const at = 1760900400500;
-    expect(hourStart(at, 23)).toBe(1760900400 - 3600);
-    expect(hourStart(at, 0)).toBe(1760900400 - 24 * 3600);
+  it("hourStart: the last bar is the current hour, each bar one clock hour", () => {
+    expect(hourStart(1760900400, 23)).toBe(1760900400);
+    expect(hourStart(1760900400, 0)).toBe(1760900400 - 23 * 3600);
   });
 });

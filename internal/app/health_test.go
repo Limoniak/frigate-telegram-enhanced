@@ -124,3 +124,16 @@ func TestPresenceRouter(t *testing.T) {
 		t.Error("nobody home any more")
 	}
 }
+
+// A 409 from Telegram tells a webhook, which the interface can remove, from another
+// program reading the bot.
+func TestTelegramConflict(t *testing.T) {
+	hook := telegramProblem(&telegram.APIError{Code: 409, Description: "Conflict: can't use getUpdates method while webhook is active; use deleteWebhook to delete the webhook first"}, false, i18n.EN)
+	if !hook.Webhook || !strings.Contains(hook.Detail, "webhook") {
+		t.Errorf("webhook conflict = %+v", hook)
+	}
+	other := telegramProblem(&telegram.APIError{Code: 409, Description: "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"}, false, i18n.EN)
+	if other.Webhook || !strings.Contains(other.Detail, "Another program") {
+		t.Errorf("other instance = %+v", other)
+	}
+}

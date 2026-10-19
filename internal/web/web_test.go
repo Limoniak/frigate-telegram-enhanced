@@ -661,31 +661,66 @@ func TestHistorySnapshotAndLink(t *testing.T) {
 	}
 }
 
+type fakeWebhook struct{ deleted *bool }
+
+func (f fakeWebhook) DeleteWebhook(context.Context) error { *f.deleted = true; return nil }
+
+// The interface removes the bot's webhook when it can; without a webhook remover,
+// the route answers 404.
+func TestDeleteWebhook(t *testing.T) {
+	var deleted bool
+	_, _, ts := setup(t, "", fakeCameras{}, WithWebhook(fakeWebhook{&deleted}))
+	if resp := do(t, ts, "POST", "/api/telegram/webhook/delete", ""); resp.StatusCode != http.StatusOK || !deleted {
+		t.Errorf("POST: %d, deleted %v", resp.StatusCode, deleted)
+	}
+	_, _, ts = setup(t, "", fakeCameras{})
+	if resp := do(t, ts, "POST", "/api/telegram/webhook/delete", ""); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("without a remover: %d, want 404", resp.StatusCode)
+	}
+}
+
 type fakeActivity []time.Time
 
 func (f fakeActivity) SentTimes() []time.Time { return f }
 
-// The history also gives the notifications sent over 24 h, hour by hour, the current
+// The history also gives the notifications sent over 24 h, per clock hour, the current
 // hour last.
 func TestHistoryGivesSentHours(t *testing.T) {
 	now := time.Date(2026, 10, 17, 21, 30, 0, 0, time.UTC)
-	act := fakeActivity{now.Add(-23*time.Hour - 50*time.Minute), now.Add(-90 * time.Minute), now.Add(-10 * time.Minute), now}
+	// 21:30 - 23h50 = 21:40 the day before: before the first bar (22:00).
+	act := fakeActivity{now.Add(-23*time.Hour - 30*time.Minute), now.Add(-23*time.Hour - 50*time.Minute), now.Add(-90 * time.Minute), now.Add(-10 * time.Minute), now}
 	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(fakeHistory{}, nil), WithActivity(act), WithClock(func() time.Time { return now }))
 	var v struct {
 		Sent  int       `json:"sent_24h"`
 		Hours []int     `json:"sent_hours"`
 		Now   time.Time `json:"now"`
+		Hour  time.Time `json:"hour"`
 	}
 	if err := json.NewDecoder(do(t, ts, "GET", "/api/history", "").Body).Decode(&v); err != nil {
 		t.Fatal(err)
 	}
 	want := make([]int, 24)
-	want[0], want[22], want[23] = 1, 1, 2
+	want[0], want[22], want[23] = 1, 1, 2 // 22:00, 20:00 (20:00 itself), 21:00 (21:20 and 21:30)
 	if !v.Now.Equal(now) {
 		t.Errorf("now = %v, want the server's clock %v (the bars' windows end then)", v.Now, now)
 	}
+	if want := time.Date(2026, 10, 17, 21, 0, 0, 0, time.UTC); !v.Hour.Equal(want) {
+		t.Errorf("hour = %v, want the start of the current clock hour %v", v.Hour, want)
+	}
 	if v.Sent != 4 || !slices.Equal(v.Hours, want) {
-		t.Errorf("sent %d, hours %v; want 4, %v", v.Sent, v.Hours, want)
+		t.Errorf("sent %d, hours %v; want 4 (the bars' total), %v", v.Sent, v.Hours, want)
+	}
+}
+
+// A clock hour starts on the zone's :00, also in a zone offset by 30 min.
+func TestHourOf(t *testing.T) {
+	kolkata, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		t.Skip(err)
+	}
+	at := time.Date(2026, 10, 17, 21, 10, 5, 0, time.UTC) // 02:40:05 in Kolkata
+	if got, want := hourOf(at, kolkata), time.Date(2026, 10, 17, 20, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("hourOf = %v, want %v", got, want)
 	}
 }
 

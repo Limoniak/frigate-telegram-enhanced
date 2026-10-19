@@ -8,23 +8,20 @@ export function timeText(iso, { tz, lang }) {
   return new Date(iso).toLocaleTimeString(locale(lang), { timeZone: tz, hour: "2-digit", minute: "2-digit" });
 }
 
-// hourStart is the start, in Unix seconds, of the chart's bar i (0..23, 23 the last
-// hour) when the chart was fetched at at (ms). The server counts bar i over
-// (now-(24-i)h, now-(23-i)h] of the notifications' send times: windows that end now,
-// not on the clock's hours, so that the activity filter, which takes the same window
-// on the same instants, shows what the bar counted.
-export const hourStart = (at, i) => Math.floor(at / 1000) - (24 - i) * 3600;
+// hourStart is the start, in Unix seconds, of the chart's bar i (0..23, 23 the current
+// hour), hour being the start of the current clock hour (seconds) as the server gives
+// it: bar i covers [hourStart, hourStart + 1 h), so that the activity filter, which
+// takes the same window, shows what the bar counted.
+export const hourStart = (hour, i) => hour - (23 - i) * 3600;
 
-// chartTicks are the clock's 00:00, 06:00, 12:00 and 18:00 in the chart's 24 hours
-// ending at at (ms), in the time zone tz: t in Unix seconds and x, the share of the
-// chart from its left edge. Quarter-hour steps also find them in a zone offset by 30 or
-// 45 min.
-export function chartTicks(at, tz) {
-  const end = Math.floor(at / 1000), start = end - 86400, ticks = [];
-  const clock = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" });
-  for (let t = Math.ceil(start / 900) * 900; t < end; t += 900) {
-    const [h, m] = clock.format(t * 1000).split(":").map(Number);
-    if (m === 0 && h % 6 === 0) ticks.push({ t, x: (t - start) / 86400 });
+// chartTicks are the bars that start at the clock's 00:00, 06:00, 12:00 or 18:00 in the
+// time zone tz: t in Unix seconds and x, the share of the chart from its left edge.
+export function chartTicks(hour, tz) {
+  const clock = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", hourCycle: "h23" });
+  const ticks = [];
+  for (let i = 0; i < 24; i++) {
+    const t = hourStart(hour, i);
+    if (Number(clock.format(t * 1000)) % 6 === 0) ticks.push({ t, x: i / 24 });
   }
   return ticks;
 }

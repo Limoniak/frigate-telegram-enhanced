@@ -135,6 +135,13 @@ type Component struct {
 	State  string `json:"state"`
 	Detail string `json:"detail"`
 	Hint   string `json:"hint,omitempty"` // what to fix, on error
+	// Action: "delete_webhook" when the interface can fix it by removing the bot's webhook.
+	Action string `json:"action,omitempty"`
+}
+
+// Webhook removes the bot's webhook.
+type Webhook interface {
+	DeleteWebhook(ctx context.Context) error
 }
 
 // Refusals gives the Telegram users recently refused by the bot.
@@ -161,6 +168,7 @@ type Handler struct {
 	media    Media      // nil: history without thumbnails
 	health   HealthFunc // nil: no connection status
 	refused  Refusals   // nil: no list of refused users
+	webhook  Webhook    // nil: the interface cannot remove the webhook
 	setup    *Setup     // nil: connection set by config.yml
 	// sessionKey signs the login sessions; nil: a random one, lost on restart.
 	sessionKey []byte
@@ -197,6 +205,9 @@ func WithHealth(f HealthFunc) Option { return func(h *Handler) { h.health = f } 
 // WithRefused adds to the connection status the Telegram users recently refused,
 // with their ID to add to the configuration.
 func WithRefused(r Refusals) Option { return func(h *Handler) { h.refused = r } }
+
+// WithWebhook lets the interface remove the bot's webhook.
+func WithWebhook(w Webhook) Option { return func(h *Handler) { h.webhook = w } }
 
 // WithSetup adds the "Connection" page, to change what the setup page saved.
 func WithSetup(s *Setup) Option { return func(h *Handler) { h.setup = s } }
@@ -249,6 +260,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("POST /api/resume", h.guard(sameOrigin(http.HandlerFunc(h.resume))))
 	mux.Handle("GET /api/history", h.guard(http.HandlerFunc(h.getHistory)))
 	mux.Handle("GET /api/health", h.guard(http.HandlerFunc(h.getHealth)))
+	mux.Handle("POST /api/telegram/webhook/delete", h.guard(sameOrigin(http.HandlerFunc(h.deleteWebhook))))
 	mux.Handle("GET /api/history/{id}/thumb", h.guard(http.HandlerFunc(h.thumb)))
 	mux.Handle("GET /api/history/{id}/snapshot", h.guard(http.HandlerFunc(h.snapshot)))
 	if h.setup != nil {
@@ -624,15 +636,35 @@ func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
 	}{h.health(ctx, h.lang(r)), refused})
 }
 
+// deleteWebhook removes the bot's webhook: the bot reads its messages again at its
+// next poll.
+func (h *Handler) deleteWebhook(w http.ResponseWriter, r *http.Request) {
+	if h.webhook == nil {
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("webhook removal unavailable"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	if err := h.webhook.DeleteWebhook(ctx); err != nil {
+		h.log.Warn("webhook removal failed", "err", err)
+		h.writeError(w, r, http.StatusBadGateway, err)
+		return
+	}
+	h.log.Info("Telegram webhook removed from the web interface")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 type historyView struct {
 	Entries []historyEntryView `json:"entries"`
-	// Now is the server's clock, the end of the last hour of SentHours: the interface
-	// takes its hour windows from it, not from the browser's clock.
+	// Now is the server's clock: the interface takes its hour windows from it, not from
+	// the browser's clock.
 	Now time.Time `json:"now"`
-	// Sent24h and SentHours: the notifications sent over 24 h, and per hour, the
-	// current hour last. Absent without an activity source.
-	Sent24h   *int  `json:"sent_24h,omitempty"`
-	SentHours []int `json:"sent_hours,omitempty"`
+	// SentHours: the notifications sent per clock hour, the current hour last, starting
+	// at Hour; Sent24h, their total, so that it matches the bars. Absent without an
+	// activity source.
+	Sent24h   *int       `json:"sent_24h,omitempty"`
+	SentHours []int      `json:"sent_hours,omitempty"`
+	Hour      *time.Time `json:"hour,omitempty"`
 }
 
 type historyEntryView struct {
@@ -646,32 +678,41 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable"))
 		return
 	}
-	now := h.now() // one instant: Now is the end of the last bar of SentHours
+	now := h.now() // one instant: the last bar of SentHours ends now
 	v := historyView{Entries: []historyEntryView{}, Now: now}
 	for _, e := range h.history.History() {
 		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != "", HasSnapshot: h.media != nil && e.Snapshot != ""})
 	}
 	if h.activity != nil {
-		times := h.activity.SentTimes()
-		n := len(times)
+		hour := hourOf(now, h.cfg.Location)
+		v.SentHours, v.Hour = sentHours(h.activity.SentTimes(), now, hour), &hour
+		n := 0
+		for _, c := range v.SentHours {
+			n += c
+		}
 		v.Sent24h = &n
-		v.SentHours = sentHours(times, now)
 	}
 	writeJSON(w, http.StatusOK, v)
 }
 
-// sentHours counts times per hour over the last 24 h: index 23 holds (now-1h, now],
-// index 22 the hour before, and so on.
-func sentHours(times []time.Time, now time.Time) []int {
+// sentHours counts times per clock hour: index 23 holds [hour, now], the current hour
+// so far, index 22 the hour before, and so on.
+func sentHours(times []time.Time, now, hour time.Time) []int {
 	hours := make([]int, 24)
+	first := hour.Add(-23 * time.Hour)
 	for _, t := range times {
-		ago := now.Sub(t)
-		if ago < 0 || ago >= 24*time.Hour {
+		if t.Before(first) || t.After(now) {
 			continue
 		}
-		hours[23-int(ago/time.Hour)]++
+		hours[int(t.Sub(first)/time.Hour)]++
 	}
 	return hours
+}
+
+// hourOf is the start of t's clock hour in loc, also in a zone offset by 30 or 45 min.
+func hourOf(t time.Time, loc *time.Location) time.Time {
+	l := t.In(loc)
+	return t.Add(-time.Duration(l.Minute())*time.Minute - time.Duration(l.Second())*time.Second - time.Duration(l.Nanosecond()))
 }
 
 func (h *Handler) thumb(w http.ResponseWriter, r *http.Request) {

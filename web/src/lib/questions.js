@@ -1,5 +1,6 @@
 // The questions of the simple settings screen and the choices offered to each recipient.
 // T is passed in so the module stays pure.
+import { matches } from "./settings.js";
 
 export const NIGHT = [{ from: "22:00", to: "07:00" }];
 export const DAY = [{ from: "07:00", to: "22:00" }];
@@ -49,18 +50,35 @@ export const QUESTIONS = (T) => [
 export const questionsFor = (data, T) =>
   QUESTIONS(T).filter((q) => (!q.mode || q.mode === data.mode) && (!q.presence || data.presence));
 
+// A recipient's choices only narrow the global ones: the first of each keeps them as is.
 export const RECIPIENT_OBJECTS = (T) => [
-  { label: T("Everything"), patch: { labels: [] } },
+  { label: T("Same as everyone"), patch: { labels: [] } },
   { label: T("🚶 People"), patch: { labels: ["person"] } },
   { label: T("🚶🚗 People and cars"), patch: { labels: ["car", "person"] } },
 ];
 
 export const RECIPIENT_WHEN = (T) => [
-  { label: T("All the time"), patch: { quiet_hours: [], off_hours: [] } },
+  { label: T("Same as everyone"), patch: { quiet_hours: [], off_hours: [] } },
   { label: T("🌙 Only at night"), patch: { quiet_hours: [], off_hours: DAY } },
   { label: T("☀️ Only during the day"), patch: { quiet_hours: [], off_hours: NIGHT } },
   { label: T("🔕 Silent at night"), patch: { quiet_hours: NIGHT, off_hours: [] } },
 ];
+
+// recipientChoices keeps the recipient choices that still change something under the
+// global settings (notify), plus the active one, so that a saved choice stays shown.
+export function recipientChoices(notify, values, T) {
+  const all = notify.labels || [];
+  const narrows = (l) => !l.length || !all.length || (l.length < all.length && l.every((x) => all.includes(x)));
+  const offNight = matches({ off_hours: NIGHT }, notify);
+  const quietNight = matches({ quiet_hours: NIGHT }, notify);
+  // Off at night for everyone leaves no night to keep or to silence, nor a day to cut.
+  const useful = (p) => (!p.off_hours.length && !p.quiet_hours.length) || (!offNight && !(p.quiet_hours.length && quietNight));
+  const keep = (ok) => (o) => ok(o.patch) || matches(o.patch, values);
+  return {
+    objects: RECIPIENT_OBJECTS(T).filter(keep((p) => narrows(p.labels))),
+    hours: RECIPIENT_WHEN(T).filter(keep(useful)),
+  };
+}
 
 export function recipientValues(overlay, chat) {
   const r = overlay.recipients[chat] || {};

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DAY, NIGHT, QUESTIONS, RECIPIENT_OBJECTS, RECIPIENT_WHEN, questionsFor, recipientValues, setRecipient } from "./questions.js";
+import { DAY, NIGHT, QUESTIONS, RECIPIENT_OBJECTS, RECIPIENT_WHEN, questionsFor, recipientChoices, recipientValues, setRecipient } from "./questions.js";
 
 const T = (s) => s;
 const ids = (qs) => qs.map((q) => q.id);
@@ -33,5 +33,23 @@ describe("recipients", () => {
     expect(o.recipients.famille).toEqual({ labels: ["person"] });
     setRecipient(o, "famille", { labels: [] });
     expect(o.recipients).not.toHaveProperty("famille");
+  });
+  it("offers only the choices that narrow the global ones", () => {
+    const none = { labels: [], quiet_hours: [], off_hours: [] };
+    const labels = (c) => c.map((o) => o.label);
+    let c = recipientChoices({ labels: ["person"] }, none, T);
+    expect(labels(c.objects)).toEqual(["Same as everyone"]);
+    expect(c.hours).toHaveLength(4);
+    c = recipientChoices({ labels: [], off_hours: NIGHT }, none, T);
+    expect(c.objects).toHaveLength(3);
+    expect(labels(c.hours)).toEqual(["Same as everyone"]);
+    c = recipientChoices({ labels: ["car", "person"], quiet_hours: NIGHT }, none, T);
+    expect(labels(c.objects)).toEqual(["Same as everyone", "🚶 People"]);
+    expect(labels(c.hours)).not.toContain("🔕 Silent at night");
+  });
+  it("keeps a saved choice shown even when it no longer narrows", () => {
+    const c = recipientChoices({ labels: ["person"], off_hours: NIGHT }, { labels: ["car", "person"], quiet_hours: [], off_hours: DAY }, T);
+    expect(c.objects.map((o) => o.label)).toContain("🚶🚗 People and cars");
+    expect(c.hours.map((o) => o.label)).toContain("🌙 Only at night");
   });
 });

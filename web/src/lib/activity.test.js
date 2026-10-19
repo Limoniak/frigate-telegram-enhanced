@@ -14,9 +14,9 @@ describe("activity", () => {
     expect(inHour({ sent: true, at: "2026-10-17T19:05:00Z" }, hour)).toBe(true);
     expect(inHour({ sent: false, at: "2026-10-17T19:05:00Z", sent_at: "2026-10-17T22:00:00Z" }, hour)).toBe(true);
   });
-  it("inHour: the window is (hour, hour + 1 h]", () => {
-    expect(inHour({ at: "2026-10-17T19:00:00Z" }, hour)).toBe(false);
-    expect(inHour({ at: "2026-10-17T20:00:00Z" }, hour)).toBe(true);
+  it("inHour: the window is [hour, hour + 1 h)", () => {
+    expect(inHour({ at: "2026-10-17T19:00:00Z" }, hour)).toBe(true);
+    expect(inHour({ at: "2026-10-17T20:00:00Z" }, hour)).toBe(false);
   });
   it("tooOld: only a full history and an hour before its oldest entry", () => {
     const full = Array.from({ length: KEPT }, (_, i) => ({ at: new Date(Date.parse("2026-10-17T21:00:00Z") - i * 60000).toISOString() }));

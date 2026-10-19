@@ -94,11 +94,11 @@ func TestBrowserOverview(t *testing.T) {
 	if sent != "3" {
 		t.Errorf("sent in 24 h = %q, want 3", sent)
 	}
-	if bars != 24 || !regexp.MustCompile(`^3 sent between \d\d:\d\d and \d\d:\d\d$`).MatchString(barLabel) {
+	if bars != 24 || !regexp.MustCompile(`^3 sent between \d\d:00 and \d\d:00$`).MatchString(barLabel) {
 		t.Errorf("chart: %d bars, last = %q, want 24 links named \"3 sent between ...\"", bars, barLabel)
 	}
-	if n, err := strconv.ParseInt(strings.TrimPrefix(barHash, "#activity/"), 10, 64); err != nil || abs(n-now.Add(-time.Hour).Unix()) > 120 {
-		t.Errorf("the last bar leads to %q, want the hour that started an hour ago", barHash)
+	if n, err := strconv.ParseInt(strings.TrimPrefix(barHash, "#activity/"), 10, 64); err != nil || n > now.Unix() || now.Unix()-n >= 3600 {
+		t.Errorf("the last bar leads to %q, want the current clock hour", barHash)
 	}
 	if width > 360 {
 		t.Errorf("the overview is %d px wide on a 360 px screen", width)
@@ -577,7 +577,7 @@ func TestBrowserWhenMoreChoices(t *testing.T) {
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#when"),
 		chromedp.WaitVisible(`section#when`),
-		chromedp.Click(`#when details.more > summary`),
+		chromedp.Click(`#when details.more:not([data-chat]) > summary`),
 		chromedp.WaitVisible(slider),
 		// Dragging (input events) changes the text only.
 		chromedp.Evaluate[chromedp.Void](`var r = document.querySelector('input[type=range]'); r.value = "0.4"; r.dispatchEvent(new Event("input", { bubbles: true })); 0`),
@@ -661,69 +661,59 @@ func TestBrowserSavesWhenLeaving(t *testing.T) {
 	}
 }
 
-// The Recipients screen: limiting one chat is saved, and going back to "All the time"
-// removes it again.
+// The recipients, folded under who receives on the When screen: limiting one chat is
+// saved, and going back to "Same as everyone" removes it again.
 func TestBrowserRecipients(t *testing.T) {
 	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
 	ctx, jsErrors := browser(t)
-	famille := `//*[@data-chat="famille"]`
+	hoursOf := `//*[@aria-label="famille – Hours"]`
 	err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(360, 740),
-		inEnglish(ts.URL+"/#recipients"),
-		chromedp.WaitVisible(`section#recipients`),
-		chromedp.Click(byText(famille, "🌙 Only at night")),
-		chromedp.WaitVisible(`#save-status.ok`),
+		inEnglish(ts.URL+"/#recipients"), // an old link, now the When screen
+		chromedp.WaitVisible(`section#when`),
+		chromedp.Click(byText(`//*[@role="group"][@aria-label="Who receives the notifications?"]`, "famille")),
+		chromedp.Click(`details[data-chat="famille"] > summary`),
+		chromedp.Click(byText(hoursOf, "🌙 Only at night")),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved, err := os.ReadFile(path); err != nil || !strings.Contains(string(saved), "famille") || !strings.Contains(string(saved), "off_hours") {
-		t.Errorf("recipient not saved: %q, %v", saved, err)
+	famille := func(f map[string]any) map[string]any {
+		r, _ := f["recipients"].(map[string]any)
+		c, _ := r["famille"].(map[string]any)
+		return c
 	}
+	waitSaved(t, path, "famille only at night", func(f map[string]any) bool {
+		return slices.Equal(hours(famille(f)["off_hours"]), []string{"07:00-22:00"})
+	})
 	err = chromedp.Do(ctx,
-		chromedp.Click(byText(famille, "All the time")),
-		chromedp.WaitVisible(`#save-status.ok`),
+		chromedp.Click(byText(hoursOf, "Same as everyone")),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved, err := os.ReadFile(path); err != nil || strings.Contains(string(saved), "famille") {
-		t.Errorf("recipient not removed: %q, %v", saved, err)
-	}
+	waitSaved(t, path, "famille without restriction", func(f map[string]any) bool { return famille(f) == nil })
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
 	}
 }
 
-// With a single chat there is nobody to choose between: no recipients question, no
-// Recipients screen in the menu.
+// With a single chat there is nobody to choose between: no recipients question.
 func TestBrowserWhenSingleChat(t *testing.T) {
 	yaml := strings.Replace(testConfig, "    famille: -100\n", "", 1)
 	_, _, ts := setupConfig(t, yaml, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
 	ctx, jsErrors := browser(t)
-	var page, current string
-	var links int
+	var page string
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#when"),
 		chromedp.WaitVisible(`section#when`),
 		into(chromedp.Text(`#when`), &page),
-		into(chromedp.Evaluate[int](`document.querySelectorAll('#nav a[href="#recipients"]').length`), &links),
-		// A link to a screen that is not offered shows the overview, and the menu says so.
-		chromedp.Evaluate[chromedp.Void](`location.hash = "#recipients"; 0`),
-		chromedp.WaitVisible(`section#overview`),
-		into(chromedp.Text(`#nav [aria-current=page]`), &current),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(page, "Who receives the notifications?") {
 		t.Errorf("the recipients question shows with one chat: %q", page)
-	}
-	if links != 0 {
-		t.Errorf("the menu links to Recipients with one chat")
-	}
-	if current != "Overview" {
-		t.Errorf("current menu entry for #recipients with one chat = %q, want Overview", current)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
@@ -1520,7 +1510,7 @@ func TestBrowserActivityFilters(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}}, WithHistory(fakeHistory{entries: entries}, media))
 
 	ids := `[...document.querySelectorAll("#activity li[data-id]")].map(e => e.dataset.id).join(",")`
-	// The bar of the hour that began six hours ago covers (now-6h, now-5h].
+	// An hour from the address covers [hour, hour + 1 h).
 	hour := now.Add(-6 * time.Hour).Unix()
 	var all, garage, sent, hourRows, none, hash, foot, banner, empty, expanded, noLink string
 	var banners int
@@ -1593,11 +1583,34 @@ func TestBrowserActivityFilters(t *testing.T) {
 	}
 }
 
-func abs(n int64) int64 {
-	if n < 0 {
-		return -n
+// Once the page is scrolled, the navigation bar shrinks; back at the top, it grows again.
+func TestBrowserNavShrinksOnScroll(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	height := `document.getElementById("nav").getBoundingClientRect().height`
+	var top float64
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(1280, 500),
+		inEnglish(ts.URL+"/#advanced"),
+		chromedp.WaitVisible(`section#advanced`),
+		into(chromedp.Evaluate[float64](height), &top),
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return n
+	h := strconv.FormatFloat(top, 'f', -1, 64)
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`window.scrollTo(0, 400); 0`),
+		chromedp.Poll[chromedp.Void](height+` < `+h+` - 4`),
+		chromedp.Evaluate[chromedp.Void](`window.scrollTo(0, 0); 0`),
+		chromedp.Poll[chromedp.Void](height+` == `+h),
+	)
+	if err != nil {
+		t.Errorf("the bar (%s px at the top) does not shrink on scroll and grow back: %v", h, err)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
 }
 
 // The page has no link to /classic, and the old address leads to the interface.

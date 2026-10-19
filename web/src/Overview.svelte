@@ -2,7 +2,7 @@
   // The overview: whether everything runs, the day's notifications, the cameras, and
   // the last notification as it arrived.
   import { T, Tf, i18n } from "./lib/i18n.svelte.js";
-  import { app, change, pause, resume } from "./lib/store.svelte.js";
+  import { app, change, pause, removeWebhook, resume } from "./lib/store.svelte.js";
   import { effective } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
   import { chartTicks, hourStart, timeText, untilText, whenText } from "./lib/time.js";
@@ -14,6 +14,9 @@
   const tz = $derived(app.data.timezone);
   const ctx = $derived({ tz, lang: i18n.lang, T });
   const healthy = $derived(app.health ? app.health.every((c) => c.state === "ok") : null);
+  // The webhook's removal waits for the next check of the connections.
+  let removing = $state(false);
+  $effect(() => { app.health; removing = false; });
   const problems = $derived((app.health || []).filter((c) => c.state === "error" || c.state === "warn"));
   const hours = $derived(app.activity?.hours ?? []);
   const peak = $derived(Math.max(1, ...hours));
@@ -46,16 +49,16 @@
         </div>
         <div class="flex h-16 items-end gap-[3px]">
           {#each hours as n, i (i)}
-            {@const start = hourStart(app.activity.at, i)}
+            {@const start = hourStart(app.activity.hour, i)}
             {@const label = Tf("%d sent between %s and %s", n, timeText(start * 1000, ctx), timeText((start + 3600) * 1000, ctx))}
             <a class="group flex h-full flex-1 items-end" href={routeHash({ screen: "activity", hour: start })} aria-label={label} title={label}>
               <span class="block w-full rounded-[2px] transition-colors group-hover:bg-[var(--accent)]/70 group-focus-visible:bg-[var(--accent)]/70 {i === 23 ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/25'}" style="height:{Math.max(4, (n / peak) * 100)}%"></span>
             </a>
           {/each}
         </div>
-        <!-- The clock's hours under the bars, each centered on its instant; those that would run into "now" are left out. -->
+        <!-- The clock's hours under the bars, each at the start of its bar; those that would run into "now" are left out. -->
         <div class="relative h-4 font-mono text-[11px] text-[var(--faint)]" aria-hidden="true">
-          {#each chartTicks(app.activity.at, tz) as k (k.t)}
+          {#each chartTicks(app.activity.hour, tz) as k (k.t)}
             {#if k.x > 0.04 && k.x < 0.86}<span class="absolute -translate-x-1/2 {k.x > 0.7 ? 'max-sm:hidden' : ''}" style="left:{k.x * 100}%">{timeText(k.t * 1000, ctx)}</span>{/if}
           {/each}
           <span class="absolute right-0">{T("now")}</span>
@@ -91,11 +94,12 @@
             <div class="flex items-center gap-3"><span class="flex-1">{c.name}</span><span class="truncate font-mono text-[11px] text-[var(--faint)]">{c.state === "ok" ? c.detail : ""}</span>
               <span class="h-1.5 w-1.5 flex-none rounded-full {c.state === 'ok' ? 'bg-[var(--accent)]' : c.state === 'warn' ? 'bg-amber-400' : 'bg-red-400'}"></span></div>
           {/each}
-          {#each problems as c (c.name)}<p class="result err m-0"><b>{c.name} —</b> {c.detail}{#if c.hint}<br>👉 {c.hint}{/if}</p>{/each}
+          {#each problems as c (c.name)}<p class="result err m-0"><b>{c.name} —</b> {c.detail}{#if c.hint}<br>👉 {c.hint}{/if}
+            {#if c.action === "delete_webhook"}<br><button type="button" class="btn mt-2" disabled={removing} onclick={async () => { removing = await removeWebhook(); }}>{removing ? T("Webhook removed, checking again…") : T("Remove the webhook")}</button>{/if}</p>{/each}
           {#if app.refused.length}
             <p class="result warn m-0"><b>{T("Telegram — users refused by the bot")}</b>
               {#each app.refused as u (u.id)}<br>{[u.name, u.username && "@" + u.username].filter(Boolean).join(" ") || T("unknown")} · {T("ID ")}<code>{u.id}</code>{/each}
-              <br>👉 {app.data.can_connection ? T("To allow someone, add their ID as a recipient with the Connection link at the bottom of the page.") : T("To allow someone, add their ID to telegram.chats in config.yml (and to telegram.admins if you set it), then restart the container.")}</p>
+              <br>👉 {app.data.can_connection ? T("To allow someone, add their ID as a recipient with the “Telegram, Frigate and MQTT connection” link at the bottom of the page.") : T("To allow someone, add their ID to telegram.chats in config.yml (and to telegram.admins if you set it), then restart the container.")}</p>
           {/if}
         </Card>
       {/if}

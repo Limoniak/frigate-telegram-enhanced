@@ -20,7 +20,7 @@ export const FIELDS = (T, data) => [
   { key: "enabled", type: "bool", name: T("Notifications enabled"),
     hint: T("Unchecked: no notifications at all (or none for this camera).") },
   { key: "chats", type: "chips", name: T("Recipients"), source: "chats",
-    hint: data && data.can_connection ? T("Chats chosen on the Connection page (link at the bottom).")
+    hint: data && data.can_connection ? T("Chats chosen with the “Telegram, Frigate and MQTT connection” link at the bottom of the page.")
       : T("Chats declared in telegram.chats (config.yml).") },
   { key: "labels", type: "chips", name: T("Objects"), source: "labels", free: true,
     hint: T("No object selected = every object is reported.") },

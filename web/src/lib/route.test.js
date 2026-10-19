@@ -8,7 +8,7 @@ describe("parseRoute", () => {
   });
   it("knows the screens", () => {
     expect(parseRoute("#when")).toEqual({ screen: "when", camera: null, hour: null });
-    expect(parseRoute("#recipients").screen).toBe("recipients");
+    expect(parseRoute("#recipients").screen).toBe("when");
   });
   it("decodes the camera of #cameras/", () => {
     expect(parseRoute("#cameras/porte%20d'entr%C3%A9e")).toEqual({ screen: "cameras", camera: "porte d'entrée", hour: null });

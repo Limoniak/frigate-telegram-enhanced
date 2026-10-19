@@ -2,13 +2,23 @@
   // When to be notified: a few plain questions, the finer choices folded away.
   import { T, Tf } from "./lib/i18n.svelte.js";
   import { app, edit } from "./lib/store.svelte.js";
-  import { questionsFor } from "./lib/questions.js";
+  import { questionsFor, recipientChoices, recipientValues, setRecipient } from "./lib/questions.js";
+  import { matches } from "./lib/settings.js";
   import { clampScore, sensitivityEffect } from "./lib/fields.js";
   import Card from "./lib/Card.svelte";
   import Chips from "./lib/Chips.svelte";
   import Pills from "./lib/Pills.svelte";
 
   const questions = $derived(questionsFor(app.data, T));
+  const chats = $derived(app.data.chats || []);
+  const receiving = $derived(app.overlay.notify.chats || []);
+  // What a recipient's folded line says: their two choices, or the one that differs.
+  const summary = (choices, values) => {
+    const name = (opts) => opts.find((o) => matches(o.patch, values))?.label ?? T("Custom");
+    const [objects, hours] = [name(choices.objects), name(choices.hours)];
+    return objects === hours ? objects : objects === T("Same as everyone") ? hours
+      : hours === T("Same as everyone") ? objects : objects + " · " + hours;
+  };
   const subs = $derived((app.data.sub_labels || []).slice().sort());
   const showKnown = $derived(subs.length || (app.overlay.notify.ignore_sub_labels || []).length || app.overlay.notify.ignore_known);
   const known = $derived(!!app.overlay.notify.ignore_known);
@@ -29,15 +39,31 @@
 <section id="when" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1"><span class="lbl">{T("When")}</span><h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("When should you be notified?")}</h1></div>
   <Card>
-    {#if (app.data.chats || []).length > 1}
-      {#snippet who()}<Chips label={T("Who receives the notifications?")} options={app.data.chats} value={app.overlay.notify.chats || []} onchange={(next) => edit((o) => { o.notify.chats = next; })} />{/snippet}
-      {@render question(T("Who receives the notifications?"), null, who)}
-    {/if}
     {#each questions.filter((q) => !q.more) as q (q.id)}
       {#snippet pills()}<Pills label={q.title} options={q.options} />{/snippet}
       {@render question(q.title, q.hint, pills)}
     {/each}
   </Card>
+  {#if chats.length > 1}
+  <Card>
+    {#snippet who()}<Chips label={T("Who receives the notifications?")} options={chats} value={receiving} onchange={(next) => edit((o) => { o.notify.chats = next; })} />{/snippet}
+    {@render question(T("Who receives the notifications?"), T("Everyone gets the choices above. Open a name to give them less."), who)}
+    {#each chats.filter((c) => receiving.includes(c)) as chat (chat)}
+      {@const values = recipientValues(app.overlay, chat)}
+      {@const choices = recipientChoices(app.overlay.notify, values, T)}
+      {@const pick = (patch) => edit((o) => setRecipient(o, chat, patch))}
+      <details class="more" data-chat={chat}>
+        <summary>{"👤 " + chat} <span class="text-[var(--muted)]">· {summary(choices, values)}</span></summary>
+        <div class="mt-3 flex flex-col gap-2">
+          <div class="text-[12px] text-[var(--faint)]">{T("Receives")}</div>
+          <Pills label={chat + " – " + T("Receives")} options={choices.objects} {values} {pick} />
+          <div class="text-[12px] text-[var(--faint)]">{T("Hours")}</div>
+          <Pills label={chat + " – " + T("Hours")} options={choices.hours} {values} {pick} />
+        </div>
+      </details>
+    {/each}
+  </Card>
+  {/if}
   {#if hasMore}
   <Card>
     <details class="more" open={false}>
