@@ -141,15 +141,17 @@ func (a *Auth) WrapBasic(next http.Handler) http.Handler { return a.wrap(next, t
 
 func (a *Auth) wrap(next http.Handler, challenge bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// A session goes through even while its address is blocked: behind a proxy or a
+		// home router, everyone shares the address of whoever typed wrong passwords.
+		if a.hasSession(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		ip := clientIP(r)
 		l := requestLang(r, i18n.Default)
 		if wait := a.blocked(ip); wait > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 			http.Error(w, l.T("too many wrong passwords, try again in a few minutes"), http.StatusTooManyRequests)
-			return
-		}
-		if a.hasSession(r) {
-			next.ServeHTTP(w, r)
 			return
 		}
 		if _, given, ok := r.BasicAuth(); ok && a.check(ip, given) {

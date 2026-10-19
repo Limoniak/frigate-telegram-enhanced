@@ -250,3 +250,18 @@ func TestNightIsKept(t *testing.T) {
 		t.Error("an empty night must be refused")
 	}
 }
+
+// A range that starts where it ends would never apply: refused, wherever it is.
+func TestEmptyTimeRangeIsRefused(t *testing.T) {
+	c := mustParse(t, minimal)
+	empty := []TimeRange{{From: 0, To: 0}}
+	for name, o := range map[string]Overlay{
+		"notify":    {Notify: NotifyPatch{OffHours: &empty}},
+		"camera":    {Cameras: map[string]NotifyPatch{"garage": {QuietHours: &empty}}},
+		"recipient": {Recipients: map[string]Recipient{"famille": {OffHours: empty}}},
+	} {
+		if err := c.ValidateOverlay(&o, c.Language); err == nil || !strings.Contains(err.Error(), "different times") {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+}

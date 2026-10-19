@@ -22,6 +22,7 @@
         "%s.severity: invalid value %q (alert or detection)": "%s.severity: valor %q no válido (alert o detection)",
         "%s.sub_label_wait: at most 1m": "%s.sub_label_wait: 1 min como máximo",
         "%s.when_home: invalid value %q (notify, silent or skip)": "%s.when_home: valor %q no válido (notify, silent o skip)",
+        "%s: a time range must start and end at different times": "%s: un intervalo horario debe empezar y terminar a horas distintas",
         "%s: durations cannot be negative": "%s: las duraciones no pueden ser negativas",
         "+ Add a range": "+ Añadir una franja",
         "0 = no filter, 1 = certainty": "0 = sin filtro, 1 = certeza",
