@@ -352,6 +352,11 @@ func TestBrowserSetup(t *testing.T) {
 		into(chromedp.Value(`#mqtt-broker`), &broker),
 		chromedp.Click(`#check-mqtt`),
 		chromedp.WaitVisible(`#mqtt-result.ok`),
+		// The time zone is found by typing part of its name.
+		chromedp.Click(`#timezone-ts-control`),
+		chromedp.SendKeys(`#timezone-ts-control`, "tokyo"),
+		chromedp.WaitVisible(`.ts-dropdown .option.active[data-value="Asia/Tokyo"]`),
+		chromedp.SendKeys(`#timezone-ts-control`, kb.Enter),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#save-result.ok`),
 	)
@@ -373,7 +378,7 @@ func TestBrowserSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Telegram.Chats["Alice"] != 111 || c.Telegram.Chats["Family"] != -100123 || c.Timezone == "" || c.Frigate.URL != "http://192.168.1.10:5000" {
+	if c.Telegram.Chats["Alice"] != 111 || c.Telegram.Chats["Family"] != -100123 || c.Timezone != "Asia/Tokyo" || c.Frigate.URL != "http://192.168.1.10:5000" {
 		t.Errorf("saved %+v", c)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
@@ -1007,7 +1012,8 @@ func TestBrowserLoginKeepsRoute(t *testing.T) {
 }
 
 // Changing a connection with saved passwords: a box removes one, and a password
-// is no longer "unchanged" once its address changes (it would not be kept).
+// is no longer "unchanged" once its address changes (it would not be kept). A saved
+// time zone the browser does not list is shown and kept.
 func TestBrowserSetupSavedPasswords(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "connection.yml")
 	current := config.Connection{
@@ -1015,6 +1021,7 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 		MQTT:     config.MQTT{Broker: "tcp://192.168.1.10:1883", Password: "mqtt-secret"},
 		Telegram: config.Telegram{Token: "123:abc", Chats: map[string]int64{"Alice": 111}},
 		Web:      config.ConnectionWeb{Password: "web-secret"},
+		Timezone: "Etc/GMT+5",
 	}
 	saved := make(chan struct{})
 	s := NewSetup(path, &current, &fakeProber{}, slog.New(slog.DiscardHandler), func() { close(saved) })
@@ -1025,12 +1032,13 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 
 	ctx, jsErrors := browser(t)
 	var before, after chromedp.AttributeResult
-	var unchanged string
+	var unchanged, zone string
 	var webDisabled bool
 	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#clear-web-pass-row`),
 		into(chromedp.AttributeValue(`#mqtt-pass`, "placeholder"), &before),
+		into(chromedp.Text(`#sec-options .ts-control .item`), &zone),
 		into(chromedp.Evaluate[string](`T("unchanged")`), &unchanged), // in the browser's language
 		chromedp.Evaluate[chromedp.Void](`document.getElementById("mqtt-broker").value = "192.168.1.99"; document.getElementById("mqtt-broker").dispatchEvent(new Event("input")); 0`),
 		into(chromedp.AttributeValue(`#mqtt-pass`, "placeholder"), &after),
@@ -1057,6 +1065,9 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 	c, err := config.LoadConnection(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if zone != "Etc/GMT+5" || c.Timezone != "Etc/GMT+5" {
+		t.Errorf("time zone shown %q, saved %q", zone, c.Timezone)
 	}
 	if c.Web.Password != "" || c.MQTT.Password != "mqtt-secret" {
 		t.Errorf("web password %q (want removed), mqtt password %q (want kept)", c.Web.Password, c.MQTT.Password)
