@@ -46,7 +46,10 @@
   // A select one can search by typing (Tom Select); bind:value keeps working through its change events.
   function searchable(node, value) {
     const ts = new TomSelect(node, { maxOptions: null });
-    ts.on("type", (s) => ts.wrapper.classList.toggle("typing", !!s)); // the search then replaces the current value
+    // While a search is typed, it replaces the current value. Read from the box once Tom Select is done:
+    // picking a value empties it without a "type" event.
+    const typing = () => setTimeout(() => ts.wrapper.classList.toggle("typing", !!ts.control_input.value));
+    for (const e of ["type", "item_add", "blur"]) ts.on(e, typing);
     const update = (v) => { if (v && !ts.options[v]) ts.addOption({ value: v, text: v }); ts.setValue(v, true); };
     update(value);
     return { update, destroy: () => ts.destroy() };

@@ -329,7 +329,7 @@ func TestBrowserSetup(t *testing.T) {
 	defer ts.Close()
 
 	ctx, jsErrors := browser(t)
-	var chats, broker string
+	var chats, broker, picked string
 	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#intro-first`),
@@ -357,6 +357,9 @@ func TestBrowserSetup(t *testing.T) {
 		chromedp.SendKeys(`#timezone-ts-control`, "tokyo"),
 		chromedp.WaitVisible(`.ts-dropdown .option.active[data-value="Asia/Tokyo"]`),
 		chromedp.SendKeys(`#timezone-ts-control`, kb.Enter),
+		// The zone picked shows in the field: the search no longer hides it.
+		chromedp.Sleep(100),
+		into(chromedp.Evaluate[string](`[...document.querySelectorAll("#sec-options .ts-control .item")].filter((e) => e.checkVisibility()).map((e) => e.textContent).join()`), &picked),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#save-result.ok`),
 	)
@@ -365,6 +368,9 @@ func TestBrowserSetup(t *testing.T) {
 	}
 	if !strings.Contains(chats, "Alice") || !strings.Contains(chats, "Family") {
 		t.Errorf("chats offered = %q", chats)
+	}
+	if picked != "Asia/Tokyo" {
+		t.Errorf("zone shown after picking it = %q", picked)
 	}
 	if broker != "192.168.1.10:1883" {
 		t.Errorf("broker filled in = %q", broker)
