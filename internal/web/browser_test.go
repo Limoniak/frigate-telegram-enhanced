@@ -352,6 +352,11 @@ func TestBrowserSetup(t *testing.T) {
 		into(chromedp.Value(`#mqtt-broker`), &broker),
 		chromedp.Click(`#check-mqtt`),
 		chromedp.WaitVisible(`#mqtt-result.ok`),
+		// The time zone is found by typing part of its name.
+		chromedp.Click(`#timezone-ts-control`),
+		chromedp.SendKeys(`#timezone-ts-control`, "tokyo"),
+		chromedp.WaitVisible(`.ts-dropdown .option.active[data-value="Asia/Tokyo"]`),
+		chromedp.SendKeys(`#timezone-ts-control`, kb.Enter),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#save-result.ok`),
 	)
@@ -373,7 +378,7 @@ func TestBrowserSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Telegram.Chats["Alice"] != 111 || c.Telegram.Chats["Family"] != -100123 || c.Timezone == "" || c.Frigate.URL != "http://192.168.1.10:5000" {
+	if c.Telegram.Chats["Alice"] != 111 || c.Telegram.Chats["Family"] != -100123 || c.Timezone != "Asia/Tokyo" || c.Frigate.URL != "http://192.168.1.10:5000" {
 		t.Errorf("saved %+v", c)
 	}
 	if errs := jsErrors(); len(errs) > 0 {

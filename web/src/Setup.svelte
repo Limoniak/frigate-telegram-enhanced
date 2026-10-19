@@ -5,6 +5,7 @@
   import { onDestroy, onMount, tick } from "svelte";
   import { LANGUAGES, T, Tf, i18n } from "./lib/i18n.svelte.js";
   import { api as rawApi, post as rawPost, problem as rawProblem } from "./lib/api.js";
+  import TomSelect from "tom-select";
   import Card from "./lib/Card.svelte";
   import LangMenu from "./lib/LangMenu.svelte";
   import ThemeMenu from "./lib/ThemeMenu.svelte";
@@ -38,7 +39,17 @@
   let frigateInsecure = $state(false);
   let mqttBroker = $state(""), mqttUser = $state(""), mqttPass = $state(""), mqttPrefix = $state("");
   let webPass = $state(""), timezone = $state(""), mode = $state("reviews");
+  // The saved zone stays offered even if this browser does not list it.
+  const zones = $derived([...new Set([timezone, ...(Intl.supportedValuesOf?.("timeZone") || [])])].filter(Boolean).sort());
   let manualId = $state(""), manualName = $state("");
+
+  // A select one can search by typing (Tom Select); bind:value keeps working through its change events.
+  function searchable(node, value) {
+    const ts = new TomSelect(node, { maxOptions: null });
+    const update = (v) => { if (v && !ts.options[v]) ts.addOption({ value: v, text: v }); ts.setValue(v, true); };
+    update(value);
+    return { update, destroy: () => ts.destroy() };
+  }
   let clear = $state({ frigate_password: false, mqtt_password: false, web_password: false });
   let manualOpen = $state(false), frigateAuthOpen = $state(false), mqttEditOpen = $state(false);
   let manualIdEl, frigateUrlEl, mqttBrokerEl, mqttPassEl;
@@ -460,22 +471,25 @@
     <input class="field" type="password" id="web-pass" autocomplete="new-password" aria-label={T("Password")} disabled={clear.web_password}
       placeholder={keepsSaved("web_password") ? T("unchanged") : T("None")} bind:value={webPass}>
     <label class="flex items-center gap-2" id="clear-web-pass-row" hidden={!saved.web_password}><input type="checkbox" id="clear-web-pass" bind:checked={clear.web_password}> {T("Remove the saved password")}</label>
-    <details class="more">
-      <summary>{T("More options")}</summary>
-      <div class="mt-3 flex flex-col gap-3">
-        <label class="lbl" for="msg-lang">{T("Language of the Telegram messages")}</label>
-        <select class="field" id="msg-lang" value={msgLang || i18n.lang} onchange={(e) => { msgLang = e.currentTarget.value; }}>
-          {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
-        </select>
-        <label class="lbl" for="timezone">{T("Time zone")}</label>
-        <input class="field" type="text" id="timezone" spellcheck="false" placeholder="Europe/Paris" bind:value={timezone}>
-        <label class="lbl" for="mode">{T("What triggers a notification")}</label>
-        <select class="field" id="mode" bind:value={mode}>
-          <option value="reviews">{T("Frigate's alerts (review items, Frigate ≥ 0.14)")}</option>
-          <option value="events">{T("Each object Frigate detects")}</option>
-        </select>
-      </div>
-    </details>
+  </Card>
+
+  <Card id="sec-options">
+    <h2 class="m-0 text-lg font-semibold">{T("More options")}</h2>
+    <div class="flex flex-col gap-3">
+      <label class="lbl" for="msg-lang">{T("Language of the Telegram messages")}</label>
+      <select class="field" id="msg-lang" value={msgLang || i18n.lang} onchange={(e) => { msgLang = e.currentTarget.value; }}>
+        {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
+      </select>
+      <label class="lbl" for="timezone">{T("Time zone")}</label>
+      <select class="field" id="timezone" bind:value={timezone} use:searchable={timezone}>
+        {#each zones as z (z)}<option value={z}>{z}</option>{/each}
+      </select>
+      <label class="lbl" for="mode">{T("What triggers a notification")}</label>
+      <select class="field" id="mode" bind:value={mode}>
+        <option value="reviews">{T("Frigate's alerts (review items, Frigate ≥ 0.14)")}</option>
+        <option value="events">{T("Each object Frigate detects")}</option>
+      </select>
+    </div>
   </Card>
 
   <div class="flex flex-col gap-2" id="checks" hidden={failed.length === 0}>

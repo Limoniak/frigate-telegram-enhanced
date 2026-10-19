@@ -16,6 +16,8 @@ never a breaking 3.0, while `:latest` follows `main`.
   and the recipients' ones, follow it. It is saved as `night` with the settings.
 - In English, times follow the browser's variant: a 12-hour clock in American English,
   24-hour otherwise.
+- On the connection page, *More options* is a card of its own (it was folded under the
+  interface's password), and the time zone is a list one searches by typing.
 
 ## [2.1.0] - 2026-10-19
 
