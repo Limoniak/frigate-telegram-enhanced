@@ -35,11 +35,11 @@ afterEach(() => {
 });
 
 describe("store", () => {
-  it("the chart's clock is the server's, not the browser's", async () => {
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ entries: [], now: "2026-10-17T19:30:00Z", sent_24h: 1, sent_hours: new Array(24).fill(0) })));
-    vi.setSystemTime(new Date("2026-10-17T19:45:00Z")); // a browser clock 15 minutes ahead
+  it("the chart's hours are the server's, not the browser's", async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ entries: [], now: "2026-10-17T19:30:00Z", hour: "2026-10-17T19:00:00Z", sent_24h: 1, sent_hours: new Array(24).fill(0) })));
+    vi.setSystemTime(new Date("2026-10-17T20:45:00Z")); // a browser clock an hour ahead
     await refreshHistory();
-    expect(app.activity.at).toBe(Date.parse("2026-10-17T19:30:00Z"));
+    expect(app.activity.hour).toBe(Date.parse("2026-10-17T19:00:00Z") / 1000);
   });
 
   it("loads the settings, with an empty entry per camera", async () => {

@@ -1,8 +1,11 @@
 // The hash routes of the main interface: #screen, #cameras/<name> for one camera, #activity/<hour> for one hour.
-const SCREENS = ["overview", "style", "when", "recipients", "cameras", "activity", "advanced"];
+const SCREENS = ["overview", "style", "when", "cameras", "activity", "advanced"];
+// Old links: the recipients now live on the When screen.
+const MOVED = { recipients: "when" };
 
 export function parseRoute(hash) {
-  const [head, ...rest] = String(hash || "").replace(/^#/, "").split("/");
+  const [first, ...rest] = String(hash || "").replace(/^#/, "").split("/");
+  const head = MOVED[first] ?? first;
   const screen = SCREENS.includes(head) ? head : "overview";
   let camera = null;
   if (screen === "cameras" && rest.length) {

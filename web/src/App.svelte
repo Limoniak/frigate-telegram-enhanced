@@ -1,6 +1,6 @@
 <script>
   // The shell of the main interface: a floating pill navigation, the save status, the
-  // screens (#overview, #style, #when, #cameras, #recipients, #activity, #advanced), and the footer links.
+  // screens (#overview, #style, #when, #cameras, #activity, #advanced), and the footer links.
   import { onMount } from "svelte";
   import { T, Tf, i18n } from "./lib/i18n.svelte.js";
   import { app, flush, leave, load, startPolling } from "./lib/store.svelte.js";
@@ -10,7 +10,6 @@
   import Overview from "./Overview.svelte";
   import Style from "./Style.svelte";
   import When from "./When.svelte";
-  import Recipients from "./Recipients.svelte";
   import Cameras from "./Cameras.svelte";
   import Activity from "./Activity.svelte";
   import Advanced from "./Advanced.svelte";
@@ -20,6 +19,9 @@
   let failed = $state("");
   let menu = $state(false); // the screens' list, opened from its button on a narrow screen
   let nav = $state();
+  let scrollY = $state(0);
+  // Scrolled down: the bar shrinks, so that it covers less of the page.
+  const compact = $derived(scrollY > 24);
   let faded = $state(false);
   $effect(() => {
     faded = false;
@@ -40,16 +42,13 @@
     return () => removeEventListener("hashchange", onHash);
   });
 
-  // Recipients only matter with more than one chat.
-  const hasRecipients = $derived((app.data?.chats || []).length > 1);
   const screens = () => [
     ["overview", T("Overview")], ["style", T("Style")], ["when", T("When")], ["cameras", T("Cameras")],
-    ...(hasRecipients ? [["recipients", T("Recipients")]] : []),
     ...(app.data?.can_history ? [["activity", T("Recent activity")]] : []),
     ["advanced", T("Advanced settings")],
   ];
 
-  // A route to a screen that is not offered (one chat, no history) shows the overview.
+  // A route to a screen that is not offered (no history) shows the overview.
   const current = $derived(screens().some(([id]) => id === route.screen) ? route.screen : "overview");
   async function logout() {
     try {
@@ -64,11 +63,11 @@
   const goTo = (href) => (e) => { e.preventDefault(); leave(href); };
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === "Escape") menu = false; }} onclick={(e) => { if (menu && !nav.contains(e.target)) menu = false; }} />
+<svelte:window bind:scrollY onkeydown={(e) => { if (e.key === "Escape") menu = false; }} onclick={(e) => { if (menu && !nav.contains(e.target)) menu = false; }} />
 
-<header class="sticky top-[env(safe-area-inset-top,0px)] z-10 px-4 pt-4">
+<header class="sticky top-[env(safe-area-inset-top,0px)] z-10 px-4 transition-[padding] duration-200 {compact ? 'pt-2' : 'pt-4'}">
   <!-- Under lg the screens fold into a list under a button: the pills no longer fit on one line. -->
-  <nav id="nav" bind:this={nav} class="relative mx-auto flex w-full items-center gap-1 rounded-full bg-[var(--glass)] p-1.5 ring-1 ring-[var(--ring)] backdrop-blur-xl lg:max-w-max">
+  <nav id="nav" bind:this={nav} class="relative mx-auto flex w-full items-center gap-1 rounded-full bg-[var(--glass)] ring-1 ring-[var(--ring)] backdrop-blur-xl transition-[padding,font-size] duration-200 lg:max-w-max {compact ? 'p-0.5 text-[13px] shadow-lg' : 'p-1.5'}">
     <button type="button" class="flex flex-1 items-center gap-2 rounded-full px-3 py-1.5 text-left text-[var(--ink)] lg:hidden" aria-expanded={menu} aria-controls="screens"
       onclick={() => { menu = !menu; }}>
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -94,7 +93,6 @@
   {#if app.data}
     {#if current === "style"}<Style />
     {:else if current === "when"}<When />
-    {:else if current === "recipients"}<Recipients />
     {:else if current === "cameras"}<Cameras {route} />
     {:else if current === "activity"}<Activity {route} />
     {:else if current === "advanced"}<Advanced />
@@ -112,7 +110,7 @@
   {#if app.data}
     <span>{app.data.mode === "events" ? T("Notifications for Frigate's events") : T("Notifications for Frigate's alerts (reviews)")} · {Tf("time zone %s", app.data.timezone)}</span>
     <span class="flex-1"></span>
-    {#if app.data.can_connection}<a href="setup" onclick={goTo("setup")}>{T("Connection")}</a>{/if}
+    {#if app.data.can_connection}<a href="setup" onclick={goTo("setup")}>{T("Telegram, Frigate and MQTT connection")}</a>{/if}
     {#if app.data.auth}<button type="button" class="btn-link" id="logout" onclick={logout}>{T("Log out")}</button>{/if}
   {/if}
 </footer>

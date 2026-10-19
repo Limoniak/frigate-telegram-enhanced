@@ -46,16 +46,16 @@
         </div>
         <div class="flex h-16 items-end gap-[3px]">
           {#each hours as n, i (i)}
-            {@const start = hourStart(app.activity.at, i)}
+            {@const start = hourStart(app.activity.hour, i)}
             {@const label = Tf("%d sent between %s and %s", n, timeText(start * 1000, ctx), timeText((start + 3600) * 1000, ctx))}
             <a class="group flex h-full flex-1 items-end" href={routeHash({ screen: "activity", hour: start })} aria-label={label} title={label}>
               <span class="block w-full rounded-[2px] transition-colors group-hover:bg-[var(--accent)]/70 group-focus-visible:bg-[var(--accent)]/70 {i === 23 ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/25'}" style="height:{Math.max(4, (n / peak) * 100)}%"></span>
             </a>
           {/each}
         </div>
-        <!-- The clock's hours under the bars, each centered on its instant; those that would run into "now" are left out. -->
+        <!-- The clock's hours under the bars, each at the start of its bar; those that would run into "now" are left out. -->
         <div class="relative h-4 font-mono text-[11px] text-[var(--faint)]" aria-hidden="true">
-          {#each chartTicks(app.activity.at, tz) as k (k.t)}
+          {#each chartTicks(app.activity.hour, tz) as k (k.t)}
             {#if k.x > 0.04 && k.x < 0.86}<span class="absolute -translate-x-1/2 {k.x > 0.7 ? 'max-sm:hidden' : ''}" style="left:{k.x * 100}%">{timeText(k.t * 1000, ctx)}</span>{/if}
           {/each}
           <span class="absolute right-0">{T("now")}</span>

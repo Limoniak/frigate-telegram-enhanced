@@ -626,13 +626,14 @@ func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
 
 type historyView struct {
 	Entries []historyEntryView `json:"entries"`
-	// Now is the server's clock, the end of the last hour of SentHours: the interface
-	// takes its hour windows from it, not from the browser's clock.
+	// Now is the server's clock: the interface takes its hour windows from it, not from
+	// the browser's clock.
 	Now time.Time `json:"now"`
-	// Sent24h and SentHours: the notifications sent over 24 h, and per hour, the
-	// current hour last. Absent without an activity source.
-	Sent24h   *int  `json:"sent_24h,omitempty"`
-	SentHours []int `json:"sent_hours,omitempty"`
+	// Sent24h and SentHours: the notifications sent over 24 h, and per clock hour, the
+	// current hour last, starting at Hour. Absent without an activity source.
+	Sent24h   *int       `json:"sent_24h,omitempty"`
+	SentHours []int      `json:"sent_hours,omitempty"`
+	Hour      *time.Time `json:"hour,omitempty"`
 }
 
 type historyEntryView struct {
@@ -646,7 +647,7 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable"))
 		return
 	}
-	now := h.now() // one instant: Now is the end of the last bar of SentHours
+	now := h.now() // one instant: the last bar of SentHours ends now
 	v := historyView{Entries: []historyEntryView{}, Now: now}
 	for _, e := range h.history.History() {
 		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != "", HasSnapshot: h.media != nil && e.Snapshot != ""})
@@ -655,23 +656,30 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 		times := h.activity.SentTimes()
 		n := len(times)
 		v.Sent24h = &n
-		v.SentHours = sentHours(times, now)
+		hour := hourOf(now, h.cfg.Location)
+		v.SentHours, v.Hour = sentHours(times, now, hour), &hour
 	}
 	writeJSON(w, http.StatusOK, v)
 }
 
-// sentHours counts times per hour over the last 24 h: index 23 holds (now-1h, now],
-// index 22 the hour before, and so on.
-func sentHours(times []time.Time, now time.Time) []int {
+// sentHours counts times per clock hour: index 23 holds [hour, now], the current hour
+// so far, index 22 the hour before, and so on.
+func sentHours(times []time.Time, now, hour time.Time) []int {
 	hours := make([]int, 24)
+	first := hour.Add(-23 * time.Hour)
 	for _, t := range times {
-		ago := now.Sub(t)
-		if ago < 0 || ago >= 24*time.Hour {
+		if t.Before(first) || t.After(now) {
 			continue
 		}
-		hours[23-int(ago/time.Hour)]++
+		hours[int(t.Sub(first)/time.Hour)]++
 	}
 	return hours
+}
+
+// hourOf is the start of t's clock hour in loc, also in a zone offset by 30 or 45 min.
+func hourOf(t time.Time, loc *time.Location) time.Time {
+	l := t.In(loc)
+	return t.Add(-time.Duration(l.Minute())*time.Minute - time.Duration(l.Second())*time.Second - time.Duration(l.Nanosecond()))
 }
 
 func (h *Handler) thumb(w http.ResponseWriter, r *http.Request) {
