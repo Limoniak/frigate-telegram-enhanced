@@ -1780,15 +1780,18 @@ func inLang(url, lang string) chromedp.Action[chromedp.Void] {
 // where the bars are thin.
 func TestBrowserActivityHours(t *testing.T) {
 	now := time.Now()
+	// Sent at the start of the current clock hour (no time zone in the test config: UTC),
+	// so that it is in the menu's current hour whatever the minute the test runs at.
+	hour := hourOf(now, time.UTC)
 	entries := []notifier.HistoryEntry{
-		{ID: "recent", At: now.Add(-20 * time.Minute), SentAt: now.Add(-19 * time.Minute), Camera: "garage", Label: "person", Sent: true},
+		{ID: "recent", At: hour.Add(-time.Minute), SentAt: hour, Camera: "garage", Label: "person", Sent: true},
 		// Started before the hour that began six hours ago, sent in it: that bar counts it.
 		{ID: "late", At: now.Add(-6*time.Hour - 2*time.Minute), SentAt: now.Add(-5*time.Hour - 50*time.Minute), Camera: "garage", Label: "person", Sent: true},
 		{ID: "quiet", At: now.Add(-5*time.Hour - 40*time.Minute), Camera: "entree", Label: "car", Reason: "label"},
 		{ID: "alone", At: now.Add(-4*time.Hour - 30*time.Minute), Camera: "entree", Label: "dog", Reason: "label"},
 	}
 	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}},
-		WithHistory(fakeHistory{entries: entries}, nil), WithActivity(fakeActivity{now.Add(-19 * time.Minute), now.Add(-5*time.Hour - 50*time.Minute)}))
+		WithHistory(fakeHistory{entries: entries}, nil), WithActivity(fakeActivity{hour, now.Add(-5*time.Hour - 50*time.Minute)}))
 
 	ids := `[...document.querySelectorAll("#activity li[data-id]")].map(e => e.dataset.id).join(",")`
 	at := func(h time.Duration) string {
