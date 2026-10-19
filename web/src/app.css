@@ -73,9 +73,10 @@ select.field { appearance: auto; }
 .field[aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--err); }
 /* Tom Select (a searchable select): the wrapper keeps .field's look, its parts follow the theme. */
 .ts-wrapper.field.single .ts-control { border: 0; padding: 0; background: transparent; color: inherit; cursor: text; }
+.ts-wrapper.field :is(.ts-control, .ts-control input, .ts-dropdown) { font-size: inherit; line-height: inherit; } /* not Tom Select's 13 px: iOS zooms under 16 */
 .ts-wrapper.field .ts-control input { color: inherit; }
 .ts-wrapper.field.focus { outline: 2px solid var(--accent); outline-offset: 2px; } /* Tom Select removes the input's own */
-.ts-wrapper.field.input-active .ts-control .item { display: none; } /* the search replaces the current zone */
+.ts-wrapper.field.typing .ts-control .item { display: none; }
 .ts-wrapper.field .ts-dropdown .highlight { background: none; color: var(--accent-ink); font-weight: 600; }
 .ts-wrapper.field .ts-dropdown {
   border: 0; border-radius: 16px; overflow: hidden; color: var(--ink); background: var(--bg); box-shadow: 0 0 0 1px var(--ring);

@@ -46,6 +46,7 @@
   // A select one can search by typing (Tom Select); bind:value keeps working through its change events.
   function searchable(node, value) {
     const ts = new TomSelect(node, { maxOptions: null });
+    ts.on("type", (s) => ts.wrapper.classList.toggle("typing", !!s)); // the search then replaces the current value
     const update = (v) => { if (v && !ts.options[v]) ts.addOption({ value: v, text: v }); ts.setValue(v, true); };
     update(value);
     return { update, destroy: () => ts.destroy() };
