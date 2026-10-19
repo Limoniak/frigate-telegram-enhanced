@@ -661,6 +661,24 @@ func TestHistorySnapshotAndLink(t *testing.T) {
 	}
 }
 
+type fakeWebhook struct{ deleted *bool }
+
+func (f fakeWebhook) DeleteWebhook(context.Context) error { *f.deleted = true; return nil }
+
+// The interface removes the bot's webhook when it can; without a webhook remover,
+// the route answers 404.
+func TestDeleteWebhook(t *testing.T) {
+	var deleted bool
+	_, _, ts := setup(t, "", fakeCameras{}, WithWebhook(fakeWebhook{&deleted}))
+	if resp := do(t, ts, "POST", "/api/telegram/webhook/delete", ""); resp.StatusCode != http.StatusOK || !deleted {
+		t.Errorf("POST: %d, deleted %v", resp.StatusCode, deleted)
+	}
+	_, _, ts = setup(t, "", fakeCameras{})
+	if resp := do(t, ts, "POST", "/api/telegram/webhook/delete", ""); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("without a remover: %d, want 404", resp.StatusCode)
+	}
+}
+
 type fakeActivity []time.Time
 
 func (f fakeActivity) SentTimes() []time.Time { return f }
@@ -689,8 +707,8 @@ func TestHistoryGivesSentHours(t *testing.T) {
 	if want := time.Date(2026, 10, 17, 21, 0, 0, 0, time.UTC); !v.Hour.Equal(want) {
 		t.Errorf("hour = %v, want the start of the current clock hour %v", v.Hour, want)
 	}
-	if v.Sent != 5 || !slices.Equal(v.Hours, want) {
-		t.Errorf("sent %d, hours %v; want 5, %v", v.Sent, v.Hours, want)
+	if v.Sent != 4 || !slices.Equal(v.Hours, want) {
+		t.Errorf("sent %d, hours %v; want 4 (the bars' total), %v", v.Sent, v.Hours, want)
 	}
 }
 

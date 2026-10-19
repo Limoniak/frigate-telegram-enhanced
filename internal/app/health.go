@@ -191,6 +191,9 @@ func (c *checker) telegram(ctx context.Context, l i18n.Lang) web.Component {
 	}
 	p := telegramProblem(err, c.page, l)
 	comp.State, comp.Detail, comp.Hint = web.StateError, p.Detail, p.Hint
+	if p.Webhook {
+		comp.Action = "delete_webhook"
+	}
 	return comp
 }
 
@@ -202,9 +205,13 @@ func telegramProblem(err error, page bool, l i18n.Lang) *web.Problem {
 		return &web.Problem{Detail: l.T("Telegram refused the bot token."),
 			Hint: pick(page, l.T("Check telegram.token in config.yml: copy it again from @BotFather (/mybots → API Token)."),
 				l.T("Copy the token again from @BotFather (/mybots → API Token)."))}
+	// Telegram's description tells a webhook from another program reading the bot.
+	case errors.As(err, &ae) && ae.Code == 409 && strings.Contains(strings.ToLower(ae.Description), "webhook"):
+		return &web.Problem{Webhook: true, Detail: l.T("A webhook is set on this bot: Telegram sends its messages there, so the service can't read them."),
+			Hint: l.T("If no other program needs it, remove the webhook (or open api.telegram.org/bot<token>/deleteWebhook in a browser).")}
 	case errors.As(err, &ae) && ae.Code == 409:
 		return &web.Problem{Detail: l.T("Another program is already using this bot."),
-			Hint: l.T("Stop the other instance (or remove its webhook): a bot can only be read by one program.")}
+			Hint: l.T("Stop the other instance (an old container, a copy on another machine): a bot can only be read by one program.")}
 	}
 	return &web.Problem{Detail: l.Tf("Telegram is unreachable (%s).", netCause(err, l)),
 		Hint: l.T("Check that the container can reach the Internet (api.telegram.org).")}

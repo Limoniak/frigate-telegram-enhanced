@@ -1583,6 +1583,36 @@ func TestBrowserActivityFilters(t *testing.T) {
 	}
 }
 
+// Once the page is scrolled, the navigation bar shrinks; back at the top, it grows again.
+func TestBrowserNavShrinksOnScroll(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	height := `document.getElementById("nav").getBoundingClientRect().height`
+	var top float64
+	err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(1280, 500),
+		inEnglish(ts.URL+"/#advanced"),
+		chromedp.WaitVisible(`section#advanced`),
+		into(chromedp.Evaluate[float64](height), &top),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := strconv.FormatFloat(top, 'f', -1, 64)
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`window.scrollTo(0, 400); 0`),
+		chromedp.Poll[chromedp.Void](height+` < `+h+` - 4`),
+		chromedp.Evaluate[chromedp.Void](`window.scrollTo(0, 0); 0`),
+		chromedp.Poll[chromedp.Void](height+` == `+h),
+	)
+	if err != nil {
+		t.Errorf("the bar (%s px at the top) does not shrink on scroll and grow back: %v", h, err)
+	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
 // The page has no link to /classic, and the old address leads to the interface.
 func TestBrowserNoClassicLinks(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})

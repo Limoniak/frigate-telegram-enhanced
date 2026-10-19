@@ -30,6 +30,8 @@ type Problem struct {
 	Detail string
 	Hint   string
 	Auth   bool // credentials refused: the server answers, only they are wrong
+	// Webhook: a webhook keeps the bot's messages; the interface offers to remove it.
+	Webhook bool
 }
 
 func (p *Problem) Error() string { return p.Detail }

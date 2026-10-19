@@ -164,6 +164,20 @@ async function stateCall(path, body) {
 export const pause = (minutes) => stateCall("api/pause", { minutes });
 export const resume = (camera) => stateCall("api/resume", camera ? { camera } : {});
 
+// removeWebhook removes the bot's webhook. The bot reads again at its next poll, a few
+// seconds later: the connections are checked again after it. Returns whether it was removed.
+export async function removeWebhook() {
+  try {
+    const r = await post("api/telegram/webhook/delete", {});
+    if (!r.ok) throw new Error(r.data.error || "HTTP " + r.status);
+    setTimeout(refreshHealth, 6000);
+    return true;
+  } catch (e) {
+    app.error = T("Action failed:\n") + e.message;
+    return false;
+  }
+}
+
 // sendTest sends a sample notification with the saved settings: pending changes first.
 export async function sendTest(camera) {
   if (!(await flush())) throw new Error(T("the settings could not be saved"));
