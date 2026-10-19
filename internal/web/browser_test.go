@@ -258,7 +258,9 @@ func browser(t *testing.T) (ctx context.Context, jsErrors func() []string) {
 	t.Helper()
 	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.WindowSize(1280, 900),
 		// A CI runner can take a while to start Chrome.
-		chromedp.WSURLReadTimeout(60*time.Second))
+		chromedp.WSURLReadTimeout(60*time.Second),
+		// A British browser: English times on a 24-hour clock, whatever the machine.
+		chromedp.Flag("lang", "en-GB"), chromedp.Flag("accept-lang", "en-GB"))
 	// CHROME_PATH picks the browser: without it, chromedp takes the first one it
 	// finds, which can be a slow snap wrapper (chromium-browser on Ubuntu).
 	if p := os.Getenv("CHROME_PATH"); p != "" {
@@ -350,6 +352,11 @@ func TestBrowserSetup(t *testing.T) {
 		into(chromedp.Value(`#mqtt-broker`), &broker),
 		chromedp.Click(`#check-mqtt`),
 		chromedp.WaitVisible(`#mqtt-result.ok`),
+		// The time zone is found by typing part of its name.
+		chromedp.Click(`#timezone-ts-control`),
+		chromedp.SendKeys(`#timezone-ts-control`, "tokyo"),
+		chromedp.WaitVisible(`.ts-dropdown .option.active[data-value="Asia/Tokyo"]`),
+		chromedp.SendKeys(`#timezone-ts-control`, kb.Enter),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#save-result.ok`),
 	)
@@ -371,7 +378,7 @@ func TestBrowserSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Telegram.Chats["Alice"] != 111 || c.Telegram.Chats["Family"] != -100123 || c.Timezone == "" || c.Frigate.URL != "http://192.168.1.10:5000" {
+	if c.Telegram.Chats["Alice"] != 111 || c.Telegram.Chats["Family"] != -100123 || c.Timezone != "Asia/Tokyo" || c.Frigate.URL != "http://192.168.1.10:5000" {
 		t.Errorf("saved %+v", c)
 	}
 	if errs := jsErrors(); len(errs) > 0 {
@@ -505,7 +512,7 @@ func byText(scope, text string) chromedp.Search {
 // The When screen: a choice is saved by itself, the recipients question shows with two
 // chats, and the page fits a phone.
 func TestBrowserWhen(t *testing.T) {
-	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage", Labels: []string{"car", "person"}}}})
 	ctx, jsErrors := browser(t)
 	var page string
 	var width int
@@ -514,7 +521,7 @@ func TestBrowserWhen(t *testing.T) {
 		chromedp.EmulateViewport(360, 740),
 		inEnglish(ts.URL+"/#when"),
 		chromedp.WaitVisible(`section#when`),
-		chromedp.Click(byText("", "🚶🚗 People and cars")),
+		chromedp.Click(byText("", "🚗 Car")), // "person" is already chosen
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -535,6 +542,17 @@ func TestBrowserWhen(t *testing.T) {
 	if q := hours(notifyOf(f)["quiet_hours"]); len(q) != 0 {
 		t.Errorf("quiet hours = %v, want none", q)
 	}
+	// Another night moves the hours chosen with it.
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`{ const i = document.querySelector('input[aria-label="Night starts at"]'); i.value = "23:30"; i.dispatchEvent(new Event("change", { bubbles: true })); } 0`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSaved(t, path, "off from 23:30", func(f map[string]any) bool {
+		n, _ := f["night"].(map[string]any)
+		return slices.Equal(hours(notifyOf(f)["off_hours"]), []string{"23:30-07:00"}) && n["from"] == "23:30"
+	})
 	// Choosing who receives: the chip adds the chat to the saved list.
 	err = chromedp.Do(ctx,
 		chromedp.Click(byText(chats, "famille")),
@@ -622,13 +640,13 @@ func TestBrowserWhenMoreChoices(t *testing.T) {
 // and the links of the footer send the pending change before leaving the page.
 func TestBrowserSavesWhenLeaving(t *testing.T) {
 	setupPage := NewSetup(filepath.Join(t.TempDir(), "connection.yml"), nil, &fakeProber{}, slog.New(slog.DiscardHandler), func() {})
-	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}}, WithSetup(setupPage))
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage", Labels: []string{"car", "person"}}}}, WithSetup(setupPage))
 	ctx, jsErrors := browser(t)
 	var where string
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#when"),
 		chromedp.WaitVisible(`section#when`),
-		chromedp.Click(byText("", "🚶🚗 People and cars")),
+		chromedp.Click(byText("", "🚗 Car")),     // "person" is already chosen
 		chromedp.Click(`#nav a[href="#style"]`), // well before the 600 ms delay
 		chromedp.WaitVisible(`#styles`),
 	)
@@ -994,7 +1012,8 @@ func TestBrowserLoginKeepsRoute(t *testing.T) {
 }
 
 // Changing a connection with saved passwords: a box removes one, and a password
-// is no longer "unchanged" once its address changes (it would not be kept).
+// is no longer "unchanged" once its address changes (it would not be kept). A saved
+// time zone the browser does not list is shown and kept.
 func TestBrowserSetupSavedPasswords(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "connection.yml")
 	current := config.Connection{
@@ -1002,6 +1021,7 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 		MQTT:     config.MQTT{Broker: "tcp://192.168.1.10:1883", Password: "mqtt-secret"},
 		Telegram: config.Telegram{Token: "123:abc", Chats: map[string]int64{"Alice": 111}},
 		Web:      config.ConnectionWeb{Password: "web-secret"},
+		Timezone: "Etc/GMT+5",
 	}
 	saved := make(chan struct{})
 	s := NewSetup(path, &current, &fakeProber{}, slog.New(slog.DiscardHandler), func() { close(saved) })
@@ -1012,12 +1032,13 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 
 	ctx, jsErrors := browser(t)
 	var before, after chromedp.AttributeResult
-	var unchanged string
+	var unchanged, zone string
 	var webDisabled bool
 	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL+"/"),
 		chromedp.WaitVisible(`#clear-web-pass-row`),
 		into(chromedp.AttributeValue(`#mqtt-pass`, "placeholder"), &before),
+		into(chromedp.Text(`#sec-options .ts-control .item`), &zone),
 		into(chromedp.Evaluate[string](`T("unchanged")`), &unchanged), // in the browser's language
 		chromedp.Evaluate[chromedp.Void](`document.getElementById("mqtt-broker").value = "192.168.1.99"; document.getElementById("mqtt-broker").dispatchEvent(new Event("input")); 0`),
 		into(chromedp.AttributeValue(`#mqtt-pass`, "placeholder"), &after),
@@ -1044,6 +1065,9 @@ func TestBrowserSetupSavedPasswords(t *testing.T) {
 	c, err := config.LoadConnection(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if zone != "Etc/GMT+5" || c.Timezone != "Etc/GMT+5" {
+		t.Errorf("time zone shown %q, saved %q", zone, c.Timezone)
 	}
 	if c.Web.Password != "" || c.MQTT.Password != "mqtt-secret" {
 		t.Errorf("web password %q (want removed), mqtt password %q (want kept)", c.Web.Password, c.MQTT.Password)
@@ -1704,7 +1728,7 @@ func TestBrowserLoginLanguageKeepsRoute(t *testing.T) {
 
 // Logging out at once after a change saves it first.
 func TestBrowserLogoutSavesPending(t *testing.T) {
-	_, path, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	_, path, ts := setup(t, "s3cret", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage", Labels: []string{"car", "person"}}}})
 	ctx, jsErrors := browser(t)
 	err := chromedp.Do(ctx,
 		inEnglish(ts.URL+"/#when"),
@@ -1712,8 +1736,8 @@ func TestBrowserLogoutSavesPending(t *testing.T) {
 		chromedp.SendKeys(`#password`, "s3cret"),
 		chromedp.Click(`.login-card button[type=submit]`),
 		chromedp.WaitVisible(`section#when`),
-		chromedp.Click(byText("", "🚶🚗 People and cars")),
-		chromedp.Click(`#logout`), // well before the 600 ms delay
+		chromedp.Click(byText("", "🚗 Car")), // "person" is already chosen
+		chromedp.Click(`#logout`),           // well before the 600 ms delay
 		chromedp.WaitVisible(`.login-card`),
 	)
 	if err != nil {

@@ -192,12 +192,14 @@ page opens one screen per topic (on a phone, a ☰ button folds it into a list):
   or detections within 2 or 5 minutes added to the first message, edited so no extra
   sound), framing (wide shot or zoom on the object) and video (in the same message as the
   image, or as a reply).
-- **When**: what to report (people, people and cars, everything), how often at most, what
-  to do at night (same as daytime, silent, nothing) and, with presence set up, when
-  someone is home. **Sensitivity**: a slider for the minimum score; recent activity shows
-  how many detections would have been ignored. With several chats, *Who receives the
-  notifications?*: tick the chats, and open a name to give that person less — people
-  only, people and cars — or only at night, only during the day, silent at night.
+- **When**: what to report (the objects and sounds your cameras track in Frigate, each
+  with its emoji; none ticked = everything), how often at most, what to do at night (same
+  as daytime, silent, nothing — the night's hours are yours to set, 22:00–07:00 by
+  default) and, with presence set up, when someone is home. **Sensitivity**: a slider for
+  the minimum score; recent activity shows how many detections would have been ignored.
+  With several chats, *Who receives the notifications?*: tick the chats, and open a name
+  to give that person less — only some objects, or only at night, only during the day,
+  silent at night.
 - **Cameras**: one switch per camera; open it to give it another style, other objects or
   only some zones (*Where?*: everywhere, or zones defined in Frigate, in one click).
   *Test this camera* sends a real sample notification. Each camera has its own link

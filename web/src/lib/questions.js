@@ -1,18 +1,16 @@
 // The questions of the simple settings screen and the choices offered to each recipient.
 // T is passed in so the module stays pure.
-import { matches } from "./settings.js";
+import { matches, same } from "./settings.js";
 
-export const NIGHT = [{ from: "22:00", to: "07:00" }];
-export const DAY = [{ from: "07:00", to: "22:00" }];
+// The night of the When screen, when none is saved (overlay.night).
+export const DEFAULT_NIGHT = { from: "22:00", to: "07:00" };
+export const nightOf = (overlay) => overlay.night || DEFAULT_NIGHT;
+const dayOf = (night) => ({ from: night.to, to: night.from });
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
-export const QUESTIONS = (T) => [
-  { id: "objects", title: T("What should be reported?"), options: [
-    { label: T("🚶 People"), patch: { labels: ["person"] } },
-    { label: T("🚶🚗 People and cars"), patch: { labels: ["car", "person"] } },
-    { label: T("Everything Frigate detects"), patch: { labels: [] } },
-  ] },
+// QUESTIONS are the choices given as pills; the objects to report are chips (Objects.svelte).
+export const QUESTIONS = (T, night = DEFAULT_NIGHT) => [
   { id: "severity", title: T("Which reviews?"), mode: "reviews", options: [
     { label: T("Alerts only"), patch: { severity: ["alert"] } },
     { label: T("Alerts and detections"), patch: { severity: ["alert", "detection"] } },
@@ -38,46 +36,45 @@ export const QUESTIONS = (T) => [
       { label: T("🔕 Silent"), patch: { when_home: "silent" } },
       { label: T("🏠 Nothing"), patch: { when_home: "skip" } },
     ] },
-  { id: "night", title: T("At night (10 pm – 7 am)"), options: [
+  { id: "night", title: T("At night"), options: [
     { label: T("Same as daytime"), patch: { quiet_hours: [], off_hours: [] } },
-    { label: T("🔕 Silent"), patch: { quiet_hours: NIGHT, off_hours: [] } },
-    { label: T("🌙 No notifications"), patch: { quiet_hours: [], off_hours: NIGHT } },
+    { label: T("🔕 Silent"), patch: { quiet_hours: [night], off_hours: [] } },
+    { label: T("🌙 No notifications"), patch: { quiet_hours: [], off_hours: [night] } },
   ] },
 ];
 
 // questionsFor keeps the questions that apply: those of the current mode, and the
 // presence one only when presence topics are configured.
-export const questionsFor = (data, T) =>
-  QUESTIONS(T).filter((q) => (!q.mode || q.mode === data.mode) && (!q.presence || data.presence));
+export const questionsFor = (data, T, night) =>
+  QUESTIONS(T, night).filter((q) => (!q.mode || q.mode === data.mode) && (!q.presence || data.presence));
 
-// A recipient's choices only narrow the global ones: the first of each keeps them as is.
-export const RECIPIENT_OBJECTS = (T) => [
-  { label: T("Same as everyone"), patch: { labels: [] } },
-  { label: T("🚶 People"), patch: { labels: ["person"] } },
-  { label: T("🚶🚗 People and cars"), patch: { labels: ["car", "person"] } },
-];
-
-export const RECIPIENT_WHEN = (T) => [
+// A recipient's hours only narrow the global ones: the first choice keeps them as is.
+export const RECIPIENT_WHEN = (T, night = DEFAULT_NIGHT) => [
   { label: T("Same as everyone"), patch: { quiet_hours: [], off_hours: [] } },
-  { label: T("🌙 Only at night"), patch: { quiet_hours: [], off_hours: DAY } },
-  { label: T("☀️ Only during the day"), patch: { quiet_hours: [], off_hours: NIGHT } },
-  { label: T("🔕 Silent at night"), patch: { quiet_hours: NIGHT, off_hours: [] } },
+  { label: T("🌙 Only at night"), patch: { quiet_hours: [], off_hours: [dayOf(night)] } },
+  { label: T("☀️ Only during the day"), patch: { quiet_hours: [], off_hours: [night] } },
+  { label: T("🔕 Silent at night"), patch: { quiet_hours: [night], off_hours: [] } },
 ];
 
-// recipientChoices keeps the recipient choices that still change something under the
-// global settings (notify), plus the active one, so that a saved choice stays shown.
-export function recipientChoices(notify, values, T) {
-  const all = notify.labels || [];
-  const narrows = (l) => !l.length || !all.length || (l.length < all.length && l.every((x) => all.includes(x)));
-  const offNight = matches({ off_hours: NIGHT }, notify);
-  const quietNight = matches({ quiet_hours: NIGHT }, notify);
+// recipientHours keeps the recipient's hour choices that still change something under
+// the global settings (notify), plus the active one, so that a saved choice stays shown.
+export function recipientHours(notify, values, T, night = DEFAULT_NIGHT) {
+  const offNight = matches({ off_hours: [night] }, notify);
+  const quietNight = matches({ quiet_hours: [night] }, notify);
   // Off at night for everyone leaves no night to keep or to silence, nor a day to cut.
   const useful = (p) => (!p.off_hours.length && !p.quiet_hours.length) || (!offNight && !(p.quiet_hours.length && quietNight));
-  const keep = (ok) => (o) => ok(o.patch) || matches(o.patch, values);
-  return {
-    objects: RECIPIENT_OBJECTS(T).filter(keep((p) => narrows(p.labels))),
-    hours: RECIPIENT_WHEN(T).filter(keep(useful)),
-  };
+  return RECIPIENT_WHEN(T, night).filter((o) => useful(o.patch) || matches(o.patch, values));
+}
+
+// setNight changes the night: the hours that were the old night (or its day) become the
+// new one's, everywhere, so that the choices made keep their meaning.
+export function setNight(overlay, night) {
+  const old = nightOf(overlay);
+  const swap = (ranges) => (ranges || []).map((r) =>
+    same("off_hours", [r], [old]) ? { ...night } : same("off_hours", [r], [dayOf(old)]) ? dayOf(night) : r);
+  const levels = [overlay.notify, ...Object.values(overlay.cameras), ...Object.values(overlay.recipients)];
+  for (const l of levels) for (const k of ["quiet_hours", "off_hours"]) if (l[k]) l[k] = swap(l[k]);
+  overlay.night = { ...night };
 }
 
 export function recipientValues(overlay, chat) {

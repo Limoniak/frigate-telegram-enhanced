@@ -175,8 +175,9 @@ type Config struct {
 	notify      Notify
 	cameras     map[string]Notify
 	recipients  map[string]Recipient
-	externalURL string // address of the "Open in Frigate" links; empty = the one of frigate.url
-	haURL       string // address of the "Home Assistant" button; empty = no button
+	externalURL string     // address of the "Open in Frigate" links; empty = the one of frigate.url
+	haURL       string     // address of the "Home Assistant" button; empty = no button
+	night       *TimeRange // the When screen's night; nil: 22:00-07:00
 
 	// state from config.yml alone, kept to be able to go back when the web
 	// interface removes its overrides.
@@ -616,6 +617,9 @@ func (c *Config) validateRecipients(rs map[string]Recipient, l i18n.Lang) []erro
 		if _, ok := c.Telegram.Chats[name]; !ok {
 			errs = append(errs, l.Errorf("recipients: unknown chat %q (see telegram.chats)", name))
 		}
+		if r := rs[name]; emptyRange(r.QuietHours, r.OffHours) {
+			errs = append(errs, l.Errorf("%s: a time range must start and end at different times", "recipients."+name))
+		}
 	}
 	return errs
 }
@@ -649,5 +653,18 @@ func (c *Config) validateNotify(where string, n Notify, l i18n.Lang) []error {
 	if n.Cooldown < 0 || n.ClipDelay < 0 || n.Group < 0 || n.SubLabelWait < 0 {
 		errs = append(errs, l.Errorf("%s: durations cannot be negative", where))
 	}
+	if emptyRange(n.QuietHours, n.OffHours) {
+		errs = append(errs, l.Errorf("%s: a time range must start and end at different times", where))
+	}
 	return errs
+}
+
+// emptyRange reports a range that starts where it ends: it would never apply.
+func emptyRange(lists ...[]TimeRange) bool {
+	for _, rs := range lists {
+		if slices.ContainsFunc(rs, func(r TimeRange) bool { return r.From == r.To }) {
+			return true
+		}
+	}
+	return false
 }

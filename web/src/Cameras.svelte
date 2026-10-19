@@ -9,6 +9,7 @@
   import { QUESTIONS } from "./lib/questions.js";
   import { STYLES, effective, same } from "./lib/settings.js";
   import Field from "./lib/Field.svelte";
+  import Objects from "./lib/Objects.svelte";
   import Pills from "./lib/Pills.svelte";
   import Switch from "./lib/Switch.svelte";
 
@@ -20,7 +21,6 @@
   const styles = $derived(STYLES.map((s) => ({ patch: s.patch, label: {
     clip: T("Photo + video"), photo: T("Photo only"), gif: T("Photo + GIF"), text: T("Text only"),
   }[s.id] })));
-  const objects = $derived(QUESTIONS(T).find((q) => q.id === "objects"));
   const home = $derived(app.data.presence ? QUESTIONS(T).find((q) => q.presence) : null);
   const groups = (name) => {
     const fields = fieldsFor(app.data, name, T);
@@ -94,7 +94,7 @@
           {#snippet style()}<Pills label={T("Notification style")} options={styles} camera={name} />{/snippet}
           {@render question(T("Notification style"), null, style)}
           {#snippet what()}
-            <Pills label={objects.title} options={objects.options} camera={name} />
+            <Objects label={T("What should be reported?")} camera={name} />
             {#if missing.length}
               <p class="m-0 text-[12px] text-[var(--warn)]">{Tf("⚠️ Frigate doesn't track %s on this camera: these objects will never be reported. Add them to objects.track in Frigate's configuration.", missing.map((l) => Tf("“%s”", labelText(l, false, T))).join(", "))}</p>
             {/if}
