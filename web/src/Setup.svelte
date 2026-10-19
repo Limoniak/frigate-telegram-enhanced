@@ -39,8 +39,8 @@
   let frigateInsecure = $state(false);
   let mqttBroker = $state(""), mqttUser = $state(""), mqttPass = $state(""), mqttPrefix = $state("");
   let webPass = $state(""), timezone = $state(""), mode = $state("reviews");
-  // The saved zone stays offered even if this browser does not list it.
-  const zones = $derived([...new Set([timezone, ...(Intl.supportedValuesOf?.("timeZone") || [])])].filter(Boolean).sort());
+  // The saved zone stays offered even if this browser does not list it; browsers leave UTC out.
+  const zones = $derived([...new Set(["UTC", timezone, ...(Intl.supportedValuesOf?.("timeZone") || [])])].filter(Boolean).sort());
   let manualId = $state(""), manualName = $state("");
 
   // A select one can search by typing (Tom Select); bind:value keeps working through its change events.
