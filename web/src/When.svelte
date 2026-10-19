@@ -2,23 +2,32 @@
   // When to be notified: a few plain questions, the finer choices folded away.
   import { T, Tf } from "./lib/i18n.svelte.js";
   import { app, edit } from "./lib/store.svelte.js";
-  import { questionsFor, recipientChoices, recipientValues, setRecipient } from "./lib/questions.js";
+  import { nightOf, questionsFor, recipientHours, recipientValues, setNight, setRecipient } from "./lib/questions.js";
   import { matches } from "./lib/settings.js";
-  import { clampScore, sensitivityEffect } from "./lib/fields.js";
+  import { clampScore, sensitivityEffect, unionOf } from "./lib/fields.js";
+  import { labelText } from "./lib/labels.js";
   import Card from "./lib/Card.svelte";
   import Chips from "./lib/Chips.svelte";
+  import Objects from "./lib/Objects.svelte";
   import Pills from "./lib/Pills.svelte";
 
-  const questions = $derived(questionsFor(app.data, T));
+  const night = $derived(nightOf(app.overlay));
+  const questions = $derived(questionsFor(app.data, T, night));
   const chats = $derived(app.data.chats || []);
   const receiving = $derived(app.overlay.notify.chats || []);
-  // What a recipient's folded line says: their two choices, or the one that differs.
-  const summary = (choices, values) => {
-    const name = (opts) => opts.find((o) => matches(o.patch, values))?.label ?? T("Custom");
-    const [objects, hours] = [name(choices.objects), name(choices.hours)];
-    return objects === hours ? objects : objects === T("Same as everyone") ? hours
-      : hours === T("Same as everyone") ? objects : objects + " · " + hours;
+  // A recipient picks among the objects everyone gets, or among all the tracked ones.
+  const recipientObjects = $derived(app.overlay.notify.labels?.length ? app.overlay.notify.labels : unionOf(app.data, "labels"));
+  const objectName = (l) => labelText(l, false, T);
+  // What a recipient's folded line says: their objects and hours, or "Same as everyone".
+  const summary = (hours, values) => {
+    const parts = [];
+    if (values.labels.length) parts.push(values.labels.map(objectName).join(", "));
+    const h = hours.find((o) => matches(o.patch, values));
+    if (h !== hours[0]) parts.push(h?.label ?? T("Custom"));
+    return parts.join(" · ") || T("Same as everyone");
   };
+  // A night must start and end at different times.
+  const retime = (n) => { if (n.from && n.to && n.from !== n.to) edit((o) => setNight(o, n)); };
   const subs = $derived((app.data.sub_labels || []).slice().sort());
   const showKnown = $derived(subs.length || (app.overlay.notify.ignore_sub_labels || []).length || app.overlay.notify.ignore_known);
   const known = $derived(!!app.overlay.notify.ignore_known);
@@ -39,8 +48,20 @@
 <section id="when" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1"><span class="lbl">{T("When")}</span><h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("When should you be notified?")}</h1></div>
   <Card>
+    {#snippet objects()}<Objects label={T("What should be reported?")} />{/snippet}
+    {@render question(T("What should be reported?"), T("Nothing selected = everything Frigate detects."), objects)}
     {#each questions.filter((q) => !q.more) as q (q.id)}
-      {#snippet pills()}<Pills label={q.title} options={q.options} />{/snippet}
+      {#snippet pills()}
+        <Pills label={q.title} options={q.options} />
+        {#if q.id === "night"}
+          <div class="flex flex-wrap items-center gap-2 text-[12px] text-[var(--muted)]">
+            {T("The night goes from")}
+            <input type="time" class="field w-28" aria-label={T("Night starts at")} value={night.from} onchange={(e) => retime({ ...night, from: e.currentTarget.value })}>
+            {T("to")}
+            <input type="time" class="field w-28" aria-label={T("Night ends at")} value={night.to} onchange={(e) => retime({ ...night, to: e.currentTarget.value })}>
+          </div>
+        {/if}
+      {/snippet}
       {@render question(q.title, q.hint, pills)}
     {/each}
   </Card>
@@ -50,15 +71,15 @@
     {@render question(T("Who receives the notifications?"), T("Everyone gets the choices above. Open a name to give them less."), who)}
     {#each chats.filter((c) => receiving.includes(c)) as chat (chat)}
       {@const values = recipientValues(app.overlay, chat)}
-      {@const choices = recipientChoices(app.overlay.notify, values, T)}
+      {@const hours = recipientHours(app.overlay.notify, values, T, night)}
       {@const pick = (patch) => edit((o) => setRecipient(o, chat, patch))}
       <details class="more" data-chat={chat}>
-        <summary>{"👤 " + chat} <span class="text-[var(--muted)]">· {summary(choices, values)}</span></summary>
+        <summary>{"👤 " + chat} <span class="text-[var(--muted)]">· {summary(hours, values)}</span></summary>
         <div class="mt-3 flex flex-col gap-2">
-          <div class="text-[12px] text-[var(--faint)]">{T("Receives")}</div>
-          <Pills label={chat + " – " + T("Receives")} options={choices.objects} {values} {pick} />
+          <div class="text-[12px] text-[var(--faint)]">{T("Receives")} · {T("nothing selected = the same objects as everyone")}</div>
+          <Chips label={chat + " – " + T("Receives")} options={recipientObjects} value={values.labels} name={objectName} onchange={(next) => pick({ labels: next })} />
           <div class="text-[12px] text-[var(--faint)]">{T("Hours")}</div>
-          <Pills label={chat + " – " + T("Hours")} options={choices.hours} {values} {pick} />
+          <Pills label={chat + " – " + T("Hours")} options={hours} {values} {pick} />
         </div>
       </details>
     {/each}

@@ -28,6 +28,9 @@ type Overlay struct {
 	// HomeAssistantURL replaces home_assistant.url; missing, the
 	// configuration's value applies; empty, the notifications have no Home Assistant button.
 	HomeAssistantURL *string `yaml:"home_assistant_url,omitempty" json:"home_assistant_url,omitempty"`
+	// Night is what the interface's When screen calls the night; missing, 22:00-07:00.
+	// Only the interface reads it: the notifications follow quiet_hours and off_hours.
+	Night *TimeRange `yaml:"night,omitempty" json:"night,omitempty"`
 }
 
 // settings is the set of settings that can be changed live.
@@ -37,6 +40,7 @@ type settings struct {
 	recipients  map[string]Recipient
 	externalURL string
 	haURL       string
+	night       *TimeRange
 }
 
 const overlayHeader = `# Notification settings saved by the web interface of frigate-telegram-enhanced.
@@ -108,6 +112,7 @@ func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
 		if o.HomeAssistantURL != nil {
 			s.haURL = strings.TrimRight(strings.TrimSpace(*o.HomeAssistantURL), "/")
 		}
+		s.night = o.Night
 		s.recipients = make(map[string]Recipient, len(o.Recipients))
 		for name, r := range o.Recipients {
 			if !r.IsZero() {
@@ -121,6 +126,9 @@ func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
 	}
 	if err := validateHAURL(s.haURL, lang); err != nil {
 		errs = append(errs, err)
+	}
+	if s.night != nil && s.night.From == s.night.To {
+		errs = append(errs, lang.Errorf("the night must start and end at different times"))
 	}
 	errs = append(errs, c.validateNotify("notify", s.notify, lang)...)
 	for _, name := range slices.Sorted(maps.Keys(s.cameras)) {
@@ -147,7 +155,7 @@ func (c *Config) ApplyOverlay(o *Overlay) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.notify, c.cameras, c.recipients, c.externalURL, c.haURL = s.notify, s.cameras, s.recipients, s.externalURL, s.haURL
+	c.notify, c.cameras, c.recipients, c.externalURL, c.haURL, c.night = s.notify, s.cameras, s.recipients, s.externalURL, s.haURL, s.night
 	return nil
 }
 
@@ -166,6 +174,7 @@ func (c *Config) CurrentOverlay() Overlay {
 	o.ExternalURL = &ext
 	ha := c.haURL
 	o.HomeAssistantURL = &ha
+	o.Night = c.night
 	for name, n := range c.cameras {
 		o.Cameras[name] = DiffPatch(c.notify, n)
 	}

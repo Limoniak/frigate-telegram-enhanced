@@ -194,13 +194,14 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
   détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
   modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet) et la
   vidéo (dans le même message que l'image, ou en réponse).
-- **Quand** : quoi signaler (personnes, personnes et voitures, tout), à quelle fréquence au
-  plus, quoi faire la nuit (comme le jour, sans son, rien) et, avec la présence configurée,
-  quand quelqu'un est à la maison. **Sensibilité** : un curseur de score minimal ; l'activité
-  récente montre combien de détections auraient été ignorées. Avec plusieurs chats, *Qui
-  reçoit les notifications ?* : cocher les chats, et ouvrir un nom pour en envoyer moins à
-  cette personne — seulement les personnes, les personnes et les voitures — ou seulement la
-  nuit, seulement le jour, sans son la nuit.
+- **Quand** : quoi signaler (les objets et les sons que tes caméras suivent dans Frigate,
+  chacun avec son emoji ; rien de coché = tout), à quelle fréquence au plus, quoi faire la
+  nuit (comme le jour, sans son, rien — les heures de la nuit se règlent, 22 h-7 h par
+  défaut) et, avec la présence configurée, quand quelqu'un est à la maison.
+  **Sensibilité** : un curseur de score minimal ; l'activité récente montre combien de
+  détections auraient été ignorées. Avec plusieurs chats, *Qui reçoit les notifications ?* :
+  cocher les chats, et ouvrir un nom pour en envoyer moins à cette personne — seulement
+  certains objets, ou seulement la nuit, seulement le jour, sans son la nuit.
 - **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle,
   d'autres objets ou seulement certaines zones (*Où ?* : partout, ou les zones définies dans
   Frigate, en un clic). *M'envoyer un exemple* envoie une vraie notification de test. Chaque

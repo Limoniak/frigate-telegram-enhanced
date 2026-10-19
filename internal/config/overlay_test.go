@@ -233,3 +233,20 @@ func TestExternalURLDefaultsToFrigateURL(t *testing.T) {
 		t.Errorf("without an external address, the links use frigate.url: %q", c.ExternalURL())
 	}
 }
+
+// The When screen's night is kept with the settings, and must not be empty.
+func TestNightIsKept(t *testing.T) {
+	c := mustParse(t, minimal)
+	o := c.CurrentOverlay()
+	if o.Night != nil {
+		t.Fatalf("night by default = %+v, want none (22:00-07:00 in the interface)", o.Night)
+	}
+	o.Night = &TimeRange{From: 23 * 60, To: 6 * 60}
+	if err := c.ApplyOverlay(&o); err != nil || *c.CurrentOverlay().Night != *o.Night {
+		t.Errorf("night after the change = %+v, %v", c.CurrentOverlay().Night, err)
+	}
+	o.Night = &TimeRange{From: 60, To: 60}
+	if err := c.ApplyOverlay(&o); err == nil {
+		t.Error("an empty night must be refused")
+	}
+}
