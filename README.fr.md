@@ -197,15 +197,15 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
 - **Quand** : quoi signaler (personnes, personnes et voitures, tout), à quelle fréquence au
   plus, quoi faire la nuit (comme le jour, sans son, rien) et, avec la présence configurée,
   quand quelqu'un est à la maison. **Sensibilité** : un curseur de score minimal ; l'activité
-  récente montre combien de détections auraient été ignorées.
+  récente montre combien de détections auraient été ignorées. Avec plusieurs chats, *Qui
+  reçoit les notifications ?* : cocher les chats, et ouvrir un nom pour en envoyer moins à
+  cette personne — seulement les personnes, les personnes et les voitures — ou seulement la
+  nuit, seulement le jour, sans son la nuit.
 - **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle,
   d'autres objets ou seulement certaines zones (*Où ?* : partout, ou les zones définies dans
   Frigate, en un clic). *M'envoyer un exemple* envoie une vraie notification de test. Chaque
   caméra a son propre lien (`#cameras/<nom>`). Les alertes de cohérence signalent une caméra
   réglée pour un objet que Frigate ne suit pas (absent de `objects.track`).
-- **Destinataires** (avec plusieurs chats) : ce que reçoit chaque personne — tout, les
-  personnes, les personnes et les voitures — et quand — tout le temps, seulement la nuit,
-  seulement le jour, sans son la nuit.
 - **Activité récente** (quand l'historique est disponible) : les 50 dernières détections avec
   leur miniature et leur issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone,
   score trop bas, déjà signalé il y a peu…) et un lien pour régler la caméra concernée.

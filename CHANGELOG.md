@@ -7,6 +7,8 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-19
+
 ### Changed
 
 - New look for the setup and login pages: "Nocturne", dark glass on a blue night with
@@ -15,9 +17,16 @@ never a breaking 3.0, while `:latest` follows `main`.
 - New Nocturne interface at the address of the service: an overview (notifications over
   24 h hour by hour, connections, pause, cameras, the last notification as it arrived)
   and the notification style with a live Telegram preview on a sample photo.
-- The new interface now has every screen: When, Recipients, Cameras (with per-camera
-  settings, the objects of each camera named with their emoji), Recent activity and
-  Advanced settings.
+- The new interface now has every screen: When, Cameras (with per-camera settings, the
+  objects of each camera named with their emoji), Recent activity and Advanced settings.
+- What each recipient receives is set on the When screen, under *Who receives the
+  notifications?*: open a name to give that person less. Only the choices that narrow
+  the global ones are offered. The former Recipients screen is gone (`#recipients` opens
+  When); the saved settings do not change.
+- The 24 h chart counts per clock hour in the service's time zone (12:00–13:00), the
+  current hour last, instead of hours ending now; the 24 h total is the sum of its bars.
+- The navigation bar shrinks once the page is scrolled.
+- The footer link to the connection page reads "Telegram, Frigate and MQTT connection".
 - The interface is larger on a computer screen, its cards have a single frame, and its
   faint text is more contrasted (the login card too); the one-column screens are centered. The footer says in plain words which Frigate
   notifications the service follows and its time zone.
@@ -50,6 +59,11 @@ never a breaking 3.0, while `:latest` follows `main`.
   after the last complete fragment, no re-encoding) takes the image's place, with a link
   to the whole clip in the caption. *Compress clips over 50 MB* still sends the whole
   clip re-encoded.
+
+- A Telegram conflict (409) says whether a webhook or another program holds the bot;
+  for a webhook, the overview offers *Remove the webhook*
+  (`POST /api/telegram/webhook/delete`).
+- API: `hour` in `/api/history`, the start of the chart's current hour.
 
 ### Removed
 
@@ -164,7 +178,8 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Limoniak/frigate-telegram-enhanced/releases/tag/v1.0.0

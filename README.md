@@ -195,15 +195,14 @@ page opens one screen per topic (on a phone, a ☰ button folds it into a list):
 - **When**: what to report (people, people and cars, everything), how often at most, what
   to do at night (same as daytime, silent, nothing) and, with presence set up, when
   someone is home. **Sensitivity**: a slider for the minimum score; recent activity shows
-  how many detections would have been ignored.
+  how many detections would have been ignored. With several chats, *Who receives the
+  notifications?*: tick the chats, and open a name to give that person less — people
+  only, people and cars — or only at night, only during the day, silent at night.
 - **Cameras**: one switch per camera; open it to give it another style, other objects or
   only some zones (*Where?*: everywhere, or zones defined in Frigate, in one click).
   *Test this camera* sends a real sample notification. Each camera has its own link
   (`#cameras/<name>`). Consistency warnings flag a camera set to report an object that
   Frigate does not track (missing from `objects.track`).
-- **Recipients** (only with several chats): what each person receives — every object,
-  people only, people and cars — and when — all the time, only at night, only during the
-  day, silent at night.
 - **Recent activity** (when the history is available): the last 50 detections with their
   thumbnail and outcome — ✅ sent, or ⛔ ignored with the reason in plain words (outside the
   zones, score too low, already reported a moment ago…) and a link to adjust the camera.
