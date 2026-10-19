@@ -7,6 +7,16 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Changed
+
+- *What should be reported?* offers the objects and sounds the cameras track in Frigate,
+  each with its emoji (none ticked = everything), instead of people / people and cars /
+  everything; the same on each camera and for each recipient.
+- The night of the When screen can be set (22:00–07:00 by default): the night choices,
+  and the recipients' ones, follow it. It is saved as `night` with the settings.
+- In English, times follow the browser's variant: a 12-hour clock in American English,
+  24-hour otherwise.
+
 ## [2.1.0] - 2026-10-19
 
 ### Changed

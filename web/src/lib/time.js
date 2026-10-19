@@ -1,6 +1,8 @@
 // Times as the interface shows them: in the service's time zone and the page's
 // language.
-export const locale = (lang) => (lang === "en" ? "en-GB" : lang);
+// English follows the browser's variant (en-US: a 12-hour clock), British otherwise.
+export const locale = (lang, prefs = globalThis.navigator?.languages ?? []) =>
+  lang !== "en" ? lang : prefs.find((l) => /^en-/i.test(l)) ?? "en-GB";
 
 const day = (d, tz, lang) => d.toLocaleDateString(locale(lang), { timeZone: tz });
 

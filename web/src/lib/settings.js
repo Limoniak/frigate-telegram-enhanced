@@ -50,7 +50,7 @@ export function apply(overlay, patch, camera) {
 export function toSend(overlay) {
   const cameras = {};
   for (const [name, patch] of Object.entries(overlay.cameras)) if (Object.keys(patch).length) cameras[name] = patch;
-  return { notify: overlay.notify, cameras, recipients: overlay.recipients, external_url: overlay.external_url, home_assistant_url: overlay.home_assistant_url };
+  return { notify: overlay.notify, cameras, recipients: overlay.recipients, external_url: overlay.external_url, home_assistant_url: overlay.home_assistant_url, night: overlay.night };
 }
 
 // STYLES are the notification styles of the Style screen, as patches of settings.

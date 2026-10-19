@@ -1,11 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { chartTicks, locale, timeText, untilText, hourStart, whenText } from "./time.js";
+
+// A British browser, whatever the machine running the tests.
+vi.stubGlobal("navigator", { languages: ["en-GB"] });
 
 const T = (s) => s;
 const now = new Date("2026-10-17T19:30:00Z"); // 21:30 in Paris
 
 describe("time", () => {
-  it("English uses the 24-hour British locale", () => expect(locale("en")).toBe("en-GB"));
+  it("English follows the browser's variant, British by default", () => {
+    expect(locale("en", [])).toBe("en-GB");
+    expect(locale("en", ["fr-FR", "en-US"])).toBe("en-US");
+    expect(locale("fr", ["en-US"])).toBe("fr");
+    expect(timeText("2026-10-17T19:47:05Z", { tz: "Europe/Paris", lang: "en" })).toBe("21:47"); // the stubbed browser is British
+  });
   it("chartTicks: the bars of the clock's 00, 06, 12 and 18 h in the zone", () => {
     const paris = Date.parse("2026-10-17T19:00:00Z") / 1000; // 21:00 → bars from 22:00 the day before
     const ticks = chartTicks(paris, "Europe/Paris");

@@ -175,8 +175,9 @@ type Config struct {
 	notify      Notify
 	cameras     map[string]Notify
 	recipients  map[string]Recipient
-	externalURL string // address of the "Open in Frigate" links; empty = the one of frigate.url
-	haURL       string // address of the "Home Assistant" button; empty = no button
+	externalURL string     // address of the "Open in Frigate" links; empty = the one of frigate.url
+	haURL       string     // address of the "Home Assistant" button; empty = no button
+	night       *TimeRange // the When screen's night; nil: 22:00-07:00
 
 	// state from config.yml alone, kept to be able to go back when the web
 	// interface removes its overrides.

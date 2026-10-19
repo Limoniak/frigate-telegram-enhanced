@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DAY, NIGHT, QUESTIONS, RECIPIENT_OBJECTS, RECIPIENT_WHEN, questionsFor, recipientChoices, recipientValues, setRecipient } from "./questions.js";
+import { DEFAULT_NIGHT, QUESTIONS, RECIPIENT_WHEN, nightOf, questionsFor, recipientHours, recipientValues, setNight, setRecipient } from "./questions.js";
 
 const T = (s) => s;
 const ids = (qs) => qs.map((q) => q.id);
+const NIGHT = [DEFAULT_NIGHT];
+const DAY = [{ from: "07:00", to: "22:00" }];
 
 describe("questions", () => {
   it("keeps the questions of the mode and of the presence", () => {
@@ -13,13 +15,31 @@ describe("questions", () => {
     expect(events).toContain("home");
     expect(events).not.toContain("severity");
   });
-  it("has the expected patches", () => {
-    const opt = (id, label) => QUESTIONS(T).find((q) => q.id === id).options.find((o) => o.label === label);
-    expect(opt("objects", "🚶🚗 People and cars").patch).toEqual({ labels: ["car", "person"] });
+  it("has the expected patches, on the night given", () => {
+    const opt = (id, label, night) => QUESTIONS(T, night).find((q) => q.id === id).options.find((o) => o.label === label);
     expect(opt("night", "🌙 No notifications").patch).toEqual({ quiet_hours: [], off_hours: NIGHT });
-    expect(DAY).toEqual([{ from: "07:00", to: "22:00" }]);
-    expect(RECIPIENT_OBJECTS(T)).toHaveLength(3);
+    expect(opt("night", "🔕 Silent", { from: "23:30", to: "06:00" }).patch.quiet_hours).toEqual([{ from: "23:30", to: "06:00" }]);
     expect(RECIPIENT_WHEN(T)[1].patch).toEqual({ quiet_hours: [], off_hours: DAY });
+  });
+});
+
+describe("night", () => {
+  it("is 22:00-07:00 until one is saved", () => {
+    expect(nightOf({})).toEqual({ from: "22:00", to: "07:00" });
+    expect(nightOf({ night: { from: "00:00", to: "08:00" } })).toEqual({ from: "00:00", to: "08:00" });
+  });
+  it("moves the hours that were the old night or its day, and leaves the others", () => {
+    const o = {
+      notify: { quiet_hours: NIGHT, off_hours: [] },
+      cameras: { garage: { off_hours: [{ from: "12:00", to: "13:00" }] } },
+      recipients: { famille: { off_hours: DAY }, moi: { quiet_hours: NIGHT } },
+    };
+    setNight(o, { from: "23:00", to: "06:00" });
+    expect(o.night).toEqual({ from: "23:00", to: "06:00" });
+    expect(o.notify.quiet_hours).toEqual([{ from: "23:00", to: "06:00" }]);
+    expect(o.recipients.famille.off_hours).toEqual([{ from: "06:00", to: "23:00" }]);
+    expect(o.recipients.moi.quiet_hours).toEqual([{ from: "23:00", to: "06:00" }]);
+    expect(o.cameras.garage.off_hours).toEqual([{ from: "12:00", to: "13:00" }]);
   });
 });
 
@@ -34,22 +54,15 @@ describe("recipients", () => {
     setRecipient(o, "famille", { labels: [] });
     expect(o.recipients).not.toHaveProperty("famille");
   });
-  it("offers only the choices that narrow the global ones", () => {
+  it("offers only the hours that narrow the global ones", () => {
     const none = { labels: [], quiet_hours: [], off_hours: [] };
     const labels = (c) => c.map((o) => o.label);
-    let c = recipientChoices({ labels: ["person"] }, none, T);
-    expect(labels(c.objects)).toEqual(["Same as everyone"]);
-    expect(c.hours).toHaveLength(4);
-    c = recipientChoices({ labels: [], off_hours: NIGHT }, none, T);
-    expect(c.objects).toHaveLength(3);
-    expect(labels(c.hours)).toEqual(["Same as everyone"]);
-    c = recipientChoices({ labels: ["car", "person"], quiet_hours: NIGHT }, none, T);
-    expect(labels(c.objects)).toEqual(["Same as everyone", "🚶 People"]);
-    expect(labels(c.hours)).not.toContain("🔕 Silent at night");
+    expect(recipientHours({}, none, T)).toHaveLength(4);
+    expect(labels(recipientHours({ off_hours: NIGHT }, none, T))).toEqual(["Same as everyone"]);
+    expect(labels(recipientHours({ quiet_hours: NIGHT }, none, T))).not.toContain("🔕 Silent at night");
   });
   it("keeps a saved choice shown even when it no longer narrows", () => {
-    const c = recipientChoices({ labels: ["person"], off_hours: NIGHT }, { labels: ["car", "person"], quiet_hours: [], off_hours: DAY }, T);
-    expect(c.objects.map((o) => o.label)).toContain("🚶🚗 People and cars");
-    expect(c.hours.map((o) => o.label)).toContain("🌙 Only at night");
+    const c = recipientHours({ off_hours: NIGHT }, { labels: [], quiet_hours: [], off_hours: DAY }, T);
+    expect(c.map((o) => o.label)).toContain("🌙 Only at night");
   });
 });

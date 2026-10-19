@@ -30,6 +30,7 @@ export async function load() {
   const overlay = {
     notify: o.notify || {}, cameras: o.cameras || {}, recipients: o.recipients || {},
     external_url: o.external_url || "", home_assistant_url: o.home_assistant_url || "",
+    ...(o.night ? { night: o.night } : {}),
   };
   // Every known camera gets an entry (empty = follows the global level) before the
   // saved state is recorded, or the page would think it changed on opening.
