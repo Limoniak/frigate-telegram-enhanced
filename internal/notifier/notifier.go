@@ -214,6 +214,16 @@ func (n *Notifier) Topics() []string {
 
 // Handle is called by the MQTT client; it never blocks.
 func (n *Notifier) Handle(topic string, payload []byte) {
+	if topic == recheckTopic {
+		// Ours, not Frigate's: dropping it would leave its detection waiting for good.
+		go func() {
+			select {
+			case n.inbox <- inMsg{topic: topic, payload: payload}:
+			case <-n.sendCtx.Done():
+			}
+		}()
+		return
+	}
 	select {
 	case n.inbox <- inMsg{topic: topic, payload: payload}:
 	default:

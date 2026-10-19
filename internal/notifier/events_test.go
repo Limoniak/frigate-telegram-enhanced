@@ -259,6 +259,29 @@ func TestHandleDropsWhenInboxFull(t *testing.T) {
 	}
 }
 
+// The end of a wait for a label is never dropped: its detection would wait for good.
+func TestRecheckWaitsForRoomInAFullInbox(t *testing.T) {
+	h := newHarness(t, "events")
+	for i := 0; i < inboxSize; i++ {
+		h.n.Handle("frigate/events", []byte("{}"))
+	}
+	h.n.Handle(recheckTopic, []byte(evID))
+	if got := testutil.ToFloat64(h.m.EventsDropped); got != 0 {
+		t.Fatalf("dropped = %v, want 0", got)
+	}
+	for i := 0; i <= inboxSize; i++ {
+		select {
+		case m := <-h.n.inbox:
+			if m.topic == recheckTopic {
+				return
+			}
+		case <-time.After(time.Second):
+			t.Fatal("the recheck never reached the queue")
+		}
+	}
+	t.Fatal("the recheck never reached the queue")
+}
+
 func TestDroppedNoneYet(t *testing.T) {
 	h := newHarness(t, "events")
 	if n, last := h.n.Dropped(); n != 0 || !last.IsZero() {

@@ -790,6 +790,23 @@ func TestWrongPasswordsBlockTheAddress(t *testing.T) {
 	}
 }
 
+func TestBlockedAddressKeepsItsSessions(t *testing.T) {
+	a := NewAuth("pw", nil, nil)
+	login := httptest.NewRecorder()
+	a.openSession(login, httptest.NewRequest("POST", "/login", nil))
+	for range maxFailures {
+		a.fail("192.0.2.1")
+	}
+	ok := a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+	r := httptest.NewRequest("GET", "/api/settings", nil) // RemoteAddr 192.0.2.1
+	r.AddCookie(login.Result().Cookies()[0])
+	w := httptest.NewRecorder()
+	ok.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("a session on a blocked address: status = %d", w.Code)
+	}
+}
+
 func TestAuthUnblocksAfterDelay(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 0, 0, 0, time.UTC)
 	a := NewAuth("pw", nil, nil)

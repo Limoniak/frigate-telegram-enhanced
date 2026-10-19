@@ -19,6 +19,14 @@ never a breaking 3.0, while `:latest` follows `main`.
 - On the connection page, *More options* is a card of its own (it was folded under the
   interface's password), and the time zone is a list one searches by typing.
 
+### Fixed
+
+- Five wrong passwords from an address no longer lock out the people already logged in
+  from it (everyone shares one address behind a reverse proxy or a home router).
+- A time range that starts where it ends (e.g. 00:00–00:00) is refused instead of
+  never applying.
+- A detection waiting for its label is no longer lost when the event queue is full.
+
 ## [2.1.0] - 2026-10-19
 
 ### Changed
