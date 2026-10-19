@@ -73,8 +73,21 @@ func TestPagesLeadToTheLoginPageNotTheBrowserDialog(t *testing.T) {
 		t.Errorf("login page: %d\n%s", resp.StatusCode, body)
 	}
 	// Its style sheet is reachable before the password.
-	if resp := get(t, c, ts.URL+"/ui.css"); resp.StatusCode != http.StatusOK {
-		t.Errorf("ui.css before login: %d", resp.StatusCode)
+	if resp := get(t, c, ts.URL+"/login.css"); resp.StatusCode != http.StatusOK {
+		t.Errorf("login.css before login: %d", resp.StatusCode)
+	}
+}
+
+// The login page works without JavaScript (only a tiny inline script keeps the
+// #fragment of a deep link), and its sheet is the built one.
+func TestLoginPageNeedsNoScript(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	page, _ := io.ReadAll(do(t, ts, "GET", "/login", "").Body)
+	if strings.Contains(string(page), "<script src") {
+		t.Error("the login page must not need JavaScript")
+	}
+	if !strings.Contains(string(page), `href="login.css"`) {
+		t.Errorf("the login page does not use login.css: %.300s", page)
 	}
 }
 

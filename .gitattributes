@@ -1,0 +1,5 @@
+# Vite copies the pages line for line into the committed dist/, and the CI compares
+# dist/ with a fresh build on Linux: both stay LF on every platform, so a build on
+# Windows leaves no difference either.
+web/src/*.html text eol=lf
+internal/web/dist/** text=auto eol=lf

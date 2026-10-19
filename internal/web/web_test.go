@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -57,7 +60,13 @@ func (f fakeCameras) CameraDetails(context.Context) ([]frigate.CameraInfo, error
 // the path of the override file and the server.
 func setup(t *testing.T, password string, cams fakeCameras, opts ...Option) (*config.Config, string, *httptest.Server) {
 	t.Helper()
-	cfg, err := config.Parse([]byte(testConfig))
+	return setupConfig(t, testConfig, password, cams, opts...)
+}
+
+// setupConfig is setup with its own config.yml.
+func setupConfig(t *testing.T, yaml, password string, cams fakeCameras, opts ...Option) (*config.Config, string, *httptest.Server) {
+	t.Helper()
+	cfg, err := config.Parse([]byte(yaml))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
@@ -218,6 +227,7 @@ func TestResetReturnsToConfigFile(t *testing.T) {
 
 func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	ts.Client().CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse } // the redirect itself is checked
 
 	for _, tc := range []struct {
 		name, method, path, body string
@@ -227,9 +237,11 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 		{name: "without password", method: "GET", path: "/api/settings", want: http.StatusUnauthorized},
 		{name: "wrong password", method: "GET", path: "/api/settings", auth: []string{"autre"}, want: http.StatusUnauthorized},
 		{name: "page without password", method: "GET", path: "/", want: http.StatusUnauthorized},
-		{name: "script without password", method: "GET", path: "/ui.js", want: http.StatusUnauthorized},
-		{name: "script with password", method: "GET", path: "/ui.js", auth: []string{"s3cret"}, want: http.StatusOK},
+		{name: "app script without password", method: "GET", path: "/app.js", want: http.StatusUnauthorized},
+		{name: "app sheet without password", method: "GET", path: "/app.css", want: http.StatusUnauthorized},
+		{name: "classic redirect without password", method: "GET", path: "/classic", want: http.StatusFound},
 		{name: "write without password", method: "PUT", path: "/api/settings", body: "{}", want: http.StatusUnauthorized},
+		{name: "snapshot without password", method: "GET", path: "/api/history/a/snapshot", want: http.StatusUnauthorized},
 		{name: "right password", method: "GET", path: "/api/settings", auth: []string{"s3cret"}, want: http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -241,28 +253,53 @@ func TestPasswordProtectsInterfaceButNotProbes(t *testing.T) {
 	}
 }
 
-func TestPageIsServed(t *testing.T) {
+// The interface is at /: its page loads its script, its sheet and the catalogs, and
+// every file it references is served.
+func TestNewInterfaceServed(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{})
 	resp := do(t, ts, "GET", "/", "")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
+		t.Fatalf("status = %d, type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
-	body, _ := io.ReadAll(resp.Body)
-	for _, ref := range []string{`href="ui.css"`, `src="ui.js"`} {
-		if !strings.Contains(string(body), ref) {
+	page, _ := io.ReadAll(resp.Body)
+	for _, ref := range []string{`src="i18n.js"`, `src="./app.js"`} {
+		if !strings.Contains(string(page), ref) {
 			t.Errorf("the page does not load %s", ref)
 		}
 	}
-	for path, want := range map[string]string{"/ui.css": "text/css; charset=utf-8", "/ui.js": "text/javascript; charset=utf-8",
-		"/i18n.js": "text/javascript; charset=utf-8"} {
-		resp := do(t, ts, "GET", path, "")
-		if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != want {
-			t.Errorf("%s: status %d, type %q", path, resp.StatusCode, resp.Header.Get("Content-Type"))
+	refs := regexp.MustCompile(`(?:src|href)="(?:\./)?([a-z0-9][^":]*)"`).FindAllStringSubmatch(string(page), -1)
+	if len(refs) < 3 {
+		t.Fatalf("the page references too few files: %.400s", page)
+	}
+	for _, ref := range refs {
+		if resp := do(t, ts, "GET", "/"+ref[1], ""); resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: %d", ref[1], resp.StatusCode)
 		}
 	}
-	js, _ := io.ReadAll(do(t, ts, "GET", "/ui.js", "").Body)
-	if !strings.Contains(string(js), "api/settings") {
-		t.Error("the script does not reference the API")
+}
+
+// The classic interface is gone: /classic leads to the new one, its files are 404.
+func TestClassicRedirects(t *testing.T) {
+	_, _, ts := setup(t, "", fakeCameras{})
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	get := func(path string) *http.Response {
+		resp, err := client.Get(ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return resp
+	}
+	if resp := get("/classic"); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "./" {
+		t.Errorf("/classic: status %d, Location %q, want 302 to ./", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	for _, path := range []string{"/ui.js", "/ui.css"} {
+		if resp := get(path); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: status %d, want 404", path, resp.StatusCode)
+		}
+	}
+	if resp := get("/i18n.js"); resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "text/javascript; charset=utf-8" {
+		t.Errorf("/i18n.js: status %d, type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
 	cat, _ := io.ReadAll(do(t, ts, "GET", "/i18n.js", "").Body)
 	for _, want := range []string{`const LANGUAGES = [{"code":"en","name":"English"},{"code":"de","name":"Deutsch"},{"code":"es","name":"Español"},{"code":"fr","name":"Français"},{"code":"it","name":"Italiano"},{"code":"pt","name":"Português"}]`, `"Help":"Aide"`, `"person":{"emoji":"🚶","name":"Person"}`} {
@@ -522,10 +559,26 @@ func (f fakeHistory) HistoryThumb(id string) (string, bool) {
 	return "", false
 }
 
-type fakeMedia map[string][]byte
+func (f fakeHistory) HistorySnapshot(id string) (string, bool) {
+	for _, e := range f.entries {
+		if e.ID == id && e.Snapshot != "" {
+			return e.Snapshot, true
+		}
+	}
+	return "", false
+}
+
+// fakeMedia gives the bytes by path and records the paths asked for.
+type fakeMedia struct {
+	files map[string][]byte
+	asked *[]string
+}
 
 func (f fakeMedia) GetBytes(_ context.Context, path string, _ int64) ([]byte, error) {
-	if b, ok := f[path]; ok {
+	if f.asked != nil {
+		*f.asked = append(*f.asked, path)
+	}
+	if b, ok := f.files[path]; ok {
 		return b, nil
 	}
 	return nil, errors.New("absent")
@@ -536,7 +589,7 @@ func TestHistoryAndThumbnails(t *testing.T) {
 		{ID: "b", Camera: "garage", Label: "dog", Reason: "label", Thumb: "/api/events/b/thumbnail.jpg"},
 		{ID: "a", Camera: "garage", Label: "person", Sent: true},
 	}}
-	media := fakeMedia{"/api/events/b/thumbnail.jpg": []byte("jpeg")}
+	media := fakeMedia{files: map[string][]byte{"/api/events/b/thumbnail.jpg": []byte("jpeg")}}
 	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(hist, media))
 
 	var v struct {
@@ -568,6 +621,106 @@ func TestHistoryAndThumbnails(t *testing.T) {
 		if resp := do(t, ts, "GET", "/api/history/"+id+"/thumb", ""); resp.StatusCode != http.StatusNotFound {
 			t.Errorf("thumbnail of %s: status = %d, want 404", id, resp.StatusCode)
 		}
+	}
+}
+
+func TestHistorySnapshotAndLink(t *testing.T) {
+	hist := fakeHistory{entries: []notifier.HistoryEntry{
+		{ID: "a", Camera: "garage", Label: "person", Sent: true, Link: "https://frigate.example/explore?event_id=a", Snapshot: "/api/events/a/snapshot.jpg?bbox=1"},
+		{ID: "b", Camera: "garage", Label: "dog"},
+	}}
+	media := fakeMedia{files: map[string][]byte{"/api/events/a/snapshot.jpg?bbox=1": []byte("big")}}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(hist, media))
+
+	var v struct {
+		Entries []struct {
+			Link        string `json:"link"`
+			HasSnapshot bool   `json:"has_snapshot"`
+			Snapshot    string `json:"Snapshot"`
+		} `json:"entries"`
+	}
+	if err := json.NewDecoder(do(t, ts, "GET", "/api/history", "").Body).Decode(&v); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Entries) != 2 || !v.Entries[0].HasSnapshot || v.Entries[1].HasSnapshot || v.Entries[0].Link != hist.entries[0].Link || v.Entries[1].Link != "" {
+		t.Errorf("history = %+v", v.Entries)
+	}
+	if v.Entries[0].Snapshot != "" {
+		t.Error("the Frigate path must not be exposed")
+	}
+
+	resp := do(t, ts, "GET", "/api/history/a/snapshot", "")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || string(body) != "big" || resp.Header.Get("Content-Type") != "image/jpeg" {
+		t.Errorf("snapshot: %d %q", resp.StatusCode, body)
+	}
+	for _, id := range []string{"b", "inconnu"} {
+		if resp := do(t, ts, "GET", "/api/history/"+id+"/snapshot", ""); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("snapshot of %s: status = %d, want 404", id, resp.StatusCode)
+		}
+	}
+}
+
+type fakeWebhook struct{ deleted *bool }
+
+func (f fakeWebhook) DeleteWebhook(context.Context) error { *f.deleted = true; return nil }
+
+// The interface removes the bot's webhook when it can; without a webhook remover,
+// the route answers 404.
+func TestDeleteWebhook(t *testing.T) {
+	var deleted bool
+	_, _, ts := setup(t, "", fakeCameras{}, WithWebhook(fakeWebhook{&deleted}))
+	if resp := do(t, ts, "POST", "/api/telegram/webhook/delete", ""); resp.StatusCode != http.StatusOK || !deleted {
+		t.Errorf("POST: %d, deleted %v", resp.StatusCode, deleted)
+	}
+	_, _, ts = setup(t, "", fakeCameras{})
+	if resp := do(t, ts, "POST", "/api/telegram/webhook/delete", ""); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("without a remover: %d, want 404", resp.StatusCode)
+	}
+}
+
+type fakeActivity []time.Time
+
+func (f fakeActivity) SentTimes() []time.Time { return f }
+
+// The history also gives the notifications sent over 24 h, per clock hour, the current
+// hour last.
+func TestHistoryGivesSentHours(t *testing.T) {
+	now := time.Date(2026, 10, 17, 21, 30, 0, 0, time.UTC)
+	// 21:30 - 23h50 = 21:40 the day before: before the first bar (22:00).
+	act := fakeActivity{now.Add(-23*time.Hour - 30*time.Minute), now.Add(-23*time.Hour - 50*time.Minute), now.Add(-90 * time.Minute), now.Add(-10 * time.Minute), now}
+	_, _, ts := setup(t, "", fakeCameras{}, WithHistory(fakeHistory{}, nil), WithActivity(act), WithClock(func() time.Time { return now }))
+	var v struct {
+		Sent  int       `json:"sent_24h"`
+		Hours []int     `json:"sent_hours"`
+		Now   time.Time `json:"now"`
+		Hour  time.Time `json:"hour"`
+	}
+	if err := json.NewDecoder(do(t, ts, "GET", "/api/history", "").Body).Decode(&v); err != nil {
+		t.Fatal(err)
+	}
+	want := make([]int, 24)
+	want[0], want[22], want[23] = 1, 1, 2 // 22:00, 20:00 (20:00 itself), 21:00 (21:20 and 21:30)
+	if !v.Now.Equal(now) {
+		t.Errorf("now = %v, want the server's clock %v (the bars' windows end then)", v.Now, now)
+	}
+	if want := time.Date(2026, 10, 17, 21, 0, 0, 0, time.UTC); !v.Hour.Equal(want) {
+		t.Errorf("hour = %v, want the start of the current clock hour %v", v.Hour, want)
+	}
+	if v.Sent != 4 || !slices.Equal(v.Hours, want) {
+		t.Errorf("sent %d, hours %v; want 4 (the bars' total), %v", v.Sent, v.Hours, want)
+	}
+}
+
+// A clock hour starts on the zone's :00, also in a zone offset by 30 min.
+func TestHourOf(t *testing.T) {
+	kolkata, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		t.Skip(err)
+	}
+	at := time.Date(2026, 10, 17, 21, 10, 5, 0, time.UTC) // 02:40:05 in Kolkata
+	if got, want := hourOf(at, kolkata), time.Date(2026, 10, 17, 20, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("hourOf = %v, want %v", got, want)
 	}
 }
 
@@ -719,5 +872,53 @@ func TestHealthListsRefusedUsers(t *testing.T) {
 	json.NewDecoder(do(t, ts, "GET", "/api/health", "").Body).Decode(&bare)
 	if string(bare["refused"]) != "[]" {
 		t.Errorf("refused without a source = %s, want []", bare["refused"])
+	}
+}
+
+// The built front end is embedded and served: the login page's sheet before any
+// session, and the fonts it points to, with a long cache since their names carry a hash.
+func TestBuiltAssetsServed(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	resp := do(t, ts, "GET", "/login.css", "")
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "text/css; charset=utf-8" {
+		t.Fatalf("login.css: %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	css, _ := io.ReadAll(resp.Body)
+	font := regexp.MustCompile(`url\(\./(assets/[^)]+\.woff2)\)`).FindSubmatch(css)
+	if font == nil {
+		t.Fatalf("login.css points to no font: %.200s", css)
+	}
+	resp = do(t, ts, "GET", "/"+string(font[1]), "")
+	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Header.Get("Cache-Control"), "immutable") {
+		t.Errorf("%s: %d, Cache-Control %q", font[1], resp.StatusCode, resp.Header.Get("Cache-Control"))
+	}
+}
+
+// The sample photo of the previews is served as a JPEG, with or without a password.
+func TestBuiltPhotoServed(t *testing.T) {
+	photos, _ := fs.Glob(distFS, "assets/sample-*.jpg")
+	if len(photos) != 1 {
+		t.Fatalf("dist/assets/sample-*.jpg = %v, want one file", photos)
+	}
+	for _, password := range []string{"", "s3cret"} {
+		_, _, ts := setup(t, password, fakeCameras{})
+		resp := do(t, ts, "GET", "/"+photos[0], "")
+		if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "image/jpeg" {
+			t.Errorf("password %q: %d %s, want 200 image/jpeg", password, resp.StatusCode, resp.Header.Get("Content-Type"))
+		}
+	}
+}
+
+// dist/assets/ serves existing files only: no directory listing, and no long cache on a 404.
+func TestBuiltAssetsOnlyFiles(t *testing.T) {
+	_, _, ts := setup(t, "s3cret", fakeCameras{})
+	resp := do(t, ts, "GET", "/assets/", "")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusNotFound || strings.Contains(string(body), ".woff2") {
+		t.Errorf("/assets/: %d, body %.100q, want 404 without a listing", resp.StatusCode, body)
+	}
+	resp = do(t, ts, "GET", "/assets/nope.woff2", "")
+	if resp.StatusCode != http.StatusNotFound || strings.Contains(resp.Header.Get("Cache-Control"), "immutable") {
+		t.Errorf("/assets/nope.woff2: %d, Cache-Control %q, want 404 not cached", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 }

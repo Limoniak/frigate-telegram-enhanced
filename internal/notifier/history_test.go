@@ -1,9 +1,12 @@
 package notifier
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"frigate-telegram-enhanced/internal/frigate"
 )
@@ -74,4 +77,104 @@ func TestHistoryFileCorruptedIsIgnored(t *testing.T) {
 	if n := len(h.n.History()); n != 0 {
 		t.Errorf("history = %d entries, want empty", n)
 	}
+}
+
+func TestSentCountSurvivesRestart(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "history.json")
+	now := newHarness(t, "events").clock.Now()
+	entries := []storedEntry{
+		{HistoryEntry: HistoryEntry{ID: "recent", At: now.Add(-time.Hour), Camera: "garage", Label: "person", Sent: true}},
+		{HistoryEntry: HistoryEntry{ID: "old", At: now.Add(-25 * time.Hour), Camera: "garage", Label: "person", Sent: true}},
+		{HistoryEntry: HistoryEntry{ID: "filtered", At: now.Add(-2 * time.Hour), Camera: "garage", Label: "dog"}},
+	}
+	b, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHarness(t, "events", func(d *Deps) { d.HistoryFile = file })
+	if n := h.n.Count24h(); n != 1 {
+		t.Errorf("Count24h() = %d, want 1", n)
+	}
+	sent := h.n.SentTimes()
+	if len(sent) != 1 || !sent[0].Equal(now.Add(-time.Hour)) {
+		t.Errorf("SentTimes() = %v, want [%v]", sent, now.Add(-time.Hour))
+	}
+}
+
+// An entry keeps the notification's link to Frigate and the path of its snapshot,
+// and both survive a restart.
+func TestHistoryKeepsLinkAndSnapshot(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "history.json")
+	withFile := func(d *Deps) { d.HistoryFile = file }
+	h := newHarness(t, "events", withFile)
+	o := h.n.Config.CurrentOverlay()
+	u := "https://frigate.maison.example"
+	o.ExternalURL = &u
+	if err := h.n.Config.ApplyOverlay(&o); err != nil {
+		t.Fatal(err)
+	}
+	h.fr.files[frigate.EventSnapshotPath("a")] = []byte("jpeg")
+	h.send(t, "frigate/events", eventMsg("new", "a", "garage", "person", nil))
+	if err := h.n.FlushHistory(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := "https://frigate.maison.example/explore?event_id=a"
+	got := h.n.History()
+	if len(got) != 1 || got[0].Link != want {
+		t.Fatalf("history = %+v, want link %q", got, want)
+	}
+	check := func(n *Notifier) {
+		t.Helper()
+		if p, ok := n.HistorySnapshot("a"); !ok || p != frigate.EventSnapshotHeightPath("a", 720) {
+			t.Errorf("snapshot of a = %q %v", p, ok)
+		}
+		if _, ok := n.HistorySnapshot("inconnu"); ok {
+			t.Error("an id outside the history must not give a snapshot")
+		}
+	}
+	check(h.n)
+
+	again := newHarness(t, "events", withFile)
+	if got := again.n.History(); len(got) != 1 || got[0].Link != want {
+		t.Errorf("link read back = %+v", got)
+	}
+	check(again.n)
+}
+
+// A sent entry keeps the instant of the notification, not the event's start: the
+// count per hour is made on it, and it survives a restart.
+func TestHistoryKeepsSentAt(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "history.json")
+	withFile := func(d *Deps) { d.HistoryFile = file }
+	h := newHarness(t, "events", withFile)
+	h.fr.files[frigate.EventSnapshotPath("a")] = []byte("jpeg")
+	h.clock.Add(5 * time.Minute) // the notification comes after the start of the event
+	sentAt := h.clock.Now()
+	h.send(t, "frigate/events", eventMsg("new", "a", "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("new", "b", "garage", "dog", nil))
+	h.send(t, "frigate/events", eventMsg("end", "b", "garage", "dog", nil))
+	if err := h.n.FlushHistory(); err != nil {
+		t.Fatal(err)
+	}
+
+	check := func(n *Notifier) {
+		t.Helper()
+		got := n.History()
+		if len(got) != 2 || !got[0].SentAt.IsZero() || !got[1].SentAt.Equal(sentAt) || got[1].At.Equal(sentAt) {
+			t.Errorf("history = %+v, want a sent at %v, b without", got, sentAt)
+		}
+		if b, _ := json.Marshal(got[0]); strings.Contains(string(b), "sent_at") {
+			t.Errorf("an entry not sent gives %s, want no sent_at", b)
+		}
+		if s := n.SentTimes(); len(s) != 1 || !s[0].Equal(sentAt) {
+			t.Errorf("SentTimes() = %v, want [%v]", s, sentAt)
+		}
+	}
+	check(h.n)
+	check(newHarness(t, "events", withFile).n)
 }

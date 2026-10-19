@@ -1,6 +1,7 @@
 package notifier
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -25,25 +26,33 @@ type HistoryEntry struct {
 	Zones    []string  `json:"zones"`
 	Score    float64   `json:"score,omitempty"`
 	Sent     bool      `json:"sent"`
+	SentAt   time.Time `json:"sent_at,omitzero"`  // when the notification was sent (counted per hour), zero if not sent
 	Grouped  bool      `json:"grouped,omitempty"` // added to the message of a previous notification
 	Reason   string    `json:"reason,omitempty"`  // reason for the filtering (see filter.Reason*)
+	Link     string    `json:"link,omitempty"`    // the notification's "Open in Frigate" link, empty without an address
 	Thumb    string    `json:"-"`                 // Frigate path of the thumbnail, empty if none
+	Snapshot string    `json:"-"`                 // Frigate path of the snapshot, empty if none
 }
 
 // storedEntry is an entry as written to HistoryFile: the thumbnail, which the
 // interface does not see, must still survive a restart.
 type storedEntry struct {
 	HistoryEntry
-	Thumb string `json:"thumb,omitempty"`
+	Thumb    string `json:"thumb,omitempty"`
+	Snapshot string `json:"snapshot,omitempty"`
 }
 
-// record adds the outcome of a tracked item to the history. Called under n.mu.
-func (n *Notifier) record(t *tracked, sent bool) {
+// record adds the outcome of a tracked item to the history: sent at sentAt, or ignored
+// when sentAt is zero. Called under n.mu.
+func (n *Notifier) record(t *tracked, sentAt time.Time) {
+	sent := !sentAt.IsZero()
 	e := HistoryEntry{
 		ID: t.id, At: t.start, Camera: t.camera, Label: t.label, Sound: t.sound, SubLabel: t.subLabel,
-		Zones: slices.Clone(t.zones), Sent: sent,
+		Zones: slices.Clone(t.zones), Sent: sent, Link: t.link,
 	}
-	if !sent {
+	if sent {
+		e.SentAt = sentAt // the instant recordSent counted, so the bar and the list agree
+	} else {
 		e.Reason = t.lastReason
 	}
 	e.Grouped = sent && t.grouped
@@ -52,6 +61,7 @@ func (n *Notifier) record(t *tracked, sent bool) {
 	}
 	if len(t.eventIDs) > 0 {
 		e.Thumb = frigate.EventThumbnailPath(t.eventIDs[0])
+		e.Snapshot = frigate.EventSnapshotHeightPath(t.eventIDs[0], 720)
 	}
 	if e.At.IsZero() {
 		e.At = n.Now()
@@ -96,6 +106,19 @@ func (n *Notifier) HistoryThumb(id string) (string, bool) {
 	return "", false
 }
 
+// HistorySnapshot returns the Frigate path of the snapshot of a history entry, with
+// the same restriction as HistoryThumb.
+func (n *Notifier) HistorySnapshot(id string) (string, bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, e := range n.history {
+		if e.ID == id && e.Snapshot != "" {
+			return e.Snapshot, true
+		}
+	}
+	return "", false
+}
+
 // loadHistory reads back the activity saved by the previous run. A missing file
 // leaves the history empty; an unreadable file is reported, then ignored.
 func (n *Notifier) loadHistory() {
@@ -117,10 +140,19 @@ func (n *Notifier) loadHistory() {
 	if len(entries) > historySize {
 		entries = entries[len(entries)-historySize:]
 	}
+	var sent []time.Time
 	for _, e := range entries {
-		e.HistoryEntry.Thumb = e.Thumb
+		e.HistoryEntry.Thumb, e.HistoryEntry.Snapshot = e.Thumb, e.Snapshot
 		n.history = append(n.history, e.HistoryEntry)
+		if e.Sent {
+			// A file written before sent_at existed has only the event's start.
+			sent = append(sent, cmp.Or(e.SentAt, e.At))
+		}
 	}
+	// The history keeps only historySize entries, so the count read back is a minimum.
+	slices.SortFunc(sent, func(a, b time.Time) int { return a.Compare(b) })
+	n.sent = append(n.sent, sent...)
+	n.pruneSent(n.Now())
 }
 
 // FlushHistory writes the recent activity to HistoryFile if it changed since the
@@ -133,7 +165,7 @@ func (n *Notifier) FlushHistory() error {
 	}
 	entries := make([]storedEntry, len(n.history))
 	for i, e := range n.history {
-		entries[i] = storedEntry{HistoryEntry: e, Thumb: e.Thumb}
+		entries[i] = storedEntry{HistoryEntry: e, Thumb: e.Thumb, Snapshot: e.Snapshot}
 	}
 	n.histDirty = false
 	n.mu.Unlock()

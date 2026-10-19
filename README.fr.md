@@ -7,13 +7,13 @@ détection, puis le clip vidéo dans le même message, avec des filtres fins, un
 tout régler en quelques clics et un pilotage depuis Telegram.
 
 <p align="center">
-  <img src="docs/screenshots/fr/overview.png" width="820" alt="Interface web : modèles de notification avec aperçu du message Telegram, et questions à choix simples">
+  <img src="docs/images/fr-overview.png" width="820" alt="Aperçu : notifications sur 24 h, connexions et caméras, à côté de la dernière notification telle qu'elle arrive dans Telegram">
 </p>
 
 ## Fonctionnalités
 
 - Mode **reviews** (alertes regroupées, Frigate ≥ 0.14, par défaut) ou **events** (un message par objet détecté)
-- Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, un lien vers le clip, ou le clip ré-encodé sous 50 Mo (*Compresser les clips de plus de 50 Mo*, désactivé par défaut)
+- Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, le début du clip (ses 50 premiers Mo) avec un lien vers le clip entier, ou le clip entier ré-encodé sous 50 Mo (*Compresser les clips de plus de 50 Mo*, désactivé par défaut)
 - **Sons** (mode reviews) : aboiement, alarme incendie, parole… entendus par la détection audio de Frigate, notifiés comme les objets — `🐕 Aboiement — garage`, voir [Sons](#sons)
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
 - Étiquettes de Frigate (classification personnalisée comme le nom de ta voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
@@ -30,6 +30,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
 - **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
+- **Alertes de panne** : un message Telegram quand Frigate ne répond plus ou qu'une caméra n'envoie plus d'images pendant 2 minutes, et un autre à son retour (*Alertes de panne* dans les réglages avancés pour les couper)
 - État persistant, `/healthz`, métriques Prometheus, image distroless multi-arch (amd64 et arm64)
 
 ## L'interface web en images
@@ -37,15 +38,18 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 **Choisir un modèle de notification.** Quatre modèles — *Photo + vidéo*, *Photo seule*,
 *Photo + GIF*, *Texte seul* — chacun avec un aperçu du message tel qu'il arrivera dans
 Telegram. Un clic, et toutes les caméras l'adoptent. En dessous, quelques questions à
-choix simples : quoi signaler, à quelle fréquence, et que faire la nuit (capture
-ci-dessus).
+choix simples : quoi signaler, à quelle fréquence, et que faire la nuit.
+
+<p align="center">
+  <img src="docs/images/fr-style.png" width="820" alt="Style : quatre modèles de notification avec un aperçu en direct du message Telegram">
+</p>
 
 **Régler une caméra.** Un interrupteur par caméra ; en l'ouvrant, on lui donne un autre
 modèle, d'autres objets ou seulement certaines zones — sinon elle suit les choix
 généraux. *Tester cette caméra* envoie une vraie notification d'exemple.
 
 <p align="center">
-  <img src="docs/screenshots/fr/cameras.png" width="820" alt="Caméra ouverte : modèle, objets et zones, bouton de test">
+  <img src="docs/images/fr-cameras.png" width="700" alt="L'écran Caméras avec une caméra ouverte : modèle, objets et zones">
 </p>
 
 **Comprendre pourquoi une notification n'est pas arrivée.** L'activité récente liste les
@@ -53,15 +57,15 @@ dernières détections, avec leur issue : ✅ envoyée, ou ⛔ ignorée et pourq
 score trop bas, déjà signalé il y a peu…), avec un lien direct vers la caméra à régler.
 
 <p align="center">
-  <img src="docs/screenshots/fr/activity.png" width="820" alt="Activité récente : détections envoyées ou ignorées, avec la raison">
+  <img src="docs/images/fr-activity.png" width="700" alt="Activité récente : détections envoyées, regroupées ou ignorées, avec la raison et une vignette">
 </p>
 
-**Sur téléphone, et en mode sombre.** La page s'adapte à l'écran et suit le thème du système.
+**Sur téléphone, en thème clair ou sombre.** La page s'adapte à l'écran et suit le thème du système (sombre par défaut, clair à droite) ; le menu de thème de l'en-tête force le thème clair ou sombre, ou revient à Auto, et est mémorisé (les pages de configuration et de connexion le suivent).
 
 <p align="center">
-  <img src="docs/screenshots/fr/mobile.png" width="260" alt="Interface sur téléphone">
+  <img src="docs/images/fr-phone.png" width="260" alt="L'écran Style sur un téléphone">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/fr/dark.png" width="540" alt="Interface en mode sombre">
+  <img src="docs/images/fr-light.png" width="540" alt="L'écran Style en thème clair">
 </p>
 
 ## Prérequis
@@ -177,51 +181,52 @@ Le mode `events` n'a pas de sons : Frigate ne les publie pas sur `frigate/events
 
 `http://<ip-du-serveur>:8431/` sert une page de réglage des notifications, pensée pour se
 régler en quelques clics. Elle suit la langue du navigateur (l'anglais si elle n'est pas traduite) ; le
-sélecteur de langue de l'en-tête la change, et le choix est retenu. Sur grand écran,
-un sommaire latéral mène à chaque section.
+menu de langue de l'en-tête la change, et le choix est retenu. Un menu en pastilles en haut
+de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie en liste) :
 
-- **État** : une carte en haut de page avec les connexions à Frigate, MQTT et Telegram,
-  l'état des notifications, qui est à la maison et les caméras coupées. Quand une
-  connexion échoue, la cause en clair et le réglage à corriger (mauvais mot de passe,
-  adresse injoignable, token invalide, `localhost` utilisé dans Docker…). Pause de
-  30 min, 1 h, 8 h ou jusqu'à reprise, et réactivation des caméras coupées depuis Telegram.
-- **Modèles de notification** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou
-  *Texte seul*, chacun avec un aperçu du message tel qu'il arrivera dans Telegram.
-- **Questions simples** : quoi signaler (personnes, personnes et voitures, tout), à
-  quelle fréquence au plus, quoi faire la nuit (comme le jour, sans son, rien) et, avec
-  la présence configurée, quand quelqu'un est à la maison.
-- **Rafales** : un message par détection, ou les détections des 2 ou 5 minutes suivantes
-  ajoutées au premier message (modifié, donc sans nouvelle sonnerie). **Cadrage** : plan
-  large ou zoom sur l'objet. **Vidéo** : dans le même message que l'image, ou en réponse.
-- **Sensibilité** : un curseur de score minimal qui montre, sur l'activité récente,
-  combien de détections auraient été ignorées.
+- **Aperçu** : les notifications sur 24 h, heure par heure ; les connexions à Frigate, MQTT
+  et Telegram, avec la cause en clair et le réglage à corriger quand l'une échoue ; pause
+  de 30 min, 1 h, 8 h ou jusqu'à reprise ; qui est à la maison ; les caméras coupées, à
+  réactiver ; la dernière notification telle qu'elle est arrivée.
+- **Style** : *Photo + vidéo*, *Photo seule*, *Photo + GIF* ou *Texte seul*, chacun avec un
+  aperçu du message tel qu'il arrivera dans Telegram, sur une photo d'exemple (zoomée sur
+  la personne quand l'image est recadrée sur l'objet). Plus bas : les rafales (un message par
+  détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
+  modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet) et la
+  vidéo (dans le même message que l'image, ou en réponse).
+- **Quand** : quoi signaler (personnes, personnes et voitures, tout), à quelle fréquence au
+  plus, quoi faire la nuit (comme le jour, sans son, rien) et, avec la présence configurée,
+  quand quelqu'un est à la maison. **Sensibilité** : un curseur de score minimal ; l'activité
+  récente montre combien de détections auraient été ignorées.
+- **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle,
+  d'autres objets ou seulement certaines zones (*Où ?* : partout, ou les zones définies dans
+  Frigate, en un clic). *M'envoyer un exemple* envoie une vraie notification de test. Chaque
+  caméra a son propre lien (`#cameras/<nom>`). Les alertes de cohérence signalent une caméra
+  réglée pour un objet que Frigate ne suit pas (absent de `objects.track`).
 - **Destinataires** (avec plusieurs chats) : ce que reçoit chaque personne — tout, les
-  personnes, les personnes et les voitures — et quand — tout le temps, seulement la
-  nuit, seulement le jour, sans son la nuit.
-- **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle
-  ou d'autres objets, sinon elle suit les choix du haut.
-- **Où ?** : pour une caméra qui a des zones dans Frigate, « Partout » ou seulement
-  certaines zones, en un clic.
-- **Essai** : *M'envoyer un exemple* envoie une vraie notification de test aux
-  destinataires, avec l'image en direct de la caméra et les réglages enregistrés.
-- **Activité récente** : les 50 dernières détections avec leur miniature et leur
-  issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone, score trop bas,
-  déjà signalé il y a peu…) et un lien pour régler la caméra concernée. L'historique est
-  gardé en mémoire et repart de zéro au redémarrage du service.
-- **Alertes de cohérence** : une caméra réglée pour signaler un objet que Frigate n'y
-  suit pas (absent de `objects.track`) est signalée.
-- **Réglages avancés** (repliés) : tous les réglages en détail, rangés par thème —
-  destinataires et filtrage, médias, rythme, horaires et présence, liens — en global
-  puis caméra par caméra. Les zones et les objets proposés viennent de l'API de Frigate.
-  **Liens** contient l'adresse utilisée par « Ouvrir dans Frigate » (défaut : l'adresse
-  de Frigate) et celle du bouton 🏠 *Home Assistant* (vide : pas de bouton), chacune avec
-  un bouton pour la tester.
+  personnes, les personnes et les voitures — et quand — tout le temps, seulement la nuit,
+  seulement le jour, sans son la nuit.
+- **Activité récente** (quand l'historique est disponible) : les 50 dernières détections avec
+  leur miniature et leur issue — ✅ envoyée, ou ⛔ ignorée avec la raison en clair (hors zone,
+  score trop bas, déjà signalé il y a peu…) et un lien pour régler la caméra concernée.
+  Filtres par caméra, issue ou heure ; une ligne s'ouvre sur le cliché et un lien *Ouvrir
+  dans Frigate*. Les barres du graphique des 24 h de l'aperçu mènent aux notifications
+  envoyées pendant cette heure (les mêmes heures se choisissent dans un menu). Les 50
+  dernières détections sont conservées d'un redémarrage à l'autre.
+- **Réglages avancés** : tous les réglages globaux en détail, rangés par thème —
+  destinataires et filtrage, médias, rythme, horaires et présence, liens. Les zones et
+  les objets proposés viennent de l'API de Frigate. Les réglages propres à une caméra
+  sont dans *Caméras*, sous *Tous les réglages de* cette caméra. **Liens** contient
+  l'adresse utilisée par « Ouvrir dans Frigate » (défaut : l'adresse de Frigate) et
+  celle du bouton 🏠 *Home Assistant* (vide : pas de bouton) ; un lien *Tester ↗* ouvre
+  chaque adresse dès qu'elle est valide.
 
 Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
 redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
 est valide — un réglage refusé est signalé et laisse le service sur les précédents.
-Les choix plus fins (cadrage, rafales, sensibilité, réglages par personne) sont repliés
-sous *Plus de choix* : les valeurs par défaut conviennent à la plupart des installations.
+Sur *Quand*, les choix plus fins — rafales, labels connus et, hors du mode `reviews`,
+sensibilité — sont repliés sous *Plus de choix*, et les valeurs par défaut conviennent à
+la plupart des installations.
 
 Les réglages sont enregistrés dans le volume de données (`/data/notify.yml`), à côté de
 l'état (pauses, cooldowns) et de l'activité récente : ils survivent aux redémarrages et aux mises à jour. Avec un
@@ -335,9 +340,9 @@ go test -tags browser ./internal/web/   # test de fumée de l'interface web, ave
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-L'interface web se compose de `internal/web/ui.html`, `ui.css` et `ui.js`, et la page
-d'installation de `setup.html` et `setup.js`, intégrés tels quels au binaire : aucune
-étape de build.
+L'interface web complète (installation, connexion et interface principale) est construite à
+partir de `web/` (Svelte et Tailwind) dans `internal/web/dist/`, qui est versionné ; voir
+[CONTRIBUTING.fr.md](CONTRIBUTING.fr.md).
 
 ### Traduire
 
@@ -367,3 +372,5 @@ texte traduit, aucun en trop).
 [MIT](LICENSE). L'image Docker contient aussi une version statique de
 [FFmpeg](https://ffmpeg.org/) (GPL, issue de [mwader/static-ffmpeg](https://github.com/wader/static-ffmpeg)),
 qui sert uniquement à ré-encoder les clips de plus de 50 Mo.
+
+La photo d'exemple des aperçus (`web/src/assets/sample.jpg`) est sous [licence Unsplash](https://unsplash.com/license), voir `web/src/assets/CREDITS.md`.

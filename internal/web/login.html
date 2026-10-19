@@ -3,26 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S10 19 10 13'/%3E%3Cpath d='M14.3 24.5a2 2 0 0 0 3.4 0'/%3E%3C/g%3E%3C/svg%3E">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232aabee'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S10 19 10 13'/%3E%3Cpath d='M14.3 24.5a2 2 0 0 0 3.4 0'/%3E%3C/g%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem("frigate-telegram-enhanced-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <title>{{.Title}}</title>
-<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="login.css">
 </head>
-<body class="login">
-<form class="login-card" method="post" action="login?lang={{.Lang}}">
-  <div class="brand">
-    <span class="logo" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
-    <div class="brand-text">
-      <h1>{{.Title}}</h1>
-      <span class="sub">frigate-telegram-enhanced</span>
-    </div>
-  </div>
-  <label for="password">{{.Label}}</label>
-  <input type="password" id="password" name="password" autocomplete="current-password" autofocus>
+<body class="grid place-items-center px-4 py-10">
+<form class="login-card flex w-full max-w-[300px] flex-col items-center gap-4 rounded-[20px] bg-[var(--glass)] p-6 text-center shadow-[inset_0_1px_1px_var(--glass-hi)] ring-1 ring-[var(--ring)]" method="post" action="login?lang={{.Lang}}">
+  <span class="grid h-12 w-12 place-items-center rounded-full bg-[var(--glass)] ring-1 ring-[var(--ring)]" aria-hidden="true">
+    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+  </span>
+  <h1 class="m-0 text-[18px] font-medium">{{.Title}}</h1>
+  <label class="lbl self-start" for="password">{{.Label}}</label>
+  <input class="field" type="password" id="password" name="password" autocomplete="current-password" autofocus>
   <input type="hidden" name="next" value="{{.Next}}">
-  {{if .Error}}<p class="login-error" role="alert">{{.Error}}</p>{{end}}
-  <button type="submit" class="primary">{{.Button}}</button>
-  <nav class="login-langs" aria-label="Language / Langue">{{range .Langs}}<a href="login?lang={{.Code}}&amp;next={{$.Next}}"{{if .Current}} aria-current="true"{{end}}>{{.Code}}</a>{{end}}</nav>
+  {{if .Error}}<p class="login-error result err m-0" role="alert">{{.Error}}</p>{{end}}
+  <button type="submit" class="btn btn-primary w-full">{{.Button}}</button>
+  <nav class="flex justify-center gap-3 text-[11px] uppercase text-[var(--faint)]" aria-label="Language / Langue">{{range .Langs}}<a class="no-underline aria-[current=true]:font-semibold aria-[current=true]:text-[var(--ink)]" href="login?lang={{.Code}}&amp;next={{$.Next}}"{{if .Current}} aria-current="true"{{end}}>{{.Code}}</a>{{end}}</nav>
 </form>
+<script>
+  // Carry the page's #fragment through the login, so a deep link survives it.
+  document.querySelectorAll("nav a").forEach(function (a) { a.href += location.hash; });
+  document.querySelector("form").addEventListener("submit", function (e) {
+    e.target.action = e.target.action.split("#")[0] + location.hash;
+  });
+</script>
 </body>
 </html>

@@ -30,6 +30,7 @@ type captionData struct {
 	Description             string
 	Link                    string
 	Group                   string // HTML block of the grouped detections, already escaped
+	ClipNote                string // HTML line about the clip, already escaped
 }
 
 // buildCaption builds the HTML caption (≤ 1024 characters; the description is truncated if needed).
@@ -56,6 +57,9 @@ func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	footer := d.Group
 	if d.Link != "" {
 		footer += openInFrigate(d.Link, lang)
+	}
+	if d.ClipNote != "" {
+		footer += "\n" + d.ClipNote
 	}
 	if d.Description != "" {
 		// Telegram counts the text outside tags: counting the whole HTML string is on the safe side.

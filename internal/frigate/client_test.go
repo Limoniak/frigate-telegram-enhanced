@@ -28,12 +28,12 @@ func newTestClient(t *testing.T, url, user, pass string) *Client {
 func TestPaths(t *testing.T) {
 	cases := map[string]string{
 		EventSnapshotPath("a1"):                   "/api/events/a1/snapshot.jpg?bbox=1",
-		EventClipPath("a1"):                       "/api/events/a1/clip.mp4",
+		EventClipPath("a1"):                       "/api/events/a1/clip.mp4?padding=4",
 		EventGIFPath("a1"):                        "/api/events/a1/preview.gif",
 		ReviewGIFPath("r1"):                       "/api/review/r1/preview?format=gif",
 		LatestPath("jardin"):                      "/api/jardin/latest.jpg",
-		RecordingClipPath("jardin", 100.4, 130.2): "/api/jardin/start/100/end/131/clip.mp4",
-		EventClipPath("a b"):                      "/api/events/a%20b/clip.mp4",
+		RecordingClipPath("jardin", 100.4, 130.2): "/api/jardin/start/96/end/135/clip.mp4",
+		EventClipPath("a b"):                      "/api/events/a%20b/clip.mp4?padding=4",
 	}
 	for got, want := range cases {
 		if got != want {
@@ -180,8 +180,13 @@ func TestDownloadToFile(t *testing.T) {
 	if string(b) != "mp4data" {
 		t.Errorf("content = %q", b)
 	}
-	if _, err := c.DownloadToFile(context.Background(), "/clip.mp4", 3); !errors.Is(err, ErrTooLarge) {
+	path, err = c.DownloadToFile(context.Background(), "/clip.mp4", 3)
+	if !errors.Is(err, ErrTooLarge) {
 		t.Errorf("err = %v, want ErrTooLarge", err)
+	}
+	defer os.Remove(path)
+	if b, _ := os.ReadFile(path); string(b) != "mp4" {
+		t.Errorf("beginning kept = %q, want the first 3 bytes", b)
 	}
 }
 

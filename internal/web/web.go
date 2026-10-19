@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
@@ -27,11 +28,48 @@ import (
 	"frigate-telegram-enhanced/internal/state"
 )
 
-// The interface: the page, its style sheet and its script, with no build step,
-// and the setup page.
+// The login page, and dist/, the front end built from web/ (npm run build), committed so that go build needs no Node.
 //
-//go:embed ui.html ui.css ui.js setup.html setup.js login.html
+//go:embed login.html all:dist
 var assets embed.FS
+
+// distFS is the built front end.
+var distFS = func() fs.FS {
+	sub, err := fs.Sub(assets, "dist")
+	if err != nil {
+		panic(err)
+	}
+	return sub
+}()
+
+// distAsset serves a file of the built front end, by its fixed name.
+func distAsset(name, contentType string) http.Handler {
+	body, err := fs.ReadFile(distFS, name)
+	if err != nil {
+		panic(err) // embedded: missing only if dist/ was not built
+	}
+	return serve(body, contentType)
+}
+
+// staticAssets serves dist/assets/: fonts and chunks whose names carry a hash, so
+// they can be cached for good. Nothing private: the login page needs them.
+func staticAssets() http.Handler {
+	sub, err := fs.Sub(distFS, "assets")
+	if err != nil {
+		panic(err)
+	}
+	files := http.StripPrefix("/assets/", http.FileServerFS(sub))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Existing regular files only: no directory listing, and no long cache on a 404.
+		name := strings.TrimPrefix(r.URL.Path, "/assets/")
+		if info, err := fs.Stat(sub, name); err != nil || !info.Mode().IsRegular() {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		files.ServeHTTP(w, r)
+	})
+}
 
 // maxBody bounds the size of a save: the override of a realistic installation
 // weighs a few kilobytes.
@@ -64,6 +102,12 @@ type State interface {
 type History interface {
 	History() []notifier.HistoryEntry
 	HistoryThumb(id string) (string, bool)
+	HistorySnapshot(id string) (string, bool)
+}
+
+// Activity gives the times of the notifications sent over the last 24 h.
+type Activity interface {
+	SentTimes() []time.Time
 }
 
 // Media reads an image from Frigate.
@@ -73,6 +117,9 @@ type Media interface {
 
 // maxThumb bounds the size of a thumbnail relayed from Frigate.
 const maxThumb = 1 << 20
+
+// maxLatest bounds the size of a snapshot relayed from Frigate.
+const maxLatest = 2 << 20
 
 // State of a connection, as the interface shows it.
 const (
@@ -88,6 +135,13 @@ type Component struct {
 	State  string `json:"state"`
 	Detail string `json:"detail"`
 	Hint   string `json:"hint,omitempty"` // what to fix, on error
+	// Action: "delete_webhook" when the interface can fix it by removing the bot's webhook.
+	Action string `json:"action,omitempty"`
+}
+
+// Webhook removes the bot's webhook.
+type Webhook interface {
+	DeleteWebhook(ctx context.Context) error
 }
 
 // Refusals gives the Telegram users recently refused by the bot.
@@ -103,17 +157,19 @@ type HealthFunc func(ctx context.Context, l i18n.Lang) []Component
 const testInterval = 3 * time.Second
 
 type Handler struct {
-	cfg     *config.Config
-	path    string // override file
-	cameras CameraLister
-	log     *slog.Logger
-	tester  Tester // nil: no test sending
-	state   State  // nil: no pause from the interface
-	history History
-	media   Media      // nil: history without thumbnails
-	health  HealthFunc // nil: no connection status
-	refused Refusals   // nil: no list of refused users
-	setup   *Setup     // nil: connection set by config.yml
+	cfg      *config.Config
+	path     string // override file
+	cameras  CameraLister
+	log      *slog.Logger
+	tester   Tester // nil: no test sending
+	state    State  // nil: no pause from the interface
+	history  History
+	activity Activity   // nil: history without the notifications sent over 24 h
+	media    Media      // nil: history without thumbnails
+	health   HealthFunc // nil: no connection status
+	refused  Refusals   // nil: no list of refused users
+	webhook  Webhook    // nil: the interface cannot remove the webhook
+	setup    *Setup     // nil: connection set by config.yml
 	// sessionKey signs the login sessions; nil: a random one, lost on restart.
 	sessionKey []byte
 	auth       *Auth // password, shared by every route
@@ -140,12 +196,18 @@ func WithHistory(h History, media Media) Option {
 	return func(x *Handler) { x.history, x.media = h, media }
 }
 
+// WithActivity adds to the history the notifications sent over 24 h, hour by hour.
+func WithActivity(a Activity) Option { return func(h *Handler) { h.activity = a } }
+
 // WithHealth enables the connection status display.
 func WithHealth(f HealthFunc) Option { return func(h *Handler) { h.health = f } }
 
 // WithRefused adds to the connection status the Telegram users recently refused,
 // with their ID to add to the configuration.
 func WithRefused(r Refusals) Option { return func(h *Handler) { h.refused = r } }
+
+// WithWebhook lets the interface remove the bot's webhook.
+func WithWebhook(w Webhook) Option { return func(h *Handler) { h.webhook = w } }
 
 // WithSetup adds the "Connection" page, to change what the setup page saved.
 func WithSetup(s *Setup) Option { return func(h *Handler) { h.setup = s } }
@@ -173,13 +235,21 @@ func (h *Handler) Protect(next http.Handler) http.Handler { return h.auth.WrapBa
 // configuration sets one. /healthz and /metrics stay outside: the container probe
 // and the Prometheus scrape do not authenticate (see web.protect_metrics).
 func (h *Handler) Mount(mux *http.ServeMux) {
-	mux.Handle("GET /{$}", h.guard(asset("ui.html", "text/html; charset=utf-8")))
-	// The style sheet holds nothing private: the login page needs it before the password.
-	mux.Handle("GET /ui.css", asset("ui.css", "text/css; charset=utf-8"))
+	// The interface.
+	mux.Handle("GET /{$}", h.guard(distAsset("app.html", "text/html; charset=utf-8")))
+	mux.Handle("GET /app.js", h.guard(distAsset("app.js", "text/javascript; charset=utf-8")))
+	mux.Handle("GET /app.css", h.guard(distAsset("app.css", "text/css; charset=utf-8")))
+	// The classic interface is gone; its old address leads to the new one.
+	mux.HandleFunc("GET /classic", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "./") // relative: the service may sit behind a path prefix
+		w.WriteHeader(http.StatusFound)
+	})
+	// The login page's sheet and the fonts hold nothing private: needed before the password.
+	mux.Handle("GET /login.css", distAsset("login.css", "text/css; charset=utf-8"))
+	mux.Handle("GET /assets/", staticAssets())
 	mux.HandleFunc("GET /login", h.loginPage)
 	mux.HandleFunc("POST /login", h.login)
 	mux.Handle("POST /logout", sameOrigin(http.HandlerFunc(h.logout)))
-	mux.Handle("GET /ui.js", h.guard(asset("ui.js", "text/javascript; charset=utf-8")))
 	mux.Handle("GET /i18n.js", h.guard(serve(i18nScript, "text/javascript; charset=utf-8")))
 	mux.Handle("GET /api/settings", h.guard(http.HandlerFunc(h.get)))
 	mux.Handle("PUT /api/settings", h.guard(sameOrigin(http.HandlerFunc(h.put))))
@@ -190,7 +260,9 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.Handle("POST /api/resume", h.guard(sameOrigin(http.HandlerFunc(h.resume))))
 	mux.Handle("GET /api/history", h.guard(http.HandlerFunc(h.getHistory)))
 	mux.Handle("GET /api/health", h.guard(http.HandlerFunc(h.getHealth)))
+	mux.Handle("POST /api/telegram/webhook/delete", h.guard(sameOrigin(http.HandlerFunc(h.deleteWebhook))))
 	mux.Handle("GET /api/history/{id}/thumb", h.guard(http.HandlerFunc(h.thumb)))
+	mux.Handle("GET /api/history/{id}/snapshot", h.guard(http.HandlerFunc(h.snapshot)))
 	if h.setup != nil {
 		h.setup.mount(mux, h.guard)
 	}
@@ -259,16 +331,7 @@ func sameOrigin(next http.Handler) http.Handler {
 	})
 }
 
-// asset serves a file of the interface. no-store: after an update of the service,
-// the browser must not keep the old script with the new page.
-func asset(name, contentType string) http.Handler {
-	body, err := assets.ReadFile(name)
-	if err != nil {
-		panic(err) // embedded: missing only if the code is inconsistent
-	}
-	return serve(body, contentType)
-}
-
+// no-store: after an update of the service, the browser must not keep the old script with the new page.
 func serve(body []byte, contentType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", contentType)
@@ -573,13 +636,41 @@ func (h *Handler) getHealth(w http.ResponseWriter, r *http.Request) {
 	}{h.health(ctx, h.lang(r)), refused})
 }
 
+// deleteWebhook removes the bot's webhook: the bot reads its messages again at its
+// next poll.
+func (h *Handler) deleteWebhook(w http.ResponseWriter, r *http.Request) {
+	if h.webhook == nil {
+		h.writeError(w, r, http.StatusNotFound, i18n.NewError("webhook removal unavailable"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	if err := h.webhook.DeleteWebhook(ctx); err != nil {
+		h.log.Warn("webhook removal failed", "err", err)
+		h.writeError(w, r, http.StatusBadGateway, err)
+		return
+	}
+	h.log.Info("Telegram webhook removed from the web interface")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 type historyView struct {
 	Entries []historyEntryView `json:"entries"`
+	// Now is the server's clock: the interface takes its hour windows from it, not from
+	// the browser's clock.
+	Now time.Time `json:"now"`
+	// SentHours: the notifications sent per clock hour, the current hour last, starting
+	// at Hour; Sent24h, their total, so that it matches the bars. Absent without an
+	// activity source.
+	Sent24h   *int       `json:"sent_24h,omitempty"`
+	SentHours []int      `json:"sent_hours,omitempty"`
+	Hour      *time.Time `json:"hour,omitempty"`
 }
 
 type historyEntryView struct {
 	notifier.HistoryEntry
-	HasThumb bool `json:"has_thumb"`
+	HasThumb    bool `json:"has_thumb"`
+	HasSnapshot bool `json:"has_snapshot"`
 }
 
 func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
@@ -587,28 +678,67 @@ func (h *Handler) getHistory(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusNotFound, i18n.NewError("history unavailable"))
 		return
 	}
-	v := historyView{Entries: []historyEntryView{}}
+	now := h.now() // one instant: the last bar of SentHours ends now
+	v := historyView{Entries: []historyEntryView{}, Now: now}
 	for _, e := range h.history.History() {
-		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != ""})
+		v.Entries = append(v.Entries, historyEntryView{HistoryEntry: e, HasThumb: h.media != nil && e.Thumb != "", HasSnapshot: h.media != nil && e.Snapshot != ""})
+	}
+	if h.activity != nil {
+		hour := hourOf(now, h.cfg.Location)
+		v.SentHours, v.Hour = sentHours(h.activity.SentTimes(), now, hour), &hour
+		n := 0
+		for _, c := range v.SentHours {
+			n += c
+		}
+		v.Sent24h = &n
 	}
 	writeJSON(w, http.StatusOK, v)
 }
 
+// sentHours counts times per clock hour: index 23 holds [hour, now], the current hour
+// so far, index 22 the hour before, and so on.
+func sentHours(times []time.Time, now, hour time.Time) []int {
+	hours := make([]int, 24)
+	first := hour.Add(-23 * time.Hour)
+	for _, t := range times {
+		if t.Before(first) || t.After(now) {
+			continue
+		}
+		hours[int(t.Sub(first)/time.Hour)]++
+	}
+	return hours
+}
+
+// hourOf is the start of t's clock hour in loc, also in a zone offset by 30 or 45 min.
+func hourOf(t time.Time, loc *time.Location) time.Time {
+	l := t.In(loc)
+	return t.Add(-time.Duration(l.Minute())*time.Minute - time.Duration(l.Second())*time.Second - time.Duration(l.Nanosecond()))
+}
+
 func (h *Handler) thumb(w http.ResponseWriter, r *http.Request) {
+	h.historyImage(w, r, func(id string) (string, bool) { return h.history.HistoryThumb(id) }, maxThumb, "thumbnail unavailable")
+}
+
+func (h *Handler) snapshot(w http.ResponseWriter, r *http.Request) {
+	h.historyImage(w, r, func(id string) (string, bool) { return h.history.HistorySnapshot(id) }, maxLatest, "image unavailable")
+}
+
+// historyImage relays the image of a history entry, whose Frigate path is found by path.
+func (h *Handler) historyImage(w http.ResponseWriter, r *http.Request, path func(id string) (string, bool), max int64, failure string) {
 	if h.history == nil || h.media == nil {
 		http.NotFound(w, r)
 		return
 	}
-	path, ok := h.history.HistoryThumb(r.PathValue("id"))
+	p, ok := path(r.PathValue("id"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	img, err := h.media.GetBytes(ctx, path, maxThumb)
+	img, err := h.media.GetBytes(ctx, p, max)
 	if err != nil {
-		http.Error(w, h.lang(r).T("thumbnail unavailable"), http.StatusBadGateway)
+		http.Error(w, h.lang(r).T(failure), http.StatusBadGateway)
 		return
 	}
 	w.Header().Set("Content-Type", "image/jpeg")

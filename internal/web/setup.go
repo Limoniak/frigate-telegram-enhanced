@@ -30,6 +30,8 @@ type Problem struct {
 	Detail string
 	Hint   string
 	Auth   bool // credentials refused: the server answers, only they are wrong
+	// Webhook: a webhook keeps the bot's messages; the interface offers to remove it.
+	Webhook bool
 }
 
 func (p *Problem) Error() string { return p.Detail }
@@ -94,8 +96,9 @@ func (s *Setup) MountAlone(mux *http.ServeMux) {
 		return checkHost(nil, i18n.Default, setupHostRefused, next)
 	}
 	mux.Handle("GET /{$}", guard(http.RedirectHandler("setup", http.StatusFound)))
-	mux.Handle("GET /ui.css", guard(asset("ui.css", "text/css; charset=utf-8")))
+	mux.Handle("GET /assets/", guard(staticAssets()))
 	mux.Handle("GET /i18n.js", guard(serve(i18nScript, "text/javascript; charset=utf-8")))
+	mux.Handle("GET /app.css", guard(distAsset("app.css", "text/css; charset=utf-8")))
 	s.mount(mux, guard)
 }
 
@@ -103,8 +106,8 @@ func (s *Setup) MountAlone(mux *http.ServeMux) {
 const setupHostRefused = "open this page with the server's IP address (for example http://192.168.1.10:8431): the name will be accepted once the setup is saved"
 
 func (s *Setup) mount(mux *http.ServeMux, guard func(http.Handler) http.Handler) {
-	mux.Handle("GET /setup", guard(asset("setup.html", "text/html; charset=utf-8")))
-	mux.Handle("GET /setup.js", guard(asset("setup.js", "text/javascript; charset=utf-8")))
+	mux.Handle("GET /setup", guard(distAsset("setup.html", "text/html; charset=utf-8")))
+	mux.Handle("GET /setup.js", guard(distAsset("setup.js", "text/javascript; charset=utf-8")))
 	mux.Handle("GET /api/connection", guard(http.HandlerFunc(s.get)))
 	mux.Handle("POST /api/connection/telegram", guard(sameOrigin(http.HandlerFunc(s.telegram))))
 	mux.Handle("POST /api/connection/frigate", guard(sameOrigin(http.HandlerFunc(s.frigate))))

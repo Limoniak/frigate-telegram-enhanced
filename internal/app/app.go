@@ -23,6 +23,7 @@ import (
 	"frigate-telegram-enhanced/internal/metrics"
 	"frigate-telegram-enhanced/internal/mqttsub"
 	"frigate-telegram-enhanced/internal/notifier"
+	"frigate-telegram-enhanced/internal/outage"
 	"frigate-telegram-enhanced/internal/server"
 	"frigate-telegram-enhanced/internal/state"
 	"frigate-telegram-enhanced/internal/telegram"
@@ -107,6 +108,25 @@ func run(parent context.Context, cfg *config.Config, connectionPath string, tgOp
 		handle = presenceRouter(cfg.Presence, st, log, notif.Handle)
 		log.Info("presence tracked", "topics", cfg.Presence.Topics)
 	}
+	watch := outage.New(cfg.MQTT.TopicPrefix, cfg.Language, cfg.Location, func(text string) {
+		if !cfg.Global().OutageAlerts {
+			return
+		}
+		go func() { // Handle runs on the MQTT client's goroutine: never wait for Telegram there
+			for _, chat := range cfg.Global().Chats {
+				if _, err := tg.SendMessage(ctx, cfg.ChatID(chat), text, telegram.SendOptions{}); err != nil {
+					log.Warn("outage alert not sent", "chat", chat, "err", err)
+				}
+			}
+		}()
+	})
+	topics = append(topics, watch.Topics()...)
+	next := handle
+	handle = func(topic string, payload []byte) {
+		if !watch.Handle(topic, payload) {
+			next(topic, payload)
+		}
+	}
 	// lostAt: start of the current MQTT outage (UnixNano), 0 when connected. On
 	// reconnection, the notifier catches up from Frigate on what was missed.
 	var lostAt atomic.Int64
@@ -131,8 +151,8 @@ func run(parent context.Context, cfg *config.Config, connectionPath string, tgOp
 	if cfg.Web.Enabled {
 		fromPage := cfg.Source == connectionPath
 		chk := &checker{cfg: cfg, fr: fr, sub: sub, bot: b, tg: tg, drops: notif, page: fromPage}
-		opts := []web.Option{web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr),
-			web.WithHealth(chk.check), web.WithRefused(b)}
+		opts := []web.Option{web.WithTester(notif), web.WithState(st), web.WithHistory(notif, fr), web.WithActivity(notif),
+			web.WithHealth(chk.check), web.WithRefused(b), web.WithWebhook(tg)}
 		// Login sessions survive restarts (a changed connection restarts the service).
 		if key, err := web.LoadSessionKey(filepath.Join(filepath.Dir(cfg.StateFile), "session.key")); err != nil {
 			log.Warn("login sessions will not survive a restart", "err", err)

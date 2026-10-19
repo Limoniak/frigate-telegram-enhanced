@@ -54,15 +54,20 @@ func (n *Notifier) sendClipFile(ctx context.Context, chatID int64, replyTo int, 
 	}
 	defer n.releaseMedia()
 	file, err := n.fetchClip(ctx, path)
-	if errors.Is(err, frigate.ErrTooLarge) {
+	cut := errors.Is(err, frigate.ErrTooLarge) && file != "" // only its beginning came
+	if errors.Is(err, frigate.ErrTooLarge) && !cut {
 		_, err = n.Telegram.SendMessage(ctx, chatID, n.tooLargeText(path), telegram.SendOptions{ReplyTo: replyTo})
 		return err
 	}
-	if err != nil {
+	if err != nil && !cut {
 		return err
 	}
 	defer os.Remove(file)
-	_, err = n.Telegram.SendVideo(ctx, chatID, telegram.InputFile{Name: "clip.mp4", Path: file}, telegram.SendOptions{ReplyTo: replyTo})
+	o := telegram.SendOptions{ReplyTo: replyTo}
+	if cut {
+		o.Caption = n.cutText(path)
+	}
+	_, err = n.Telegram.SendVideo(ctx, chatID, telegram.InputFile{Name: "clip.mp4", Path: file}, o)
 	if err == nil {
 		n.Metrics.NotificationsSent.WithLabelValues("video").Inc()
 	}

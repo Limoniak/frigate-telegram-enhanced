@@ -362,6 +362,12 @@ func (c *Client) SetMyCommands(ctx context.Context, cmds []BotCommand) error {
 	return c.call(ctx, request{method: "setMyCommands", params: map[string]string{"commands": string(b)}}, nil)
 }
 
+// DeleteWebhook removes the bot's webhook, so that getUpdates reads it again. The
+// pending updates stay.
+func (c *Client) DeleteWebhook(ctx context.Context) error {
+	return c.call(ctx, request{method: "deleteWebhook", timeout: 10 * time.Second, noRetry: true}, nil)
+}
+
 // GetMe returns the bot's account; used to check the token.
 func (c *Client) GetMe(ctx context.Context) (User, error) {
 	var u User

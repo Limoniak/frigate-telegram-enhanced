@@ -7,13 +7,13 @@ something is detected, then the video clip in the same message — with fine-gra
 interface to set everything up in a few clicks, and control from Telegram itself.
 
 <p align="center">
-  <img src="docs/screenshots/en/overview.png" width="820" alt="Web interface: notification styles with a preview of the Telegram message, and simple multiple-choice questions">
+  <img src="docs/images/en-overview.png" width="820" alt="Overview: notifications over 24 h, connections and cameras, next to the last notification as it arrives in Telegram">
 </p>
 
 ## Features
 
 - **reviews** mode (grouped alerts, Frigate ≥ 0.14, the default) or **events** mode (one message per detected object)
-- Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, a link to the clip instead, or the clip re-encoded under 50 MB (*Compress clips over 50 MB*, off by default)
+- Instant snapshot, then the MP4 clip **in the same message** (it replaces the image, no second notification) or as a reply; optional GIF; above 50 MB, the beginning of the clip (its first 50 MB) with a link to the whole clip, or the whole clip re-encoded under 50 MB (*Compress clips over 50 MB*, off by default)
 - **Sounds** (reviews mode): barking, smoke alarm, speech… heard by Frigate's audio detection, notified like objects — `🐕 Barking — garage`, see [Sounds](#sounds)
 - Frigate's GenAI description added to the caption as soon as it is available
 - Frigate's labels (custom classification such as your car's name, faces, license plates) added to the caption as soon as Frigate knows them — `🏷 clio 3`
@@ -30,6 +30,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
 - **Per-recipient settings**: e.g. you get everything, the family only people at night
 - After an MQTT outage, detections missed during the last hour are caught up from Frigate
+- **Outage alerts**: a Telegram message when Frigate stops responding or a camera sends no more images for 2 minutes, and another when it is back (*Outage alerts* in the advanced settings to turn them off)
 - Persistent state, `/healthz`, Prometheus metrics, multi-arch distroless image (amd64 and arm64)
 
 ## A tour of the web interface
@@ -37,14 +38,18 @@ interface to set everything up in a few clicks, and control from Telegram itself
 **Pick a notification style.** Four styles — *photo + video*, *photo only*,
 *photo + GIF*, *text only* — each with a preview of the message as it will arrive in
 Telegram. One click and every camera uses it. Below, a few multiple-choice questions:
-what to report, how often at most, and what to do at night (screenshot above).
+what to report, how often at most, and what to do at night.
+
+<p align="center">
+  <img src="docs/images/en-style.png" width="820" alt="Style: four notification styles with a live preview of the Telegram message">
+</p>
 
 **Fine-tune a camera.** Each camera has an on/off switch; open it to give it another
 style, other objects or only some zones — otherwise it follows the general choices.
 *Test this camera* sends a real sample notification.
 
 <p align="center">
-  <img src="docs/screenshots/en/cameras.png" width="820" alt="An expanded camera: style, objects and zones, test button">
+  <img src="docs/images/en-cameras.png" width="700" alt="The Cameras screen with one camera expanded: style, objects and zones">
 </p>
 
 **Find out why a notification didn't arrive.** Recent activity lists the latest
@@ -53,15 +58,15 @@ selected zones, score too low, already reported a moment ago…), with a direct 
 the camera to adjust.
 
 <p align="center">
-  <img src="docs/screenshots/en/activity.png" width="820" alt="Recent activity: detections sent or ignored, with the reason">
+  <img src="docs/images/en-activity.png" width="700" alt="Recent activity: detections sent, grouped or ignored, with the reason and a thumbnail">
 </p>
 
-**On a phone, and in dark mode.** The page adapts to the screen and follows the system theme.
+**On a phone, in a light or dark theme.** The page adapts to the screen and follows the system theme (dark by default, light on the right); the theme menu in the header forces Light or Dark, or goes back to Auto, and is remembered (the setup and login pages follow it).
 
 <p align="center">
-  <img src="docs/screenshots/en/mobile.png" width="260" alt="The interface on a phone">
+  <img src="docs/images/en-phone.png" width="260" alt="The Style screen on a phone">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/en/dark.png" width="540" alt="The interface in dark mode">
+  <img src="docs/images/en-light.png" width="540" alt="The Style screen in the light theme">
 </p>
 
 ## Requirements
@@ -174,50 +179,49 @@ Or keep Frigate as it is and choose *Alerts and detections* in the web interface
 
 `http://<server-ip>:8431/` serves a page to configure notifications, designed to be set
 up in a few clicks. It follows the browser's language (English when it has no translation); the
-language switch in the header changes it and is remembered. On a wide screen, a side
-menu jumps to each section.
+language menu in the header changes it and is remembered. A pill menu at the top of the
+page opens one screen per topic (on a phone, a ☰ button folds it into a list):
 
-- **Status**: one card at the top with the connections to Frigate, MQTT and Telegram,
-  whether notifications are active, who is home and which cameras are muted. When a
-  connection fails, the cause in plain words and the setting to fix (wrong password,
-  unreachable address, invalid token, `localhost` used inside Docker…). Pause for
-  30 min, 1 h, 8 h or until resumed, and re-enable cameras muted from Telegram.
-- **Notification styles**: photo + video, photo only, photo + GIF or text only, each
-  with a preview of the message as it will arrive in Telegram.
-- **Simple questions**: what to report (people, people and cars, everything), how often
-  at most, what to do at night (same as daytime, silent, nothing) and, with presence
-  set up, when someone is home.
-- **Bursts**: one message per detection, or detections within 2 or 5 minutes added to
-  the first message (edited, so no extra sound). **Framing**: wide shot or zoom on the
-  object. **Video**: in the same message as the image, or as a reply.
-- **Sensitivity**: a slider for the minimum score that shows, on recent activity, how
-  many detections would have been ignored.
-- **Recipients** (with several chats): what each person receives — every object, people
-  only, people and cars — and when — all the time, only at night, only during the day,
-  silent at night.
-- **Cameras**: one switch per camera; open it to give it another style or other
-  objects, otherwise it follows the choices above.
-- **Where?**: for a camera with zones defined in Frigate, "everywhere" or only some
-  zones, in one click.
-- **Try it**: the sample button sends a real test notification to the recipients, with
-  the camera's live image and the saved settings.
-- **Recent activity**: the last 50 detections with their thumbnail and outcome —
-  ✅ sent, or ⛔ ignored with the reason in plain words (outside the zones, score too
-  low, already reported a moment ago…) and a link to adjust the camera. The history is
-  kept in memory and starts over when the service restarts.
-- **Consistency warnings**: a camera set to report an object that Frigate does not
-  track on it (missing from `objects.track`) is flagged.
-- **Advanced settings** (collapsed): every setting in detail, sorted by theme —
-  recipients and filtering, media, pace, schedule and presence, links — globally, then
-  camera by camera. The zones and objects offered come from Frigate's API. **Links**
-  holds the address used by "Open in Frigate" (default: Frigate's address) and the one
-  of the 🏠 *Home Assistant* button (empty: no button), each with a button to test it.
+- **Overview**: notifications over 24 h, hour by hour; the connections to Frigate, MQTT
+  and Telegram, with the cause in plain words and the setting to fix when one fails;
+  pause for 30 min, 1 h, 8 h or until resumed; who is home; the cameras muted, to turn
+  back on; the last notification as it arrived.
+- **Style**: photo + video, photo only, photo + GIF or text only, each with a live preview
+  of the message as it will arrive in Telegram, on a sample photo (zoomed on the person
+  when the image is cropped on the object). Below: bursts (one message per detection,
+  or detections within 2 or 5 minutes added to the first message, edited so no extra
+  sound), framing (wide shot or zoom on the object) and video (in the same message as the
+  image, or as a reply).
+- **When**: what to report (people, people and cars, everything), how often at most, what
+  to do at night (same as daytime, silent, nothing) and, with presence set up, when
+  someone is home. **Sensitivity**: a slider for the minimum score; recent activity shows
+  how many detections would have been ignored.
+- **Cameras**: one switch per camera; open it to give it another style, other objects or
+  only some zones (*Where?*: everywhere, or zones defined in Frigate, in one click).
+  *Test this camera* sends a real sample notification. Each camera has its own link
+  (`#cameras/<name>`). Consistency warnings flag a camera set to report an object that
+  Frigate does not track (missing from `objects.track`).
+- **Recipients** (only with several chats): what each person receives — every object,
+  people only, people and cars — and when — all the time, only at night, only during the
+  day, silent at night.
+- **Recent activity** (when the history is available): the last 50 detections with their
+  thumbnail and outcome — ✅ sent, or ⛔ ignored with the reason in plain words (outside the
+  zones, score too low, already reported a moment ago…) and a link to adjust the camera.
+  Filter by camera, outcome or hour; a line opens on the snapshot and an *Open in Frigate*
+  link. The bars of the overview's 24 h chart lead to the notifications sent in that hour
+  (the same hours can be picked in a menu). The last 50 detections are kept across restarts.
+- **Advanced settings**: every global setting in detail, sorted by theme — recipients
+  and filtering, media, pace, schedule and presence, links. The zones and objects offered
+  come from Frigate's API. A camera's own settings are under *Cameras*, in *All settings
+  for* that camera. **Links** holds the address used by "Open in Frigate" (default:
+  Frigate's address) and the one of the 🏠 *Home Assistant* button (empty: no button);
+  a *Test ↗* link opens each address once it is valid.
 
 Every change is **saved by itself** and takes effect **immediately**, without a
 restart; the status at the top of the page confirms it. A change is only accepted if
 valid — a rejected one is reported and leaves the service on the previous settings.
-The finer choices (framing, bursts, sensitivity, per-person settings) are folded
-under *More choices*: the defaults suit most installations.
+On *When*, the finer choices — bursts, known labels and, outside the `reviews` mode,
+sensitivity — are folded under *More choices*, and the defaults suit most installations.
 
 Settings are saved in the data volume (`/data/notify.yml`), next to the state (pauses,
 cooldowns) and the recent activity, so they survive restarts and updates. With a configuration file, they
@@ -330,8 +334,8 @@ go test -tags browser ./internal/web/   # web interface smoke test, needs Chrome
 go build ./cmd/frigate-telegram-enhanced
 ```
 
-The web interface is `internal/web/ui.html`, `ui.css` and `ui.js`, and the setup page
-`setup.html` and `setup.js`, embedded in the binary as is: no build step.
+The whole web interface (setup, login and the main interface) is built from `web/` (Svelte and
+Tailwind) into `internal/web/dist/`, which is committed; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Translating
 
@@ -361,3 +365,5 @@ translated, none left over).
 [MIT](LICENSE). The Docker image also ships a static build of
 [FFmpeg](https://ffmpeg.org/) (GPL, from [mwader/static-ffmpeg](https://github.com/wader/static-ffmpeg)),
 used only to re-encode the clips over 50 MB.
+
+The sample photo of the previews (`web/src/assets/sample.jpg`) is under the [Unsplash License](https://unsplash.com/license), see `web/src/assets/CREDITS.md`.

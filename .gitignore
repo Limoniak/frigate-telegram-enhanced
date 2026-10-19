@@ -3,3 +3,4 @@
 .env
 *.exe
 /frigate-telegram-enhanced
+web/node_modules/

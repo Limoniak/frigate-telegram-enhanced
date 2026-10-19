@@ -125,6 +125,7 @@ type tracked struct {
 	gifPath      string
 	link         string
 	description  string
+	clipNote     string // HTML: the clip sent is only the beginning (over 50 MB)
 	lastReason   string
 
 	notified, silent, ended bool
@@ -312,6 +313,15 @@ func (n *Notifier) Count24h() int {
 	return len(n.sent)
 }
 
+// SentTimes returns the times of the notifications sent over the last 24 h, oldest
+// first: the web interface draws them hour by hour.
+func (n *Notifier) SentTimes() []time.Time {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.pruneSent(n.Now())
+	return slices.Clone(n.sent)
+}
+
 func (n *Notifier) recordSent(now time.Time) {
 	n.sent = append(n.sent, now)
 	n.pruneSent(now)
@@ -349,7 +359,7 @@ func (n *Notifier) sweep() {
 			// filtering metrics (finish will not see it).
 			if !t.notified && t.lastReason != "" {
 				n.Metrics.EventsFiltered.WithLabelValues(t.lastReason).Inc()
-				n.record(t, false)
+				n.record(t, time.Time{})
 			}
 			delete(n.tracked, id)
 		}
@@ -368,7 +378,7 @@ func (n *Notifier) captionData(t *tracked) captionData {
 	return captionData{
 		Label: t.label, Sound: t.sound, SubLabel: t.subLabel, Camera: t.camera, Zones: t.zones,
 		Score: t.score, HasScore: t.hasScore, Start: t.start,
-		Description: t.description, Link: t.link,
+		Description: t.description, Link: t.link, ClipNote: t.clipNote,
 	}
 }
 
@@ -389,7 +399,7 @@ func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 	t.grouped = len(fresh) == 0
 	n.State.MarkNotified(filter.CooldownKey(t.camera, d.Label), now)
 	n.recordSent(now)
-	n.record(t, true)
+	n.record(t, now)
 	if len(grouped) > 0 {
 		n.Log.Info("notification grouped", "camera", t.camera, "label", d.Label, "event_id", t.id, "chats", grouped)
 		n.Metrics.NotificationsSent.WithLabelValues("grouped").Inc()
@@ -427,7 +437,7 @@ func (n *Notifier) finish(ctx context.Context, t *tracked, hasClip bool, end flo
 	if !t.notified {
 		if t.lastReason != "" {
 			n.Metrics.EventsFiltered.WithLabelValues(t.lastReason).Inc()
-			n.record(t, false)
+			n.record(t, time.Time{})
 		}
 		delete(n.tracked, t.id)
 		return

@@ -36,20 +36,40 @@ go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
 La CI lance les mêmes vérifications sur chaque pull request.
 
+L'interface web (pages d'installation, de connexion et principale) est construite à partir de
+`web/` (Svelte et Tailwind). `go build` et `go test` n'ont pas besoin de Node : le résultat
+du build, `internal/web/dist/`, est versionné. Après une modification dans `web/` :
+
+```bash
+cd web
+npm ci
+npm test
+npm run build      # met à jour internal/web/dist/, à committer avec votre changement
+npm run dev        # rechargement à chaud, avec l'API d'un service sur le port 8431
+```
+
+`npm run dev` sert la page d'installation sur <http://localhost:5173/setup.html> et
+l'interface sur <http://localhost:5173/app.html>.
+
+Les captures du README (`docs/images/`) se régénèrent avec `CHROME_PATH=/chemin/vers/chrome go test -tags screenshots -run Screenshots ./internal/web/` ; commitez le résultat.
+
+La CI échoue quand `internal/web/dist/` ne correspond pas à `web/`. Les pull requests npm
+de Dependabot ne reconstruisent pas `dist/` : quand la vérification échoue sur l'une
+d'elles, un mainteneur lance `npm run build` sur sa branche et pousse le résultat.
+
 Conventions :
 
 - **Anglais** dans le code, les commentaires, les tests et les messages de commit. Les
   textes montrés aux utilisateurs passent par les catalogues : `T("…")` en Go et en
-  JavaScript, `data-t="…"` en HTML. Chaque catalogue doit traduire chaque texte :
-  `go test ./internal/i18n/` indique ceux qui manquent (dans le doute, laissez le texte
-  anglais et signalez-le dans la pull request).
+  JavaScript. Chaque catalogue doit traduire chaque texte : `go test ./internal/i18n/`
+  indique ceux qui manquent (dans le doute, laissez le texte anglais et signalez-le
+  dans la pull request).
 - Les messages de commit suivent [Conventional Commits](https://www.conventionalcommits.org/fr/) :
   `feat:`, `fix:`, `docs:`, `test:`, `chore:`… et `!` pour un changement cassant
   (`feat!:`).
 - Un changement visible par les utilisateurs a sa ligne sous *Unreleased* dans
   [CHANGELOG.md](CHANGELOG.md) (en anglais).
-- Un nouveau comportement arrive avec ses tests. L'interface web n'a pas d'étape de
-  build : `ui.html`, `ui.css` et `ui.js` sont intégrés tels quels.
+- Un nouveau comportement arrive avec ses tests.
 
 ## Pull requests
 
