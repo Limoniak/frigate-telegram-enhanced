@@ -265,3 +265,22 @@ func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[stri
 		t.Fatal(err)
 	}
 }
+
+// One register per language, as the interface and the bot speak to their user: the
+// French catalog says vous, the German one Sie. A text in the other register reads as
+// written by someone else.
+func TestCatalogsKeepOneRegister(t *testing.T) {
+	// Word edges by Unicode letters: \b is ASCII only, and "êtes" would hold "tes".
+	word := func(alts string) *regexp.Regexp { return regexp.MustCompile(`(?:^|[^\p{L}])(` + alts + `)(?:[^\p{L}]|$)`) }
+	informal := map[Lang]*regexp.Regexp{
+		"fr": word(`(?i:tu|toi|ton|ta|tes)`),
+		"de": word(`du|dich|dir|dein|deine|deinen|deinem|deiner`),
+	}
+	for l, re := range informal {
+		for k, v := range Catalogs()[l].Messages {
+			if m := re.FindStringSubmatch(v); m != nil {
+				t.Errorf("locales/%s.json: %q says %q: keep to the formal register", l, k, m[1])
+			}
+		}
+	}
+}

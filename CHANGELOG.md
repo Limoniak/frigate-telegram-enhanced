@@ -30,6 +30,8 @@ never a breaking 3.0, while `:latest` follows `main`.
 - `/resume`, `/last` and `/snapshot` name a camera Frigate doesn't know, with the list
   of cameras, as `/pause` does; their errors are translated.
 - The 🎬 Clip button is translated.
+- The French texts all say *vous*, in the interface and the README; a test keeps French
+  and German to one register. Italian uses the same ellipsis and quotes as elsewhere.
 - A new mark, *Ouverture* (an open lens and a dot leaving it), replaces the bell: in the
   favicon, which follows the browser's theme, in the navigation bar, on the connection
   page and at the top of the README.

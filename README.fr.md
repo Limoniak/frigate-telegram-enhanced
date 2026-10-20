@@ -23,8 +23,8 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, le début du clip (ses 50 premiers Mo) avec un lien vers le clip entier, ou le clip entier ré-encodé sous 50 Mo (*Compresser les clips de plus de 50 Mo*, désactivé par défaut)
 - **Sons** (mode reviews) : aboiement, alarme incendie, parole… entendus par la détection audio de Frigate, notifiés comme les objets — `🐕 Aboiement — garage`, voir [Sons](#sons)
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
-- Étiquettes de Frigate (classification personnalisée comme le nom de ta voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
-- **Filtre sur les étiquettes** : ne pas être prévenu pour ta voiture ou ton chat, ou seulement pour les inconnus (attend jusqu'à 5 s que Frigate reconnaisse l'objet, seulement avec ce filtre)
+- Étiquettes de Frigate (classification personnalisée comme le nom de votre voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
+- **Filtre sur les étiquettes** : ne pas être prévenu pour votre voiture ou votre chat, ou seulement pour les inconnus (attend jusqu'à 5 s que Frigate reconnaisse l'objet, seulement avec ce filtre)
 - Filtres par caméra, objet, zone, score minimum et sévérité ; cooldown ; plages silencieuses et plages coupées
 - **Interface web** pour régler tout cela sans éditer de YAML, appliquée sans redémarrage
 - Plusieurs destinataires avec routage par caméra
@@ -35,7 +35,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - **Image recadrée** : le snapshot zoomé sur l'objet détecté, bien plus lisible sur un téléphone
 - En **anglais**, **français**, **allemand**, **espagnol**, **italien** ou **portugais** : messages Telegram (langue choisie sur la page d'installation) et interface web (sélecteur de langue) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
-- **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
+- **Réglages par destinataire** : par exemple, vous recevez tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
 - **Alertes de panne** : un message Telegram quand Frigate ne répond plus ou qu'une caméra n'envoie plus d'images pendant 2 minutes, et un autre à son retour (*Alertes de panne* dans les réglages avancés pour les couper)
 - État persistant, `/healthz`, métriques Prometheus, image distroless multi-arch (amd64 et arm64)
@@ -204,7 +204,7 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
   modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet), la
   vidéo (dans le même message que l'image, ou en réponse) et la description GenAI de
   Frigate dans la légende. *M'envoyer un exemple* en envoie un dans Telegram.
-- **Quand** : quoi signaler (les objets et les sons que tes caméras suivent dans Frigate,
+- **Quand** : quoi signaler (les objets et les sons que vos caméras suivent dans Frigate,
   chacun avec son emoji ; rien de coché = tout), à quelle fréquence au plus, quoi faire la
   nuit (comme le jour, sans son, rien — les heures de la nuit se règlent, 22 h-7 h par
   défaut) et, avec la présence configurée, quand quelqu'un est à la maison.
