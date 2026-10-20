@@ -31,12 +31,16 @@ jobs:
         working-directory: web
       - run: npm test
         working-directory: web
+      # Svelte's compiler and type checks, accessibility warnings included.
+      - run: npm run check
+        working-directory: web
       # Fails on any change or new file under dist/, and shows which.
       - run: |
           npm run build
           git -C .. status --porcelain -- internal/web/dist
           test -z "$(git -C .. status --porcelain -- internal/web/dist)"
         working-directory: web
+      - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
       - run: go test -race ./...
       # Smoke test of the web interface in Chrome, preinstalled on the ubuntu runners.

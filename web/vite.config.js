@@ -1,6 +1,6 @@
 // Builds the front end into internal/web/dist, which the Go binary embeds. Entry
-// files keep fixed names (the Go side serves them by name); fonts and shared
-// chunks get a hash under assets/.
+// files keep fixed names (the Go side serves them by name); fonts and the code shared
+// by the pages (assets/shared-*.js, Svelte's runtime above all) get a hash under assets/.
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
@@ -22,7 +22,8 @@ export default defineConfig({
       input: { login: here("src/login.css"), setup: here("src/setup.html"), app: here("src/app.html") },
       output: {
         entryFileNames: "[name].js",
-        chunkFileNames: "assets/[name]-[hash].js",
+        // Not [name]: Rollup names a shared chunk after one of its modules (ThemeMenu…).
+        chunkFileNames: "assets/shared-[hash].js",
         assetFileNames: (info) => {
           const names = info.names ?? [];
           // login.css is its own entry; the sheet shared by the setup page and the main
