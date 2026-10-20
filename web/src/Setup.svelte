@@ -484,7 +484,8 @@
         {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
       </select>
       <label class="lbl" for="timezone">{T("Time zone")}</label>
-      <select class="field" id="timezone" bind:value={timezone} use:searchable={timezone}>
+      <!-- Named on its own: Tom Select ties the label to its search field, not to the select it hides. -->
+      <select class="field" id="timezone" aria-label={T("Time zone")} bind:value={timezone} use:searchable={timezone}>
         {#each zones as z (z)}<option value={z}>{z}</option>{/each}
       </select>
       <label class="lbl" for="mode">{T("What triggers a notification")}</label>

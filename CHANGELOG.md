@@ -30,6 +30,9 @@ never a breaking 3.0, while `:latest` follows `main`.
 - `/resume`, `/last` and `/snapshot` name a camera Frigate doesn't know, with the list
   of cameras, as `/pause` does; their errors are translated.
 - The 🎬 Clip button is translated.
+- Every page, in both themes, passes axe-core's WCAG 2.1 A and AA checks, run by the
+  browser tests on each change; the connection page's time zone list now has a name
+  for screen readers.
 - Another site can no longer show the interface in a frame (clickjacking): only Home
   Assistant at the address of its button, and the addresses listed under *Sites that
   may show this page* (Advanced settings, Links), for a dashboard's Webpage card. Every
