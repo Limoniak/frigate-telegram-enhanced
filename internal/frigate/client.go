@@ -50,7 +50,7 @@ const stallTimeout = 15 * time.Second
 const answerTimeout = 2 * time.Minute
 
 // errNoAnswer reports a download Frigate did not start answering within answerTimeout.
-var errNoAnswer = errors.New("Frigate did not start sending the media in time")
+var errNoAnswer = errors.New("no answer from Frigate in time to send the media")
 
 // Retryable reports whether retrying may succeed (media not ready yet, server or network in trouble).
 // A stalled clip is not retried: Frigate stalls at the same place every time.
