@@ -20,9 +20,9 @@ export const FIELDS = (T, data) => [
   { key: "enabled", type: "bool", name: T("Notifications enabled"),
     hint: T("Unchecked: no notifications at all (or none for this camera).") },
   { key: "chats", type: "chips", name: T("Recipients"), source: "chats",
-    hint: data && data.can_connection ? T("Chats chosen with the “Telegram, Frigate and MQTT connection” link at the bottom of the page.")
+    hint: data && data.can_connection ? T("Chats chosen in the Connection menu.")
       : T("Chats declared in telegram.chats (config.yml).") },
-  { key: "labels", type: "chips", name: T("Objects"), source: "labels", free: true,
+  { key: "labels", type: "chips", name: T("Objects"), source: "labels", free: true, text: (l) => labelText(l, false, T),
     hint: T("No object selected = every object is reported.") },
   { key: "zones", type: "chips", name: T("Zones"), source: "zones", free: true,
     hint: T("No zone selected = no constraint. Otherwise the object must have entered one of the zones.") },
@@ -39,6 +39,7 @@ export const FIELDS = (T, data) => [
   { key: "ignore_stationary", type: "bool", name: T("Ignore stationary objects"),
     hint: T("Parked cars, garden furniture…") },
   { key: "severity", type: "chips", name: T("Severity"), source: "severity", mode: "reviews",
+    text: (v) => ({ alert: T("Alerts"), detection: T("Detections") })[v] ?? v,
     hint: T("Which Frigate reviews trigger a notification.") },
   { key: "snapshot", type: "bool", name: T("Send the image") },
   { key: "crop", type: "bool", name: T("Crop the image on the object"),

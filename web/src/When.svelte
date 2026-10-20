@@ -26,8 +26,18 @@
     if (h !== hours[0]) parts.push(h?.label ?? T("Custom"));
     return parts.join(" · ") || T("Same as everyone");
   };
-  // A night must start and end at different times.
-  const retime = (n) => { if (n.from && n.to && n.from !== n.to) edit((o) => setNight(o, n)); };
+  // A night must start and end at different times: until it does, the typed hours stay
+  // in view, flagged, and nothing is saved. A night saved meanwhile (a reset) drops them.
+  let nightDraft = $state(null);
+  $effect.pre(() => { night; nightDraft = null; });
+  const shownNight = $derived(nightDraft ?? night);
+  const nightBad = $derived(!!nightDraft);
+  function retime(n) {
+    if (n.from && n.to && n.from !== n.to) {
+      nightDraft = null;
+      edit((o) => setNight(o, n));
+    } else nightDraft = n;
+  }
   const subs = $derived((app.data.sub_labels || []).slice().sort());
   const showKnown = $derived(subs.length || (app.overlay.notify.ignore_sub_labels || []).length || app.overlay.notify.ignore_known);
   const known = $derived(!!app.overlay.notify.ignore_known);
@@ -56,10 +66,14 @@
         {#if q.id === "night"}
           <div class="flex flex-wrap items-center gap-2 text-[12px] text-[var(--muted)]">
             {T("The night goes from")}
-            <input type="time" class="field w-28" aria-label={T("Night starts at")} value={night.from} onchange={(e) => retime({ ...night, from: e.currentTarget.value })}>
-            {T("to")}
-            <input type="time" class="field w-28" aria-label={T("Night ends at")} value={night.to} onchange={(e) => retime({ ...night, to: e.currentTarget.value })}>
+            <input type="time" class="field w-28" aria-label={T("Night starts at")} aria-invalid={nightBad ? "true" : undefined} aria-describedby={nightBad ? "night-error" : undefined}
+              value={shownNight.from} onchange={(e) => retime({ ...shownNight, from: e.currentTarget.value })}>
+            <!-- "to" stays with its hour when the line wraps. -->
+            <span class="inline-flex items-center gap-2">{T("to")}
+            <input type="time" class="field w-28" aria-label={T("Night ends at")} aria-invalid={nightBad ? "true" : undefined} aria-describedby={nightBad ? "night-error" : undefined}
+              value={shownNight.to} onchange={(e) => retime({ ...shownNight, to: e.currentTarget.value })}></span>
           </div>
+          {#if nightBad}<p id="night-error" class="m-0 text-[12px] text-[var(--err)]" role="alert">{T("Enter a start and an end that are different.")}</p>{/if}
         {/if}
       {/snippet}
       {@render question(q.title, q.hint, pills)}

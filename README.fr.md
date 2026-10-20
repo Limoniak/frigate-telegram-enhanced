@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
+    <img src="docs/images/logo.svg" width="96" height="96" alt="">
+  </picture>
+</p>
+
 # frigate-telegram-enhanced
 
 [English](README.md) · **Français**
@@ -37,8 +44,10 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 
 **Choisir un modèle de notification.** Quatre modèles — *Photo + vidéo*, *Photo seule*,
 *Photo + GIF*, *Texte seul* — chacun avec un aperçu du message tel qu'il arrivera dans
-Telegram. Un clic, et toutes les caméras l'adoptent. En dessous, quelques questions à
-choix simples : quoi signaler, à quelle fréquence, et que faire la nuit.
+Telegram. Un clic, et toutes les caméras l'adoptent. En dessous, quelques interrupteurs :
+recadrage sur l'objet, vidéo dans le même message, description GenAI de Frigate, et
+rafales. L'écran *Quand* pose ensuite quelques questions à choix simples : quoi
+signaler, à quelle fréquence, et que faire la nuit.
 
 <p align="center">
   <img src="docs/images/fr-style.png" width="820" alt="Style : quatre modèles de notification avec un aperçu en direct du message Telegram">
@@ -108,7 +117,7 @@ score trop bas, déjà signalé il y a peu…), avec un lien direct vers la cam�
    arrive bien dans Telegram.
 
 La connexion est enregistrée dans le volume (`/data/connection.yml`) et se modifie
-ensuite avec le lien *Connexion* en bas de l'interface.
+ensuite avec *Connexion*, le dernier élément du menu de l'interface.
 
 > Si Frigate et son broker MQTT tournent dans Docker sur la même machine, utilisez
 > l'adresse IP de la machine — `localhost` désignerait le conteneur
@@ -147,7 +156,7 @@ Copier [`config.example.yml`](config.example.yml) (commentaires en anglais) vers
 ```
 
 Quand `/config/config.yml` existe, il est seul pris en compte (la page d'installation
-et son lien *Connexion* ne servent alors plus). Ses valeurs sont prises telles quelles :
+et son menu *Connexion* ne servent alors plus). Ses valeurs sont prises telles quelles :
 `${VAR}` n'est pas remplacé. Il contient le token du bot et les mots de passe : ne le
 laissez lisible que par vous. Points clés :
 
@@ -192,8 +201,9 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
   aperçu du message tel qu'il arrivera dans Telegram, sur une photo d'exemple (zoomée sur
   la personne quand l'image est recadrée sur l'objet). Plus bas : les rafales (un message par
   détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
-  modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet) et la
-  vidéo (dans le même message que l'image, ou en réponse).
+  modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet), la
+  vidéo (dans le même message que l'image, ou en réponse) et la description GenAI de
+  Frigate dans la légende. *M'envoyer un exemple* en envoie un dans Telegram.
 - **Quand** : quoi signaler (les objets et les sons que tes caméras suivent dans Frigate,
   chacun avec son emoji ; rien de coché = tout), à quelle fréquence au plus, quoi faire la
   nuit (comme le jour, sans son, rien — les heures de la nuit se règlent, 22 h-7 h par
@@ -223,8 +233,10 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
   chaque adresse dès qu'elle est valide.
 
 Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
-redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
-est valide — un réglage refusé est signalé et laisse le service sur les précédents.
+redémarrage ; un état en bas de l'écran le confirme. Une valeur qui ne pourrait jamais
+s'appliquer (une plage qui commence où elle finit, une durée ou une adresse mal formée)
+est signalée sur son champ et n'est pas envoyée ; un réglage refusé par le service est
+signalé et le laisse sur les précédents.
 Sur *Quand*, les choix plus fins — rafales, labels connus et, hors du mode `reviews`,
 sensibilité — sont repliés sous *Plus de choix*, et les valeurs par défaut conviennent à
 la plupart des installations.

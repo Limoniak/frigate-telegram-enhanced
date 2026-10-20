@@ -4,6 +4,7 @@
   import { T } from "./lib/i18n.svelte.js";
   import { app, edit, resetSettings } from "./lib/store.svelte.js";
   import { GROUPS, fieldsFor, validURL } from "./lib/fields.js";
+  import { ask } from "./lib/confirm.svelte.js";
   import Card from "./lib/Card.svelte";
   import Field from "./lib/Field.svelte";
 
@@ -29,7 +30,7 @@
     const question = app.data.can_connection
       ? T("Go back to the default settings? The choices made on this page will be lost.")
       : T("Delete the settings saved here and go back to the config.yml ones?");
-    if (confirm(question)) await resetSettings();
+    if (await ask(question, T("Reset"))) await resetSettings();
   }
 </script>
 
@@ -51,7 +52,8 @@
 
 <section id="advanced" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1">
-    <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Advanced settings")}</h1>
+    <span class="lbl">{T("Advanced settings")}</span>
+    <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Fine-tune every setting")}</h1>
     <p class="m-0 text-[var(--muted)]">{T("Every setting, for what the choices above don't cover. They apply to every camera, unless it has its own.")}</p>
   </div>
   {#key app.overlay}

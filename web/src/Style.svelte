@@ -6,6 +6,7 @@
   import { STYLES, cameraOverrides, effective, seconds, styleOf } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
   import { routeHash } from "./lib/route.js";
+  import { messageTime } from "./lib/time.js";
   import photo from "./assets/sample.jpg";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
@@ -17,9 +18,13 @@
   const model = $derived(previewModel(eff, { homeAssistant: !!app.overlay.home_assistant_url }));
   const overrides = $derived(cameraOverrides(app.overlay, ["snapshot", "clip", "gif", "crop", "media_in_place", "genai_description"]));
   const cams = $derived((app.data.cameras || []).map((c) => c.name).filter((n) => effective(app.overlay, n).enabled !== false));
+  // The sample is dated now, written as the messages write times (the grouped lines: 15:04).
+  const at = Date.now();
+  const tz = $derived(app.data.timezone);
+  const clock = (t) => new Date(t).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const sample = $derived({
-    label: "person", camera: cams[0] || T("front door"), time: "21:47:05", details: T("📍 driveway · 87%"),
-    grouped: [{ time: "21:48", label: "car", camera: cams[0] || T("front door") }, { time: "21:49", label: "dog", camera: cams[0] || T("front door") }],
+    label: "person", camera: cams[0] || T("front door"), time: messageTime(at, { tz, T }), details: T("📍 driveway · 87%"),
+    grouped: [{ time: clock(at + 60000), label: "car", camera: cams[0] || T("front door") }, { time: clock(at + 120000), label: "dog", camera: cams[0] || T("front door") }],
   });
 
   const labels = () => ({
@@ -69,9 +74,9 @@
           <button type="button" data-style={s.id} aria-pressed={current === s.id} onclick={() => change(s.patch)}
             class="grid gap-2 rounded-[16px] p-2 text-left ring-1 transition-shadow duration-500 {current === s.id ? 'ring-2 ring-[var(--accent)] text-[var(--ink)]' : 'ring-[var(--ring)] text-[var(--muted)]'}">
             {#if s.id === "text"}
-              <span class="grid h-10 content-center gap-1 rounded-[10px] bg-[var(--glass)] px-2"><i class="h-[3px] w-4/5 rounded bg-[var(--faint)]"></i><i class="h-[3px] w-3/5 rounded bg-[var(--faint)]"></i><i class="h-[3px] w-2/5 rounded bg-[var(--faint)]"></i></span>
+              <span class="grid h-10 content-center gap-1 rounded-[8px] bg-[var(--glass)] px-2"><i class="h-[3px] w-4/5 rounded bg-[var(--faint)]"></i><i class="h-[3px] w-3/5 rounded bg-[var(--faint)]"></i><i class="h-[3px] w-2/5 rounded bg-[var(--faint)]"></i></span>
             {:else}
-              <span class="relative h-10 overflow-hidden rounded-[10px] bg-[#26313b]">
+              <span class="relative h-10 overflow-hidden rounded-[8px] bg-[#26313b]">
                 <img class="h-full w-full object-cover object-[50%_45%]" src={photo} alt="">
                 {#if s.id !== "photo"}<span class="absolute bottom-0.5 left-1 rounded-full bg-black/55 px-1.5 text-[9px] leading-[14px] text-white">{s.id === "gif" ? "GIF" : "▶"}</span>{/if}
               </span>
@@ -91,10 +96,9 @@
       <div class="flex items-center gap-4"><div class="min-w-0 flex-1"><div>{T("Add the GenAI description")}</div><div class="text-[12px] text-[var(--faint)]">{T("When Frigate publishes it, it is added to the notification's caption.")}</div></div>
         <Switch id="style-genai" checked={!!eff.genai_description} label={T("Add the GenAI description")} onchange={(v) => change({ genai_description: v })} /></div>
       <div class="flex flex-wrap items-center gap-4"><div class="min-w-[150px] flex-1"><div>{T("Bursts")}</div><div class="text-[12px] text-[var(--faint)]">{T("Detections close in time are added to the first message (edited, no new sound) instead of sending new ones.")}</div></div>
-        <div id="style-group" class="inline-flex rounded-full bg-[var(--field)] p-[3px] ring-1 ring-[var(--ring)]">
+        <div id="style-group" class="pills">
           {#each groups() as [value, label] (value)}
-            <button type="button" data-group={value} aria-pressed={seconds(eff.group) === seconds(value)} onclick={() => change({ group: value })}
-              class="rounded-full px-3 py-1 text-[12px] {seconds(eff.group) === seconds(value) ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)]'}">{label}</button>
+            <button type="button" class="pill" data-group={value} aria-pressed={seconds(eff.group) === seconds(value)} onclick={() => change({ group: value })}>{label}</button>
           {/each}
         </div></div>
     </Card>
@@ -113,10 +117,11 @@
     <Phone {model} entry={sample} />
   </div>
   {#if !previewSeen}
-    <!-- lg:hidden on the wrapper: .btn's display would win over it on the button. On the right: the save status floats in the middle. -->
+    <!-- lg:hidden on the wrapper: .btn's display would win over it on the button. On the right: the save status floats in the middle.
+         A round icon, not a labelled button: it covers as little of the settings as it can. -->
     <div class="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-10 lg:hidden">
-      <button type="button" id="see-preview" class="btn btn-primary shadow-lg"
-        onclick={() => preview.scrollIntoView({ behavior: "smooth", block: "center" })}>👁 {T("Live preview")}</button>
+      <button type="button" id="see-preview" class="btn btn-primary btn-icon shadow-lg" aria-label={T("Live preview")} title={T("Live preview")}
+        onclick={() => preview.scrollIntoView({ behavior: "smooth", block: "center" })}><span aria-hidden="true">👁</span></button>
     </div>
   {/if}
 </section>

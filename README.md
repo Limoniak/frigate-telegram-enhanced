@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
+    <img src="docs/images/logo.svg" width="96" height="96" alt="">
+  </picture>
+</p>
+
 # frigate-telegram-enhanced
 
 **English** · [Français](README.fr.md)
@@ -37,8 +44,10 @@ interface to set everything up in a few clicks, and control from Telegram itself
 
 **Pick a notification style.** Four styles — *photo + video*, *photo only*,
 *photo + GIF*, *text only* — each with a preview of the message as it will arrive in
-Telegram. One click and every camera uses it. Below, a few multiple-choice questions:
-what to report, how often at most, and what to do at night.
+Telegram. One click and every camera uses it. Below, a few switches: crop on the object,
+video in the same message, Frigate's GenAI description, and bursts. The *When* screen
+then asks, in a few multiple-choice questions, what to report, how often at most, and
+what to do at night.
 
 <p align="center">
   <img src="docs/images/en-style.png" width="820" alt="Style: four notification styles with a live preview of the Telegram message">
@@ -109,7 +118,7 @@ the camera to adjust.
    everything reaches Telegram.
 
 The connection is saved in the volume (`/data/connection.yml`) and can be changed
-later with the *Connection* link at the bottom of the interface.
+later with *Connection*, the last item of the interface's menu.
 
 > If Frigate and its MQTT broker run in Docker on the same machine, use the machine's
 > IP address — `localhost` would point to the frigate-telegram-enhanced container itself.
@@ -145,7 +154,7 @@ add this volume to the service:
 ```
 
 When `/config/config.yml` exists, it is the only source of configuration (the setup
-page and its *Connection* link are then not used). Its values are taken as they are:
+page and its *Connection* menu are then not used). Its values are taken as they are:
 `${VAR}` is not replaced. It holds the bot token and passwords, so keep it readable by
 you alone. Key points:
 
@@ -190,8 +199,9 @@ page opens one screen per topic (on a phone, a ☰ button folds it into a list):
   of the message as it will arrive in Telegram, on a sample photo (zoomed on the person
   when the image is cropped on the object). Below: bursts (one message per detection,
   or detections within 2 or 5 minutes added to the first message, edited so no extra
-  sound), framing (wide shot or zoom on the object) and video (in the same message as the
-  image, or as a reply).
+  sound), framing (wide shot or zoom on the object), video (in the same message as the
+  image, or as a reply) and Frigate's GenAI description in the caption. *Send me a
+  sample* sends one to Telegram.
 - **When**: what to report (the objects and sounds your cameras track in Frigate, each
   with its emoji; none ticked = everything), how often at most, what to do at night (same
   as daytime, silent, nothing — the night's hours are yours to set, 22:00–07:00 by
@@ -219,8 +229,10 @@ page opens one screen per topic (on a phone, a ☰ button folds it into a list):
   a *Test ↗* link opens each address once it is valid.
 
 Every change is **saved by itself** and takes effect **immediately**, without a
-restart; the status at the top of the page confirms it. A change is only accepted if
-valid — a rejected one is reported and leaves the service on the previous settings.
+restart; a status at the bottom of the screen confirms it. A value that could never
+apply (a range that starts where it ends, a malformed duration or address) is flagged on
+its field and not sent; a change the service refuses is reported and leaves it on the
+previous settings.
 On *When*, the finer choices — bursts, known labels and, outside the `reviews` mode,
 sensitivity — are folded under *More choices*, and the defaults suit most installations.
 

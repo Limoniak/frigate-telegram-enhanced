@@ -45,7 +45,7 @@
     </span>
   </div>
   {#if field.type === "chips"}
-    <Chips label={field.name} describedby={hint} {options} value={Array.isArray(value) ? value : []} free={field.free} disabled={!custom} onchange={write} />
+    <Chips label={field.name} describedby={hint} {options} name={field.text} value={Array.isArray(value) ? value : []} free={field.free} disabled={!custom} onchange={write} />
   {:else if field.type === "duration"}
     <Duration label={field.name} describedby={hint} {value} disabled={!custom} onchange={write} />
   {:else if field.type === "ranges"}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { chartTicks, locale, timeText, untilText, hourStart, whenText } from "./time.js";
+import { chartTicks, locale, messageTime, timeText, untilText, hourStart, whenText } from "./time.js";
 
 // A British browser, whatever the machine running the tests.
 vi.stubGlobal("navigator", { languages: ["en-GB"] });
@@ -8,6 +8,11 @@ const T = (s) => s;
 const now = new Date("2026-10-17T19:30:00Z"); // 21:30 in Paris
 
 describe("time", () => {
+  it("writes a time as the Telegram messages do, in their layout and on a 24-hour clock", () => {
+    expect(messageTime("2026-10-17T19:47:05Z", { tz: "Europe/Paris", T })).toBe("Oct 17 21:47:05");
+    const fr = (s) => ({ "Jan 2 15:04:05": "02/01 15:04:05" })[s] ?? s;
+    expect(messageTime("2026-03-04T23:05:09Z", { tz: "Europe/Paris", T: fr })).toBe("05/03 00:05:09");
+  });
   it("English follows the browser's variant, British by default", () => {
     expect(locale("en", [])).toBe("en-GB");
     expect(locale("en", ["fr-FR", "en-US"])).toBe("en-US");
