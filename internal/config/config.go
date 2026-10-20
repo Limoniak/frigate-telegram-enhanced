@@ -177,6 +177,7 @@ type Config struct {
 	recipients  map[string]Recipient
 	externalURL string     // address of the "Open in Frigate" links; empty = the one of frigate.url
 	haURL       string     // address of the "Home Assistant" button; empty = no button
+	frames      []string   // other sites that may show the interface in a frame
 	night       *TimeRange // the When screen's night; nil: 22:00-07:00
 
 	// state from config.yml alone, kept to be able to go back when the web
@@ -216,6 +217,14 @@ func (c *Config) HomeAssistantURL() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.haURL
+}
+
+// FrameAncestors returns the addresses of the sites that may show the interface in a
+// frame: Home Assistant at the address of its button, and those the settings add.
+func (c *Config) FrameAncestors() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return append([]string{c.haURL}, c.frames...)
 }
 
 // Recipient returns the restrictions of a recipient (empty if it has none).

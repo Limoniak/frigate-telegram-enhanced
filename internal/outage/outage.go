@@ -134,10 +134,4 @@ func (w *Watcher) stats(payload []byte) {
 
 // clock is when an outage began: the time alone today, with the date for an outage
 // that began on another day.
-func (w *Watcher) clock(t time.Time) string {
-	at, now := t.In(w.loc), w.now().In(w.loc)
-	if at.Year() == now.Year() && at.YearDay() == now.YearDay() {
-		return at.Format("15:04")
-	}
-	return at.Format(w.lang.DateTimeShort())
-}
+func (w *Watcher) clock(t time.Time) string { return w.lang.Moment(t, w.now(), w.loc) }

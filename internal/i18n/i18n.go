@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"slices"
 	"strings"
+	"time"
 )
 
 type Lang string
@@ -124,6 +125,16 @@ func (l Lang) DateTime() string { return l.T("Jan 2 15:04:05") }
 
 // DateTimeShort is the date and time layout without seconds (deadlines).
 func (l Lang) DateTimeShort() string { return l.T("Jan 2 15:04") }
+
+// Moment writes t, in loc, as the messages and the interface give an end or a start:
+// the time alone when it falls on now's day, with the date otherwise.
+func (l Lang) Moment(t, now time.Time, loc *time.Location) string {
+	at, today := t.In(loc), now.In(loc)
+	if at.Year() == today.Year() && at.YearDay() == today.YearDay() {
+		return at.Format("15:04")
+	}
+	return at.Format(l.DateTimeShort())
+}
 
 // Error is an error whose language is chosen when it is shown: Error() gives the
 // English text, Message the translation. It serves where the language is not

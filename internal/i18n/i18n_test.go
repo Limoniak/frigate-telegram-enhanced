@@ -271,10 +271,12 @@ func scanWeb(t *testing.T, dir string, keys map[string]string, literals map[stri
 // written by someone else.
 func TestCatalogsKeepOneRegister(t *testing.T) {
 	// Word edges by Unicode letters: \b is ASCII only, and "êtes" would hold "tes".
-	word := func(alts string) *regexp.Regexp { return regexp.MustCompile(`(?:^|[^\p{L}])(` + alts + `)(?:[^\p{L}]|$)`) }
+	word := func(alts string) *regexp.Regexp {
+		return regexp.MustCompile(`(?:^|[^\p{L}])(` + alts + `)(?:[^\p{L}]|$)`)
+	}
 	informal := map[Lang]*regexp.Regexp{
 		"fr": word(`(?i:tu|toi|ton|ta|tes)`),
-		"de": word(`du|dich|dir|dein|deine|deinen|deinem|deiner`),
+		"de": word(`(?i:du|dich|dir|dein|deine|deinen|deinem|deiner)`),
 	}
 	for l, re := range informal {
 		for k, v := range Catalogs()[l].Messages {

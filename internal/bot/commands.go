@@ -148,8 +148,12 @@ func (b *Bot) cmdResume(ctx context.Context, args []string) string {
 		}
 		return l.T("▶️ Notifications resumed (all cameras).")
 	}
-	if msg := b.checkCamera(ctx, args[0]); msg != "" {
-		return msg
+	// A muted camera is turned back on even if Frigate no longer lists it (renamed,
+	// removed): only another camera's name needs Frigate to be checked.
+	if !b.State.IsMuted(args[0], b.Now()) {
+		if msg := b.checkCamera(ctx, args[0]); msg != "" {
+			return msg
+		}
 	}
 	if err := b.State.Unmute(args[0]); err != nil {
 		return l.T("⚠️ Could not save the state: ") + esc(err.Error())
@@ -348,12 +352,7 @@ func (b *Bot) untilText(until time.Time) string {
 	if !until.Before(state.Forever) {
 		return l.T("until /resume")
 	}
-	at, now := until.In(b.Config.Location), b.Now().In(b.Config.Location)
-	layout := l.DateTimeShort()
-	if at.Year() == now.Year() && at.YearDay() == now.YearDay() {
-		layout = "15:04"
-	}
-	return l.T("until ") + at.Format(layout)
+	return l.T("until ") + l.Moment(until, b.Now(), b.Config.Location)
 }
 
 func (b *Bot) reply(ctx context.Context, chat int64, text string) {

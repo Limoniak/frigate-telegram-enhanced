@@ -297,6 +297,13 @@ ensuite 30 jours, survit aux redémarrages et se ferme quand le mot de passe cha
 (*Se déconnecter*, en bas de page, la ferme plus tôt). Après 5 mots de passe erronés en
 une minute, une adresse est bloquée 5 minutes.
 
+Un autre site ne peut pas afficher l'interface dans un cadre, ce qui lui permettrait de
+vous faire cliquer un interrupteur à votre insu. Home Assistant le peut, à l'adresse de
+son bouton 🏠 (*Réglages avancés*, *Liens*) : la carte *Page web* d'un tableau de bord
+affiche alors l'interface. Si vous ouvrez Home Assistant à une autre adresse et que la
+carte reste vide, ajoutez cette adresse sous *Sites autorisés à afficher cette page*,
+juste en dessous.
+
 L'authentification ne couvre que l'interface : `/healthz` reste toujours libre pour la
 sonde du conteneur, et `/metrics` aussi, sauf avec `protect_metrics: true`. Si le port
 est exposé au réseau, pensez-y : les compteurs par caméra et par objet révèlent quand

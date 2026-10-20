@@ -30,6 +30,10 @@ never a breaking 3.0, while `:latest` follows `main`.
 - `/resume`, `/last` and `/snapshot` name a camera Frigate doesn't know, with the list
   of cameras, as `/pause` does; their errors are translated.
 - The 🎬 Clip button is translated.
+- Another site can no longer show the interface in a frame (clickjacking): only Home
+  Assistant at the address of its button, and the addresses listed under *Sites that
+  may show this page* (Advanced settings, Links), for a dashboard's Webpage card. Every
+  response also carries `nosniff` and a same-origin referrer policy.
 - The French texts all say *vous*, in the interface and the README; a test keeps French
   and German to one register. Italian uses the same ellipsis and quotes as elsewhere.
 - A new mark, *Ouverture* (an open lens and a dot leaving it), replaces the bell: in the

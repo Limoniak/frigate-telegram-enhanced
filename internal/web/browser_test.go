@@ -357,9 +357,11 @@ func TestBrowserSetup(t *testing.T) {
 		chromedp.SendKeys(`#timezone-ts-control`, "tokyo"),
 		chromedp.WaitVisible(`.ts-dropdown .option.active[data-value="Asia/Tokyo"]`),
 		chromedp.SendKeys(`#timezone-ts-control`, kb.Enter),
-		// The zone picked shows in the field: the search no longer hides it.
-		chromedp.Sleep(100),
-		into(chromedp.Evaluate[string](`[...document.querySelectorAll("#sec-options .ts-control .item")].filter((e) => e.checkVisibility()).map((e) => e.textContent).join()`), &picked),
+		// The zone picked shows in the field: the search no longer hides it. The field is
+		// updated after Tom Select's own handlers (a timeout): wait for it, up to a second.
+		chromedp.Evaluate[chromedp.Void](`window.shown = () => [...document.querySelectorAll("#sec-options .ts-control .item")].filter((e) => e.checkVisibility()).map((e) => e.textContent).join(); 0`),
+		chromedp.Poll[chromedp.Void](`shown() !== "" || (window.waited = (window.waited || 0) + 1) > 20`, chromedp.WithPollingInterval(50*time.Millisecond)),
+		into(chromedp.Evaluate[string](`shown()`), &picked),
 		chromedp.Click(`#save`),
 		chromedp.WaitVisible(`#save-result.ok`),
 	)
@@ -991,6 +993,41 @@ func TestBrowserAdvancedControls(t *testing.T) {
 	if asked != 1 || savedFile(t, path) == nil {
 		t.Errorf("declining the reset: settings still custom = %d, file kept = %v", asked, savedFile(t, path) != nil)
 	}
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
+// The sites that may show the interface: an address that is not one is flagged and not
+// saved; a valid one is saved as its origin.
+func TestBrowserFrameSites(t *testing.T) {
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	field := `[data-key="frame_ancestors"] input[type=text]`
+	var alert string
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#advanced"),
+		chromedp.WaitVisible(field),
+		chromedp.SendKeys(field, "homeassistant.local"+kb.Enter),
+		chromedp.WaitVisible(`#frames-error`),
+		into(chromedp.Text(`#frames-error`), &alert),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(alert, "homeassistant.local") || savedFile(t, path) != nil {
+		t.Errorf("an invalid site: alert %q, file %v", alert, savedFile(t, path))
+	}
+	err = chromedp.Do(ctx,
+		chromedp.SendKeys(field, "http://HomeAssistant.local:8123/lovelace/0"+kb.Enter),
+		chromedp.WaitNotPresent(`#frames-error`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitSaved(t, path, "the site saved as its origin", func(f map[string]any) bool {
+		return slices.Equal(strs(f["frame_ancestors"]), []string{"http://homeassistant.local:8123"})
+	})
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
 	}

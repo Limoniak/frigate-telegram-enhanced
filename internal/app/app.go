@@ -189,7 +189,7 @@ func run(parent context.Context, cfg *config.Config, connectionPath string, tgOp
 			return errors.New("no answer from Telegram for more than 2 min")
 		}
 		return nil
-	}, metricsHandler, mount...)
+	}, metricsHandler, cfg.FrameAncestors, mount...)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("HTTP server stopped", "err", err)

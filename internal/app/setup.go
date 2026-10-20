@@ -32,7 +32,7 @@ func runSetup(ctx context.Context, connectionPath string, log *slog.Logger, tgOp
 	setup := web.NewSetup(connectionPath, nil, p, log, func() { close(saved) })
 	addr := config.SetupListen
 	// The container is healthy while it waits: nothing is broken, it waits for its setup.
-	srv := server.New(addr, func() error { return nil }, http.NotFoundHandler(), setup.MountAlone)
+	srv := server.New(addr, func() error { return nil }, http.NotFoundHandler(), nil, setup.MountAlone)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	log.Info("not configured yet: open the web interface to set up the service", "address", addr)

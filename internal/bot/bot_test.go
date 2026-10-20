@@ -250,6 +250,18 @@ func TestSnapshotCommands(t *testing.T) {
 	}
 }
 
+// A camera muted and then removed from Frigate can still be turned back on by name.
+func TestResumeCameraFrigateNoLongerLists(t *testing.T) {
+	e := newEnv(t)
+	if err := e.st.Mute("cuisine", now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	e.cmd("/resume cuisine", 1)
+	if e.st.IsMuted("cuisine", now) || !strings.Contains(e.tg.last(), "resumed") {
+		t.Errorf("muted cuisine: reply %q, still muted %v", e.tg.last(), e.st.IsMuted("cuisine", now))
+	}
+}
+
 // A camera Frigate doesn't know is named as such, with the list, whatever the command.
 func TestUnknownCameraEverywhere(t *testing.T) {
 	e := newEnv(t)

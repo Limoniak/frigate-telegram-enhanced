@@ -290,6 +290,12 @@ days, survives restarts, and ends when the password changes (*Log out* at the bo
 of the page ends it sooner). After 5 wrong passwords within a minute, an address is
 blocked for 5 minutes.
 
+Another site cannot show the interface in a frame, which would let it make you click a
+switch without knowing it. Home Assistant can, at the address of its 🏠 button
+(*Advanced settings*, *Links*): a dashboard's *Webpage* card then shows the interface.
+If you open Home Assistant at another address and the card stays blank, add that
+address under *Sites that may show this page*, just below.
+
 Authentication only covers the interface: `/healthz` always stays open for the
 container probe, and so does `/metrics`, unless `protect_metrics: true`. Keep this in
 mind if the port is exposed to the network: per-camera and per-object counters reveal
