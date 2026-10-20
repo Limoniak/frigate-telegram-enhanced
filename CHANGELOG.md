@@ -7,6 +7,17 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Fixed
+
+- The sites listed under *Sites that may show this page* were dropped by the next
+  change made on any screen after the page was opened again, and the dashboards showing
+  the interface in a frame went blank.
+- A tab left open (on a phone, say) reads the settings again when it is shown, so that
+  its next change no longer brings back the settings another tab replaced since.
+- With *Compress clips over 50 MB*, a large clip on a slow link is no longer cut after
+  2 minutes and downloaded again three times: only the wait for Frigate to start
+  sending it is bounded, and a transfer that stops still ends after 15 s.
+
 ## [2.2.0] - 2026-10-20
 
 ### Changed
