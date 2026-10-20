@@ -15,8 +15,9 @@ func (n *Notifier) handleReview(ctx context.Context, msg frigate.ReviewMessage) 
 	r := msg.After
 	t := n.tracked[r.ID]
 	// The sounds heard count as labels, after the objects: an audio review has
-	// neither objects nor detections.
-	labels := append(slices.Clone(r.Data.Objects), r.Data.Audio...)
+	// neither objects nor detections. A recognized object ("car-verified") is
+	// filtered and shown as its object; its sub_label says which one.
+	labels := append(frigate.BaseLabels(r.Data.Objects), r.Data.Audio...)
 	now := n.Now()
 	if msg.Type == "end" {
 		end := float64(now.Unix())

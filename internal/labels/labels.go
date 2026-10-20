@@ -3,7 +3,11 @@
 // looks the same everywhere.
 package labels
 
-import "frigate-telegram-enhanced/internal/i18n"
+import (
+	"strings"
+
+	"frigate-telegram-enhanced/internal/i18n"
+)
 
 // Label is how a label is shown. Name is in English, translated by the catalogs,
 // except for a brand, shown as it is.
@@ -122,6 +126,9 @@ var Known = map[string]Label{
 // Known keeps its name, after 🔊 for a sound and 🔔 for an object; no label at all is
 // a detection.
 func Text(label string, sound bool, lang i18n.Lang) string {
+	// A recognized object, as Frigate 0.16 writes it ("car-verified"), is its object;
+	// entries recorded before the service read it so may still carry the suffix.
+	label = strings.TrimSuffix(label, "-verified")
 	if x, ok := Known[label]; ok {
 		if x.Brand {
 			return x.Emoji + " " + x.Name

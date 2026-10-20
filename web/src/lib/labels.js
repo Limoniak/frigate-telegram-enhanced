@@ -5,10 +5,14 @@
 /* global LABELS */
 const labels = typeof LABELS !== "undefined" ? LABELS : {};
 
+// A recognized object, as Frigate 0.16 writes it in a review ("car-verified"), is its
+// object; the service now records it so, but older entries of the history may not.
+const base = (label) => (label || "").replace(/-verified$/, "");
+
 export function labelText(label, sound, T) {
-  const x = labels[label];
+  const x = labels[base(label)];
   if (x) return x.emoji + " " + T(x.name);
-  return (sound ? "🔊 " : "🔔 ") + (label || T("Detection"));
+  return (sound ? "🔊 " : "🔔 ") + (base(label) || T("Detection"));
 }
 
-export const labelEmoji = (label, sound) => labels[label]?.emoji ?? (sound ? "🔊" : "🔔");
+export const labelEmoji = (label, sound) => labels[base(label)]?.emoji ?? (sound ? "🔊" : "🔔");

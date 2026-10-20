@@ -56,6 +56,10 @@ never a breaking 3.0, while `:latest` follows `main`.
 - A time range that starts where it ends (e.g. 00:00–00:00) is refused instead of
   never applying.
 - A detection waiting for its label is no longer lost when the event queue is full.
+- An object Frigate recognized (a known face, plate or class of its own), which
+  Frigate 0.16 calls `person-verified` or `car-verified` in its reviews, is its object
+  again: it was shown as "🔔 car-verified" and, with an object filter, not notified at
+  all.
 - On a phone, the live preview button of the Style screen is a round icon that no longer
   hides the burst choices, and those choices wrap instead of squeezing.
 - In the light theme, a switch turned off is visible; switches, choices and the login
