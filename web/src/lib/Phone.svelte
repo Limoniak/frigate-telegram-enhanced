@@ -46,7 +46,7 @@
         </div>
       </div>
       <div class="grid grid-cols-2 gap-1 text-center text-[11px]">
-        <span class="rounded-[10px] bg-white/10 py-1.5">{T("📷 Now")}</span><span class="rounded-[10px] bg-white/10 py-1.5">🎬 Clip</span>
+        <span class="rounded-[10px] bg-white/10 py-1.5">{T("📷 Now")}</span><span class="rounded-[10px] bg-white/10 py-1.5">{T("🎬 Clip")}</span>
         <span class="rounded-[10px] bg-white/10 py-1.5">🔇 1 h</span><span class="rounded-[10px] bg-white/10 py-1.5">⏸️ 30 min</span>
         {#if model.homeAssistant}<span class="col-span-2 rounded-[10px] bg-white/10 py-1.5">🏠 Home Assistant</span>{/if}
       </div>

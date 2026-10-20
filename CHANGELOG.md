@@ -25,6 +25,11 @@ never a breaking 3.0, while `:latest` follows `main`.
 - The Cameras screen lists the cameras in Frigate's order, as the overview does; a camera
   turned off dims its name rather than its whole card.
 - Every screen has the same heading, and the navigation bar the service's mark.
+- The bot writes the end of a pause or a mute, and the start of an outage, with the
+  time alone when it is today, and the date otherwise.
+- `/resume`, `/last` and `/snapshot` name a camera Frigate doesn't know, with the list
+  of cameras, as `/pause` does; their errors are translated.
+- The 🎬 Clip button is translated.
 - A new mark, *Ouverture* (an open lens and a dot leaving it), replaces the bell: in the
   favicon, which follows the browser's theme, in the navigation bar, on the connection
   page and at the top of the README.

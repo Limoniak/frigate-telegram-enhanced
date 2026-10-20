@@ -167,7 +167,7 @@ func TestPauseGlobalDefaultsToOneHour(t *testing.T) {
 	if !e.st.IsPaused(now.Add(59*time.Minute)) || e.st.IsPaused(now.Add(61*time.Minute)) {
 		t.Error("want a one-hour pause")
 	}
-	if !strings.Contains(e.tg.last(), "until Sep 28 17:00") {
+	if !strings.Contains(e.tg.last(), "until 17:00") {
 		t.Errorf("reply = %q", e.tg.last())
 	}
 }
@@ -247,6 +247,20 @@ func TestSnapshotCommands(t *testing.T) {
 	e.cmd("/snapshot jardin", 1)
 	if len(e.tg.photos) != 1 || !strings.Contains(e.tg.photos[0], "jardin") {
 		t.Errorf("photos = %v", e.tg.photos)
+	}
+}
+
+// A camera Frigate doesn't know is named as such, with the list, whatever the command.
+func TestUnknownCameraEverywhere(t *testing.T) {
+	e := newEnv(t)
+	for _, c := range []string{"/resume cuisine", "/last cuisine", "/snapshot cuisine"} {
+		e.cmd(c, 1)
+		if last := e.tg.last(); !strings.Contains(last, "Unknown camera: cuisine. Cameras: garage, jardin") {
+			t.Errorf("%s: reply = %q", c, last)
+		}
+	}
+	if len(e.notif.lasts) != 0 || len(e.tg.photos) != 0 {
+		t.Errorf("an unknown camera went through: lasts %v, photos %v", e.notif.lasts, e.tg.photos)
 	}
 }
 
@@ -357,7 +371,12 @@ func TestFrenchReplies(t *testing.T) {
 	e := newEnv(t)
 	e.b.Config.Language = i18n.FR
 	e.cmd("/pause", 1)
-	if !strings.Contains(e.tg.last(), "Notifications en pause jusqu'à 28/09 17:00") {
+	if !strings.Contains(e.tg.last(), "Notifications en pause jusqu'à 17:00") {
+		t.Errorf("reply = %q", e.tg.last())
+	}
+	// Another day: the date too, in the language's layout.
+	e.cmd("/pause 1d", 1)
+	if !strings.Contains(e.tg.last(), "jusqu'à 29/09 16:00") {
 		t.Errorf("reply = %q", e.tg.last())
 	}
 	e.cmd("/pause cuisine", 1)
