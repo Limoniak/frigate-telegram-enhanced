@@ -7,6 +7,8 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-10-20
+
 ### Added
 
 - *Show in the caption* (Style screen): a switch each for the zones, the score, the
@@ -279,7 +281,8 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.1...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.2...HEAD
+[2.2.2]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.0.0...v2.1.0
