@@ -9,6 +9,8 @@
 
 **English** · [Français](README.fr.md)
 
+[![Release](https://img.shields.io/github/v/release/Limoniak/frigate-telegram-enhanced)](https://github.com/Limoniak/frigate-telegram-enhanced/releases/latest) [![CI](https://img.shields.io/github/actions/workflow/status/Limoniak/frigate-telegram-enhanced/docker.yml?branch=main&label=ci)](https://github.com/Limoniak/frigate-telegram-enhanced/actions/workflows/docker.yml) [![License: MIT](https://img.shields.io/github/license/Limoniak/frigate-telegram-enhanced)](LICENSE)
+
 Telegram notifications for [Frigate NVR](https://frigate.video): a snapshot as soon as
 something is detected, then the video clip in the same message — with fine-grained filters, a web
 interface to set everything up in a few clicks, and control from Telegram itself.
