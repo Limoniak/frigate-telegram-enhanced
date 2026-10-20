@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"frigate-telegram-enhanced/internal/atomicfile"
 )
 
 // ErrNotConfigured reports an installation with nothing to start from: no
@@ -120,23 +122,7 @@ func SaveConnection(path string, c Connection) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".connection-*.yml")
-	if err != nil {
-		return fmt.Errorf("writing %s: %w", path, err)
-	}
-	tmp := f.Name()
-	defer os.Remove(tmp) // no effect after a successful rename
-	_, err = f.WriteString(connectionHeader + string(body))
-	if err == nil {
-		err = f.Chmod(0o600)
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Rename(tmp, path)
-	}
-	if err != nil {
+	if err := atomicfile.Write(path, []byte(connectionHeader+string(body))); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 	return nil
