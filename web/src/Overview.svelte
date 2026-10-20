@@ -5,7 +5,7 @@
   import { app, change, pause, removeWebhook, resume } from "./lib/store.svelte.js";
   import { effective } from "./lib/settings.js";
   import { previewModel } from "./lib/preview.js";
-  import { chartTicks, hourStart, timeText, untilText, whenText } from "./lib/time.js";
+  import { chartTicks, hourStart, messageTime, timeText, untilText, whenText } from "./lib/time.js";
   import { routeHash } from "./lib/route.js";
   import Card from "./lib/Card.svelte";
   import Phone from "./lib/Phone.svelte";
@@ -25,7 +25,7 @@
   const mutes = $derived(Object.fromEntries((app.live?.mutes || []).map((m) => [m.camera, m.until])));
   const home = $derived((app.live?.home || []).map((t) => { const p = t.split("/"); return p.length >= 2 && p.at(-1) === "state" ? p.at(-2) : p.at(-1); }));
   const lastEntry = $derived(last && {
-    label: last.label, sound: last.sound, camera: last.camera, time: whenText(last.at, ctx),
+    label: last.label, sound: last.sound, sub_label: last.sub_label, camera: last.camera, time: messageTime(last.at, ctx),
     details: [last.zones?.length ? "📍 " + last.zones.join(", ") : "", last.score ? Math.round(last.score * 100) + T("%") : ""].filter(Boolean).join(" · "),
   });
 </script>
@@ -37,8 +37,8 @@
       <div class="flex flex-wrap items-center justify-between gap-2">
         <span class="lbl">{T("Sent in the last 24 h")}</span>
         {#if healthy !== null}
-          <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] {healthy ? 'bg-[var(--accent)]/10 text-[var(--accent-ink)]' : 'bg-amber-400/10 text-[var(--warn)]'}">
-            <span class="h-1.5 w-1.5 rounded-full {healthy ? 'bg-[var(--accent)]' : 'bg-amber-400'}"></span>{healthy ? T("Everything works") : T("Something needs attention")}
+          <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] {healthy ? 'bg-[var(--accent)]/10 text-[var(--accent-ink)]' : 'bg-[var(--warn)]/10 text-[var(--warn)]'}">
+            <span class="h-1.5 w-1.5 rounded-full {healthy ? 'bg-[var(--accent)]' : 'bg-[var(--warn)]'}"></span>{healthy ? T("Everything works") : T("Something needs attention")}
           </span>
         {/if}
       </div>
@@ -62,6 +62,12 @@
             {#if k.x > 0.04 && k.x < 0.86}<span class="absolute -translate-x-1/2 {k.x > 0.7 ? 'max-sm:hidden' : ''}" style="left:{k.x * 100}%">{timeText(k.t * 1000, ctx)}</span>{/if}
           {/each}
           <span class="absolute right-0">{T("now")}</span>
+        </div>
+      {:else}
+        <!-- Until the count arrives: the number's and the chart's places, so that the card keeps its size. -->
+        <div class="grid animate-pulse gap-4" aria-hidden="true">
+          <span class="h-14 w-24 rounded-[12px] bg-[var(--glass-hi)]"></span>
+          <span class="h-16 rounded-[8px] bg-[var(--glass-hi)]"></span>
         </div>
       {/if}
     </Card>
@@ -92,14 +98,14 @@
           <span class="lbl">{T("Connections")}</span>
           {#each app.health as c (c.name)}
             <div class="flex items-center gap-3"><span class="flex-1">{c.name}</span><span class="truncate font-mono text-[11px] text-[var(--faint)]">{c.state === "ok" ? c.detail : ""}</span>
-              <span class="h-1.5 w-1.5 flex-none rounded-full {c.state === 'ok' ? 'bg-[var(--accent)]' : c.state === 'warn' ? 'bg-amber-400' : 'bg-red-400'}"></span></div>
+              <span class="h-1.5 w-1.5 flex-none rounded-full {c.state === 'ok' ? 'bg-[var(--accent)]' : c.state === 'warn' ? 'bg-[var(--warn)]' : 'bg-[var(--err)]'}"></span></div>
           {/each}
-          {#each problems as c (c.name)}<p class="result err m-0"><b>{c.name} —</b> {c.detail}{#if c.hint}<br>👉 {c.hint}{/if}
+          {#each problems as c (c.name)}<p class="result m-0 {c.state === 'warn' ? 'warn' : 'err'}"><b>{c.name} —</b> {c.detail}{#if c.hint}<br>👉 {c.hint}{/if}
             {#if c.action === "delete_webhook"}<br><button type="button" class="btn mt-2" disabled={removing} onclick={async () => { removing = await removeWebhook(); }}>{removing ? T("Webhook removed, checking again…") : T("Remove the webhook")}</button>{/if}</p>{/each}
           {#if app.refused.length}
             <p class="result warn m-0"><b>{T("Telegram — users refused by the bot")}</b>
               {#each app.refused as u (u.id)}<br>{[u.name, u.username && "@" + u.username].filter(Boolean).join(" ") || T("unknown")} · {T("ID ")}<code>{u.id}</code>{/each}
-              <br>👉 {app.data.can_connection ? T("To allow someone, add their ID as a recipient with the “Telegram, Frigate and MQTT connection” link at the bottom of the page.") : T("To allow someone, add their ID to telegram.chats in config.yml (and to telegram.admins if you set it), then restart the container.")}</p>
+              <br>👉 {app.data.can_connection ? T("To allow someone, add their ID as a recipient in the Connection menu.") : T("To allow someone, add their ID to telegram.chats in config.yml (and to telegram.admins if you set it), then restart the container.")}</p>
           {/if}
         </Card>
       {/if}
@@ -123,9 +129,9 @@
 
   {#if app.history}
     <div id="last-notification" class="flex flex-col items-center gap-3 lg:col-span-5">
-      <span class="lbl">{T("Last notification")}{lastEntry ? " · " + lastEntry.time : ""}</span>
+      <span class="lbl">{T("Last notification")}{last ? " · " + whenText(last.at, ctx) : ""}</span>
       {#if lastEntry}
-        <Phone model={previewModel(effective(app.overlay, last.camera), { homeAssistant: !!app.overlay.home_assistant_url })} entry={lastEntry}
+        <Phone real model={previewModel(effective(app.overlay, last.camera), { homeAssistant: !!app.overlay.home_assistant_url })} entry={lastEntry}
           image={last.has_thumb ? "api/history/" + encodeURIComponent(last.id) + "/thumb" : ""} />
       {:else}
         <p class="m-0 text-[var(--muted)]">{T("No notification sent yet.")}</p>

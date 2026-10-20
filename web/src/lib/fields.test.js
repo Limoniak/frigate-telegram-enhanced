@@ -104,8 +104,8 @@ describe("cameraSummary", () => {
 
 describe("FIELDS", () => {
   const hint = (data) => FIELDS(T, data).find((f) => f.key === "chats").hint;
-  it("points to the connection link or to config.yml for the chats", () => {
-    expect(hint({ can_connection: true })).toMatch(/MQTT connection” link/);
+  it("points to the Connection menu or to config.yml for the chats", () => {
+    expect(hint({ can_connection: true })).toMatch(/Connection menu/);
     expect(hint({ can_connection: false })).toMatch(/config\.yml/);
     expect(hint(null)).toMatch(/config\.yml/);
   });

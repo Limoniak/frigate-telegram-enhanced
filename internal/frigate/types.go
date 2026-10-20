@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -162,4 +164,20 @@ func ParseTrackedObjectUpdate(b []byte) (TrackedObjectUpdate, error) {
 func UnixTime(ts float64) time.Time {
 	sec, frac := math.Modf(ts)
 	return time.Unix(int64(sec), int64(math.Round(frac*1e9)))
+}
+
+// BaseLabel is a label without the "-verified" that Frigate (0.16 and later) gives
+// the objects of a review once it recognized them — a known face, plate or class of
+// its own: "car-verified" is a car, and the review's sub_labels say which one.
+func BaseLabel(l string) string { return strings.TrimSuffix(l, "-verified") }
+
+// BaseLabels returns labels by their BaseLabel, each once, in their order.
+func BaseLabels(labels []string) []string {
+	out := make([]string, 0, len(labels))
+	for _, l := range labels {
+		if b := BaseLabel(l); !slices.Contains(out, b) {
+			out = append(out, b)
+		}
+	}
+	return out
 }

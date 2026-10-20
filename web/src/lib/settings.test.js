@@ -43,6 +43,12 @@ describe("toSend", () => {
   it("drops cameras without overrides", () => {
     expect(Object.keys(toSend(overlay()).cameras)).toEqual(["entree"]);
   });
+  it("keeps every top-level setting the server saves", () => {
+    const o = { ...overlay(), external_url: "https://f.example", home_assistant_url: "https://ha.example",
+      frame_ancestors: ["http://homeassistant.local:8123"], night: { from: "22:00", to: "07:00" } };
+    const sent = toSend(o);
+    for (const k of ["external_url", "home_assistant_url", "frame_ancestors", "night"]) expect(sent[k]).toEqual(o[k]);
+  });
 });
 
 describe("styleOf and cameraOverrides", () => {

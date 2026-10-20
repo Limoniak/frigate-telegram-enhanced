@@ -26,19 +26,23 @@ const maxBox = 16 << 20
 
 // Fix repairs the file path and returns the number of samples fixed. A file that is
 // not a fragmented MP4 is left as is (0, nil).
-func Fix(path string) (int, error) {
+func Fix(path string) (fixed int, err error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer func() {
+		// Once samples are rewritten, a failed close may have lost them.
+		if cerr := f.Close(); err == nil && fixed > 0 {
+			err = cerr
+		}
+	}()
 	st, err := f.Stat()
 	if err != nil {
 		return 0, err
 	}
 
-	timescales := map[uint32]uint32{} // piste → tics par seconde
-	fixed := 0
+	timescales := map[uint32]uint32{} // track → ticks per second
 	for off := int64(0); off+8 <= st.Size(); {
 		typ, hdr, size, err := header(f, off, st.Size())
 		if err != nil {

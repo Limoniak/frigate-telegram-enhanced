@@ -154,6 +154,30 @@ func TestAudioReviewNotifiesTheSound(t *testing.T) {
 	}
 }
 
+// An object Frigate recognized ("person-verified", Frigate 0.16) is its object: it
+// passes the label filter (labels: [person]) and is named after it; the sub_label
+// says who.
+func TestRecognizedObjectIsItsObject(t *testing.T) {
+	h := newHarness(t, "reviews") // labels: [person]
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	r := map[string]any{
+		"id": revID, "camera": "garage", "severity": "alert", "start_time": 1790604000.0,
+		"data": map[string]any{"detections": []string{evID}, "objects": []string{"person-verified"},
+			"sub_labels": []string{"Alice"}, "zones": []string{}},
+	}
+	msg, _ := json.Marshal(map[string]any{"type": "new", "before": r, "after": r})
+	h.send(t, "frigate/reviews", msg)
+
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) == 0 {
+		t.Fatal("a recognized person must be notified")
+	}
+	caption := photos[0].Opts.Caption
+	if !strings.Contains(caption, "🚶 Person") || !strings.Contains(caption, "🏷 Alice") || strings.Contains(caption, "verified") {
+		t.Errorf("caption = %q", caption)
+	}
+}
+
 // The label filter applies to sounds: a sound left out of the labels is not notified.
 func TestAudioReviewFollowsTheLabelFilter(t *testing.T) {
 	h := newHarness(t, "reviews") // labels: [person]

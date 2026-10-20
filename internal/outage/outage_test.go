@@ -57,6 +57,17 @@ func TestFrigateDownThenBack(t *testing.T) {
 	f.expect(t, "🟢 Frigate is back (down since 14:02)")
 }
 
+// An outage that began on another day gives its date too.
+func TestFrigateBackTheNextDay(t *testing.T) {
+	f := newFake()
+	f.msg("frigate/available", "offline")
+	f.fire()
+	f.expect(t, "🔴 Frigate is not responding: no notifications until it is back")
+	f.now = f.now.Add(20 * time.Hour)
+	f.msg("frigate/available", "online")
+	f.expect(t, "🟢 Frigate is back (down since Oct 18 14:02)")
+}
+
 func TestShortFrigateRestartIsSilent(t *testing.T) {
 	f := newFake()
 	f.msg("frigate/available", "stopped")

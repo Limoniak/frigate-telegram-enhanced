@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232aabee'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S10 19 10 13'/%3E%3Cpath d='M14.3 24.5a2 2 0 0 0 3.4 0'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Cstyle%3E.ring{stroke:%232aabee}.dot{fill:%23127aad}@media (prefers-color-scheme:dark){.dot{fill:%237cc8f5}}%3C/style%3E%3Cg transform='translate(191.3 208.7)'%3E%3Cpath class='ring' d='M110.3 -19.4A112 112 0 1 1 19.4 -110.3' fill='none' stroke='%232aabee' stroke-width='62' stroke-linecap='round'/%3E%3Ccircle class='dot' r='54' fill='%23127aad'/%3E%3Ccircle class='dot' cx='124.5' cy='-124.5' r='36' fill='%23127aad'/%3E%3C/g%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem("frigate-telegram-enhanced-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <title>{{.Title}}</title>
 <link rel="stylesheet" href="login.css">
@@ -20,7 +20,7 @@
   <input type="hidden" name="next" value="{{.Next}}">
   {{if .Error}}<p class="login-error result err m-0" role="alert">{{.Error}}</p>{{end}}
   <button type="submit" class="btn btn-primary w-full">{{.Button}}</button>
-  <nav class="flex justify-center gap-3 text-[11px] uppercase text-[var(--faint)]" aria-label="Language / Langue">{{range .Langs}}<a class="no-underline aria-[current=true]:font-semibold aria-[current=true]:text-[var(--ink)]" href="login?lang={{.Code}}&amp;next={{$.Next}}"{{if .Current}} aria-current="true"{{end}}>{{.Code}}</a>{{end}}</nav>
+  <nav class="flex flex-wrap justify-center gap-1 text-[12px] uppercase text-[var(--faint)]" aria-label="Language / Langue">{{range .Langs}}<a class="rounded-full px-2.5 py-2 no-underline hover:text-[var(--ink)] aria-[current=true]:font-semibold aria-[current=true]:text-[var(--ink)]" href="login?lang={{.Code}}&amp;next={{$.Next}}"{{if .Current}} aria-current="true"{{end}}>{{.Code}}</a>{{end}}</nav>
 </form>
 <script>
   // Carry the page's #fragment through the login, so a deep link survives it.

@@ -24,8 +24,8 @@ type fakeFrigate struct {
 	files    map[string][]byte
 	fails    map[string]int // number of 404 to return before success
 	tooLarge map[string]bool
-	stalls   map[string]bool  // stalling download: files[path] is only partly received
-	sizes    map[string]int64 // clip of this size (sparse file), checked against max
+	stalls   map[string]bool   // stalling download: files[path] is only partly received
+	sizes    map[string]int64  // clip of this size (sparse file), checked against max
 	heads    map[string][]byte // clip over max: its beginning, returned with ErrTooLarge
 	calls    []string
 	events   []frigate.APIEvent

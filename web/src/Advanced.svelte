@@ -1,11 +1,13 @@
 <script>
   // Every setting, group by group, for what the choices of the other screens don't
   // cover; plus the two addresses and the way back to the config.yml settings.
-  import { T } from "./lib/i18n.svelte.js";
+  import { T, Tf } from "./lib/i18n.svelte.js";
   import { app, edit, resetSettings } from "./lib/store.svelte.js";
   import { GROUPS, fieldsFor, validURL } from "./lib/fields.js";
+  import { ask } from "./lib/confirm.svelte.js";
   import Card from "./lib/Card.svelte";
   import Field from "./lib/Field.svelte";
+  import Chips from "./lib/Chips.svelte";
 
   const fields = $derived(fieldsFor(app.data, null, T));
   const groups = $derived(GROUPS(T).map((g) => ({ ...g, fields: fields.filter((f) => g.keys.includes(f.key)) })).filter((g) => g.links || g.fields.length));
@@ -25,11 +27,28 @@
     if (validURL(u)) edit((o) => { o[key] = u; });
   }
 
+  // The sites that may show this page in a frame (a Home Assistant dashboard): each one
+  // kept as its origin; an address that is not one is shown and not saved.
+  let badFrame = $state("");
+  const origin = (v) => {
+    try {
+      const u = new URL(v.trim());
+      return /^https?:$/.test(u.protocol) && u.host ? u.origin : "";
+    } catch { return ""; }
+  };
+  function setFrames(next) {
+    const added = next.filter((v) => !(app.overlay.frame_ancestors || []).includes(v));
+    const bad = added.find((v) => !origin(v));
+    badFrame = bad || "";
+    if (bad) return;
+    edit((o) => { o.frame_ancestors = [...new Set(next.map((v) => origin(v) || v))]; });
+  }
+
   async function reset() {
     const question = app.data.can_connection
       ? T("Go back to the default settings? The choices made on this page will be lost.")
       : T("Delete the settings saved here and go back to the config.yml ones?");
-    if (confirm(question)) await resetSettings();
+    if (await ask(question, T("Reset"))) await resetSettings();
   }
 </script>
 
@@ -51,7 +70,8 @@
 
 <section id="advanced" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1">
-    <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Advanced settings")}</h1>
+    <span class="lbl">{T("Advanced settings")}</span>
+    <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Fine-tune every setting")}</h1>
     <p class="m-0 text-[var(--muted)]">{T("Every setting, for what the choices above don't cover. They apply to every camera, unless it has its own.")}</p>
   </div>
   {#key app.overlay}
@@ -62,6 +82,13 @@
       {#if g.links}
         {@render url("external-url", "external_url", T("“Open in Frigate” link"), T("Empty: the address the service reaches Frigate at. Set another one to open Frigate from outside."), app.data.frigate_url || "https://frigate.example.com", T("Frigate address for links"), T("Expected an address like https://frigate.example.com"), app.data.frigate_url || "")}
         {@render url("ha-url", "home_assistant_url", T("“Home Assistant” button"), T("Adds a button that opens Home Assistant under each notification. Empty: no button."), "https://homeassistant.example.com", T("Home Assistant address"), T("Expected an address like https://homeassistant.example.com"), "")}
+        <div class="flex flex-col gap-2" data-key="frame_ancestors">
+          <span>{T("Sites that may show this page")}</span>
+          <Chips label={T("Sites that may show this page")} describedby={badFrame ? "frames-error frames-hint" : "frames-hint"} options={[]}
+            value={app.overlay.frame_ancestors || []} free wide onchange={setFrames} />
+          {#if badFrame}<p id="frames-error" class="m-0 text-[12px] text-[var(--err)]" role="alert">{Tf("“%s” is not an address: expected one like http://homeassistant.local:8123", badFrame)}</p>{/if}
+          <p id="frames-hint" class="m-0 text-[12px] text-[var(--faint)]">{T("Home Assistant, at the address of its button above, can already show this page in a dashboard's Webpage card. If the card stays blank, add the address you open Home Assistant at. No other site can.")}</p>
+        </div>
       {/if}
     </Card>
   {/each}

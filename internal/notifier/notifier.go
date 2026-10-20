@@ -91,7 +91,7 @@ type Notifier struct {
 	sent      []time.Time
 	history   []HistoryEntry
 	histDirty bool              // history changed since the last write of HistoryFile
-	groups    map[string]*group // regroupement en cours, par destinataire
+	groups    map[string]*group // grouping in progress, per recipient
 }
 
 type inMsg struct {

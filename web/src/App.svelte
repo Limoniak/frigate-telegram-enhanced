@@ -7,6 +7,8 @@
   import { api } from "./lib/api.js";
   import LangMenu from "./lib/LangMenu.svelte";
   import ThemeMenu from "./lib/ThemeMenu.svelte";
+  import Confirm from "./lib/Confirm.svelte";
+  import Logo from "./lib/Logo.svelte";
   import Overview from "./Overview.svelte";
   import Style from "./Style.svelte";
   import When from "./When.svelte";
@@ -68,15 +70,24 @@
 <header class="sticky top-[env(safe-area-inset-top,0px)] z-10 px-4 transition-[padding] duration-200 {compact ? 'pt-2' : 'pt-4'}">
   <!-- Under lg the screens fold into a list under a button: the pills no longer fit on one line. -->
   <nav id="nav" bind:this={nav} class="relative mx-auto flex w-full items-center gap-1 rounded-full bg-[var(--glass)] ring-1 ring-[var(--ring)] backdrop-blur-xl transition-[padding,font-size] duration-200 lg:max-w-max {compact ? 'p-0.5 text-[13px] shadow-lg' : 'p-1.5'}">
+    <!-- The service's mark, as on the connection page: back to the overview. -->
+    <a href="#overview" class="grid h-8 w-8 flex-none place-items-center rounded-full" aria-label={T("Overview")} title="frigate-telegram-enhanced">
+      <Logo class="h-7 w-7" />
+    </a>
     <button type="button" class="flex flex-1 items-center gap-2 rounded-full px-3 py-1.5 text-left text-[var(--ink)] lg:hidden" aria-expanded={menu} aria-controls="screens"
       onclick={() => { menu = !menu; }}>
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
       <span class="sr-only">{T("Menu")} · </span>{Object.fromEntries(screens())[current]}
     </button>
-    <div id="screens" class="{menu ? 'flex' : 'hidden'} absolute inset-x-0 top-full mt-2 flex-col gap-1 rounded-[20px] bg-[var(--bg)] p-1.5 ring-1 ring-[var(--ring)] lg:static lg:mt-0 lg:flex lg:flex-row lg:bg-transparent lg:p-0 lg:ring-0">
+    <!-- 25px: the 19px of a pill plus the 6px around it, so that the corners stay parallel. -->
+    <div id="screens" class="{menu ? 'flex' : 'hidden'} absolute inset-x-0 top-full mt-2 flex-col gap-1 rounded-[25px] bg-[var(--bg)] p-1.5 ring-1 ring-[var(--ring)] lg:static lg:mt-0 lg:flex lg:flex-row lg:bg-transparent lg:p-0 lg:ring-0">
       {#each screens() as [id, label] (id)}
         <a href="#{id}" class="whitespace-nowrap rounded-full px-3 py-2 no-underline lg:py-1.5 {current === id ? 'bg-[var(--glass-hi)] text-[var(--ink)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}" aria-current={current === id ? "page" : undefined} onclick={() => { menu = false; }}>{label}</a>
       {/each}
+      <!-- The connection is a page of its own: the pending save is finished before leaving. -->
+      {#if app.data?.can_connection}
+        <a href="setup" class="whitespace-nowrap rounded-full px-3 py-2 text-[var(--muted)] no-underline hover:text-[var(--ink)] lg:py-1.5" onclick={goTo("setup")}>{T("Connection")}</a>
+      {/if}
     </div>
     <LangMenu />
     <ThemeMenu />
@@ -106,11 +117,12 @@
   {/if}
 </main>
 
+<Confirm />
+
 <footer class="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 pb-10 text-[12px] text-[var(--faint)]">
   {#if app.data}
     <span>{app.data.mode === "events" ? T("Notifications for Frigate's events") : T("Notifications for Frigate's alerts (reviews)")} · {Tf("time zone %s", app.data.timezone)}</span>
     <span class="flex-1"></span>
-    {#if app.data.can_connection}<a href="setup" onclick={goTo("setup")}>{T("Telegram, Frigate and MQTT connection")}</a>{/if}
     {#if app.data.auth}<button type="button" class="btn-link" id="logout" onclick={logout}>{T("Log out")}</button>{/if}
   {/if}
 </footer>

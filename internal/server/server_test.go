@@ -21,7 +21,7 @@ func TestHealthzAndCheck(t *testing.T) {
 			return nil
 		}
 		return errors.New("MQTT disconnected")
-	}, http.NotFoundHandler())
+	}, http.NotFoundHandler(), nil)
 	ts := httptest.NewServer(srv.Handler)
 	defer ts.Close()
 
@@ -40,7 +40,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	c := prometheus.NewCounter(prometheus.CounterOpts{Name: "ft_test_total", Help: "test"})
 	reg.MustRegister(c)
 	c.Inc()
-	ts := httptest.NewServer(New(":0", func() error { return nil }, promhttp.HandlerFor(reg, promhttp.HandlerOpts{})).Handler)
+	ts := httptest.NewServer(New(":0", func() error { return nil }, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), nil).Handler)
 	defer ts.Close()
 	resp, err := http.Get(ts.URL + "/metrics")
 	if err != nil {
@@ -50,5 +50,26 @@ func TestMetricsEndpoint(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), "ft_test_total 1") {
 		t.Errorf("metrics:\n%s", body)
+	}
+}
+
+func TestHeaders(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {})
+	for _, c := range []struct {
+		frames   []string
+		csp, xfo string
+	}{
+		{nil, "frame-ancestors 'self'", "SAMEORIGIN"},
+		{[]string{"https://HA.example.com:8123/lovelace/0", "http://homeassistant.local:8123", "https://ha.example.com:8123"},
+			"frame-ancestors 'self' https://ha.example.com:8123 http://homeassistant.local:8123", ""},
+		{[]string{"", "javascript:alert(1)", "ha.local"}, "frame-ancestors 'self'", "SAMEORIGIN"},
+	} {
+		rec := httptest.NewRecorder()
+		Headers(ok, func() []string { return c.frames }).ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+		h := rec.Header()
+		if h.Get("Content-Security-Policy") != c.csp || h.Get("X-Frame-Options") != c.xfo ||
+			h.Get("X-Content-Type-Options") != "nosniff" || h.Get("Referrer-Policy") != "same-origin" {
+			t.Errorf("frames %q: headers %v", c.frames, h)
+		}
 	}
 }

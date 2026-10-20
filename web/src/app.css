@@ -19,6 +19,13 @@
   --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
   --ok: #7cc8f5; --err: #fca5a5; --warn: #fcd34d;
   --halo-a: rgba(42, 171, 238, 0.22); --halo-b: rgba(79, 70, 229, 0.18);
+  --switch-off: rgba(255, 255, 255, 0.38); /* an off switch: 3:1 at least against the card */
+  --logo-ring: #2aabee; --logo-dot: #7cc8f5; /* the mark (Logo.svelte): pale dots on the night */
+  /* The phone of the previews (Phone.svelte): Telegram's night mode here, its day mode in light. */
+  --tg-chat: #0e1621; --tg-ink: #e9edf1; --tg-header: #17212b; --tg-sub: #7d8b99; --tg-bubble: #182533;
+  --tg-media: #26313b; --tg-link: #6ab2f2; --tg-muted: #aab8c4; --tg-line: rgba(255, 255, 255, 0.1);
+  --tg-button: rgba(255, 255, 255, 0.1);
+  --phone-frame: #0b0d10; --phone-ring: rgba(255, 255, 255, 0.1); --phone-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
@@ -30,6 +37,12 @@
     --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
     --ok: #0b6fa0; --err: #b91c1c; --warn: #a16207;
     --halo-a: rgba(42, 171, 238, 0.18); --halo-b: rgba(99, 102, 241, 0.12);
+    --switch-off: #7f8ba0;
+    --logo-ring: #2aabee; --logo-dot: #127aad;
+    --tg-chat: #dfe7ee; --tg-ink: #0f1419; --tg-header: #ffffff; --tg-sub: #707579; --tg-bubble: #ffffff;
+    --tg-media: #d5dde3; --tg-link: #0b6fa0; /* Telegram's #168acd falls short of 4.5:1 on white */ --tg-muted: #707579; --tg-line: rgba(0, 0, 0, 0.1);
+    --tg-button: rgba(255, 255, 255, 0.75);
+    --phone-frame: #ffffff; --phone-ring: rgba(15, 23, 42, 0.1); --phone-shadow: 0 30px 70px -30px rgba(15, 23, 42, 0.35);
     color-scheme: light;
   }
 }
@@ -41,6 +54,12 @@
   --accent-strong: #127aad; /* button background: darker than the accent so white text stays readable */
   --ok: #0b6fa0; --err: #b91c1c; --warn: #a16207;
   --halo-a: rgba(42, 171, 238, 0.18); --halo-b: rgba(99, 102, 241, 0.12);
+  --switch-off: #7f8ba0;
+  --logo-ring: #2aabee; --logo-dot: #127aad;
+  --tg-chat: #dfe7ee; --tg-ink: #0f1419; --tg-header: #ffffff; --tg-sub: #707579; --tg-bubble: #ffffff;
+  --tg-media: #d5dde3; --tg-link: #0b6fa0; /* Telegram's #168acd falls short of 4.5:1 on white */ --tg-muted: #707579; --tg-line: rgba(0, 0, 0, 0.1);
+  --tg-button: rgba(255, 255, 255, 0.75);
+  --phone-frame: #ffffff; --phone-ring: rgba(15, 23, 42, 0.1); --phone-shadow: 0 30px 70px -30px rgba(15, 23, 42, 0.35);
   color-scheme: light;
 }
 
@@ -59,7 +78,9 @@ body {
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @layer base { a { color: var(--accent-ink); } } /* in a layer: a link's own text-* class wins */
 
-/* Shared building blocks, used by the Svelte pages and by login.html. */
+/* Shared building blocks, used by the Svelte pages and by login.html. In the components
+   layer, so that a utility (w-28, mt-2…) set on one of them wins over its own values. */
+@layer components {
 .lbl { font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
 .field {
   width: 100%; min-width: 0; border: 0; border-radius: 999px; padding: 9px 16px; font: inherit; color: var(--ink);
@@ -71,7 +92,9 @@ body {
 .field:disabled { opacity: 0.5; }
 select.field { appearance: auto; }
 .field[aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--err); }
-/* Tom Select (a searchable select): the wrapper keeps .field's look, its parts follow the theme. */
+}
+/* Tom Select (a searchable select): the wrapper keeps .field's look, its parts follow the theme.
+   Outside the layer: its own sheet is not in one either. */
 .ts-wrapper.field.single .ts-control { border: 0; padding: 0; background: transparent; color: inherit; cursor: text; }
 .ts-wrapper.field :is(.ts-control, .ts-control input, .ts-dropdown) { font-size: inherit; line-height: inherit; } /* not Tom Select's 13 px: iOS zooms under 16 */
 .ts-wrapper.field .ts-control input { color: inherit; }
@@ -83,6 +106,7 @@ select.field { appearance: auto; }
 }
 .ts-wrapper.field .ts-dropdown .option { padding: 6px 16px; }
 .ts-wrapper.field .ts-dropdown .active { color: var(--ink); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+@layer components {
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 999px;
   padding: 8px 16px; font: inherit; font-weight: 500; cursor: pointer; color: var(--ink);
@@ -92,6 +116,7 @@ select.field { appearance: auto; }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn-primary { background: var(--accent-strong); color: #fff; box-shadow: none; }
+.btn-icon { width: 48px; height: 48px; padding: 0; font-size: 18px; } /* a round button with only an icon */
 .btn-link { background: none; box-shadow: none; padding: 0; color: var(--accent-ink); text-decoration: underline; }
 .result { font-size: 12.5px; color: var(--muted); }
 .result.ok { color: var(--ok); }
@@ -103,9 +128,32 @@ select.field { appearance: auto; }
   transition: box-shadow 0.5s var(--ease-spring), color 0.5s var(--ease-spring);
 }
 .chip[aria-pressed="true"] { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* Exclusive choices side by side (Pills, the zones, the bursts): they wrap on a narrow screen.
+   The frame's radius is a pill's plus the 3 px around it, so that the corners stay parallel
+   once the choices wrap. */
+.pills {
+  display: inline-flex; max-width: 100%; flex-wrap: wrap; gap: 2px; border-radius: 16px; padding: 3px;
+  background: var(--field); box-shadow: 0 0 0 1px var(--ring);
+}
+.pill {
+  border: 0; border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer;
+  color: var(--muted); background: none;
+}
+.pill[aria-pressed="true"] { color: var(--ink); background: var(--glass-hi); }
+.pill:disabled { cursor: default; }
+/* A finger needs a larger target than a pointer. */
+@media (pointer: coarse) { .pill { padding: 9px 14px; } .pills { border-radius: 21px; } }
+}
 details.more > summary { cursor: pointer; color: var(--accent-ink); list-style: none; }
 details.more > summary::before { content: "▸ "; }
 details.more[open] > summary::before { content: "▾ "; }
-.notice { border-radius: 17px; padding: 12px 16px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--ring); }
+.notice { border-radius: 20px; padding: 12px 16px; background: var(--glass); box-shadow: inset 0 0 0 1px var(--ring); }
 .notice.err { color: var(--err); }
+/* The confirmation dialog (Confirm.svelte): a card over the dimmed page. */
+dialog.confirm {
+  margin: auto; /* the reset of Tailwind leaves a modal dialog in the corner */
+  width: min(400px, calc(100vw - 32px)); border: 0; border-radius: 20px; padding: 24px; color: var(--ink);
+  background: var(--bg); box-shadow: 0 0 0 1px var(--ring), 0 30px 80px -20px rgba(0, 0, 0, 0.6);
+}
+dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }

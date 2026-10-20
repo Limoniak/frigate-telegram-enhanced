@@ -74,7 +74,7 @@ func (b *Bot) handleCommand(ctx context.Context, m telegram.Message) {
 	case "pause":
 		b.serial(func() { b.reply(ctx, chat, b.cmdPause(ctx, args)) })
 	case "resume":
-		b.serial(func() { b.reply(ctx, chat, b.cmdResume(args)) })
+		b.serial(func() { b.reply(ctx, chat, b.cmdResume(ctx, args)) })
 	case "status":
 		b.serial(func() { b.reply(ctx, chat, b.cmdStatus()) })
 	case "cameras":
@@ -87,8 +87,15 @@ func (b *Bot) handleCommand(ctx context.Context, m telegram.Message) {
 			camera = args[0]
 		}
 		b.async(func() {
+			if camera != "" {
+				if msg := b.checkCamera(ctx, camera); msg != "" {
+					b.reply(ctx, chat, msg)
+					return
+				}
+			}
 			if err := b.Notifier.SendLast(ctx, chat, camera); err != nil {
-				b.reply(ctx, chat, "⚠️ "+esc(err.Error()))
+				l := b.Config.Language
+				b.reply(ctx, chat, l.T("⚠️ Could not get the latest event: ")+esc(l.Message(err)))
 			}
 		})
 	case "menu":
@@ -133,17 +140,25 @@ func (b *Bot) cmdPause(ctx context.Context, args []string) string {
 	return "⏸ " + target + " " + b.untilText(until)
 }
 
-func (b *Bot) cmdResume(args []string) string {
+func (b *Bot) cmdResume(ctx context.Context, args []string) string {
+	l := b.Config.Language
 	if len(args) == 0 {
 		if err := b.State.Resume(); err != nil {
-			return "⚠️ " + esc(err.Error())
+			return l.T("⚠️ Could not save the state: ") + esc(err.Error())
 		}
-		return b.Config.Language.T("▶️ Notifications resumed (all cameras).")
+		return l.T("▶️ Notifications resumed (all cameras).")
+	}
+	// A muted camera is turned back on even if Frigate no longer lists it (renamed,
+	// removed): only another camera's name needs Frigate to be checked.
+	if !b.State.IsMuted(args[0], b.Now()) {
+		if msg := b.checkCamera(ctx, args[0]); msg != "" {
+			return msg
+		}
 	}
 	if err := b.State.Unmute(args[0]); err != nil {
-		return "⚠️ " + esc(err.Error())
+		return l.T("⚠️ Could not save the state: ") + esc(err.Error())
 	}
-	return b.Config.Language.Tf("▶️ Camera <b>%s</b> resumed.", esc(args[0]))
+	return l.Tf("▶️ Camera <b>%s</b> resumed.", esc(args[0]))
 }
 
 func (b *Bot) cmdStatus() string {
@@ -203,6 +218,10 @@ func (b *Bot) cmdCameras(ctx context.Context) string {
 
 func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 	if len(args) > 0 {
+		if msg := b.checkCamera(ctx, args[0]); msg != "" {
+			b.reply(ctx, chat, msg)
+			return
+		}
 		b.sendLiveSnapshot(ctx, chat, 0, args[0])
 		return
 	}
@@ -326,12 +345,14 @@ func (b *Bot) checkCamera(ctx context.Context, camera string) string {
 		esc(camera), esc(strings.Join(cams, ", ")))
 }
 
+// untilText is the end of a pause or a mute: the time alone today, with the date on
+// another day, as the web interface writes it.
 func (b *Bot) untilText(until time.Time) string {
-	if !until.Before(state.Forever) {
-		return b.Config.Language.T("until /resume")
-	}
 	l := b.Config.Language
-	return l.T("until ") + until.In(b.Config.Location).Format(l.DateTimeShort())
+	if !until.Before(state.Forever) {
+		return l.T("until /resume")
+	}
+	return l.T("until ") + l.Moment(until, b.Now(), b.Config.Location)
 }
 
 func (b *Bot) reply(ctx context.Context, chat int64, text string) {

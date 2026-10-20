@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -28,6 +29,9 @@ type Overlay struct {
 	// HomeAssistantURL replaces home_assistant.url; missing, the
 	// configuration's value applies; empty, the notifications have no Home Assistant button.
 	HomeAssistantURL *string `yaml:"home_assistant_url,omitempty" json:"home_assistant_url,omitempty"`
+	// FrameAncestors lists the addresses of the sites, besides Home Assistant at the
+	// address of its button, that may show the interface in a frame.
+	FrameAncestors []string `yaml:"frame_ancestors,omitempty" json:"frame_ancestors,omitempty"`
 	// Night is what the interface's When screen calls the night; missing, 22:00-07:00.
 	// Only the interface reads it: the notifications follow quiet_hours and off_hours.
 	Night *TimeRange `yaml:"night,omitempty" json:"night,omitempty"`
@@ -40,6 +44,7 @@ type settings struct {
 	recipients  map[string]Recipient
 	externalURL string
 	haURL       string
+	frames      []string
 	night       *TimeRange
 }
 
@@ -113,6 +118,11 @@ func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
 			s.haURL = strings.TrimRight(strings.TrimSpace(*o.HomeAssistantURL), "/")
 		}
 		s.night = o.Night
+		for _, f := range o.FrameAncestors {
+			if f = strings.TrimRight(strings.TrimSpace(f), "/"); f != "" && !slices.Contains(s.frames, f) {
+				s.frames = append(s.frames, f)
+			}
+		}
 		s.recipients = make(map[string]Recipient, len(o.Recipients))
 		for name, r := range o.Recipients {
 			if !r.IsZero() {
@@ -126,6 +136,11 @@ func (c *Config) resolve(o *Overlay, lang i18n.Lang) (settings, error) {
 	}
 	if err := validateHAURL(s.haURL, lang); err != nil {
 		errs = append(errs, err)
+	}
+	for _, f := range s.frames {
+		if p, err := url.Parse(f); err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Host == "" {
+			errs = append(errs, lang.Errorf("invalid address %q of a site allowed to show the interface (e.g. http://homeassistant.local:8123)", f))
+		}
 	}
 	if s.night != nil && s.night.From == s.night.To {
 		errs = append(errs, lang.Errorf("the night must start and end at different times"))
@@ -155,7 +170,7 @@ func (c *Config) ApplyOverlay(o *Overlay) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.notify, c.cameras, c.recipients, c.externalURL, c.haURL, c.night = s.notify, s.cameras, s.recipients, s.externalURL, s.haURL, s.night
+	c.notify, c.cameras, c.recipients, c.externalURL, c.haURL, c.frames, c.night = s.notify, s.cameras, s.recipients, s.externalURL, s.haURL, s.frames, s.night
 	return nil
 }
 
@@ -174,6 +189,10 @@ func (c *Config) CurrentOverlay() Overlay {
 	o.ExternalURL = &ext
 	ha := c.haURL
 	o.HomeAssistantURL = &ha
+	o.FrameAncestors = slices.Clone(c.frames)
+	if o.FrameAncestors == nil {
+		o.FrameAncestors = []string{}
+	}
 	o.Night = c.night
 	for name, n := range c.cameras {
 		o.Cameras[name] = DiffPatch(c.notify, n)

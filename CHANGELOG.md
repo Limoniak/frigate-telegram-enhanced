@@ -18,6 +18,39 @@ never a breaking 3.0, while `:latest` follows `main`.
   24-hour otherwise.
 - On the connection page, *More options* is a card of its own (it was folded under the
   interface's password), and the time zone is a list one searches by typing.
+- Resetting a camera's settings asks first, and every reset asks in a dialog in the
+  interface's look instead of the browser's.
+- The previews write the time as the Telegram messages do; the last notification of the
+  overview no longer shows the sample's GenAI description or clip length.
+- The Cameras screen lists the cameras in Frigate's order, as the overview does; a camera
+  turned off dims its name rather than its whole card.
+- Every screen has the same heading, and the navigation bar the service's mark.
+- The bot writes the end of a pause or a mute, and the start of an outage, with the
+  time alone when it is today, and the date otherwise.
+- `/resume`, `/last` and `/snapshot` name a camera Frigate doesn't know, with the list
+  of cameras, as `/pause` does; their errors are translated.
+- The 🎬 Clip button is translated.
+- Every page, in both themes, passes axe-core's WCAG 2.1 A and AA checks, run by the
+  browser tests on each change; the connection page's time zone list now has a name
+  for screen readers.
+- Another site can no longer show the interface in a frame (clickjacking): only Home
+  Assistant at the address of its button, and the addresses listed under *Sites that
+  may show this page* (Advanced settings, Links), for a dashboard's Webpage card. Every
+  response also carries `nosniff` and a same-origin referrer policy.
+- The French texts all say *vous*, in the interface and the README; a test keeps French
+  and German to one register. Italian uses the same ellipsis and quotes as elsewhere.
+- While the overview loads its count, the card shows placeholders instead of staying
+  empty.
+- A new mark, *Ouverture* (an open lens and a dot leaving it), replaces the bell: in the
+  favicon, which follows the browser's theme, in the navigation bar, on the connection
+  page and at the top of the README. The README tells how to give the bot the matching
+  picture (`docs/images/bot-avatar.png`), which the phone of the previews shows too.
+- The phone of the previews follows the interface's theme: Telegram's night mode in the
+  dark theme, its day mode in the light one; the phone itself is black on the night and
+  white on the light page.
+- The connection to Telegram, Frigate and MQTT is the last item of the menu,
+  *Connection*, instead of a link at the bottom of the page.
+- The minimum score per object names the objects as the other screens do.
 
 ### Fixed
 
@@ -26,6 +59,25 @@ never a breaking 3.0, while `:latest` follows `main`.
 - A time range that starts where it ends (e.g. 00:00–00:00) is refused instead of
   never applying.
 - A detection waiting for its label is no longer lost when the event queue is full.
+- An object Frigate recognized (a known face, plate or class of its own), which
+  Frigate 0.16 calls `person-verified` or `car-verified` in its reviews, is its object
+  again: it was shown as "🔔 car-verified" and, with an object filter, not notified at
+  all.
+- On a phone, the live preview button of the Style screen is a round icon that no longer
+  hides the burst choices, and those choices wrap instead of squeezing.
+- In the light theme, a switch turned off is visible; switches, choices and the login
+  page's languages are easier to tap.
+- A connection that only needs attention is shown in amber, not red.
+- With a filter, the footer of the Recent activity screen counts what it shows.
+- The fields given a width of their own (hours, durations, scores, the "add…" fields) no
+  longer stretch across the whole card.
+- In the advanced settings, the objects and the severities are named as on the other
+  screens (🚗 Car, Alerts) instead of Frigate's raw names.
+- On the connection page, the choices of *What triggers a notification* fit a phone's
+  screen: the details moved to a hint below.
+- A night, or a quiet or off hours range, that starts where it ends is flagged on its
+  field and not sent, instead of being silently ignored (the night) or refused by the
+  server, which then refused every later change until it was fixed (the ranges).
 
 ## [2.1.0] - 2026-10-19
 

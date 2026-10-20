@@ -27,6 +27,7 @@ ou le joindre à une issue *Traduction* si vous n'êtes pas familier de Git.
 Il faut Go (la version de `go.mod`) et, pour les tests de l'interface web, Chrome.
 
 ```bash
+gofmt -l .        # liste les fichiers à formater : aucun
 go vet ./...
 go test ./...
 CHROME_PATH=/chemin/vers/chrome go test -tags browser -run Browser ./internal/web/
@@ -34,7 +35,9 @@ go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
-La CI lance les mêmes vérifications sur chaque pull request.
+Les tests navigateur comprennent un audit d'accessibilité (axe-core, WCAG 2.1 AA) de
+chaque page dans les deux thèmes : lancez d'abord `npm ci` dans `web/`. La CI lance les
+mêmes vérifications sur chaque pull request.
 
 L'interface web (pages d'installation, de connexion et principale) est construite à partir de
 `web/` (Svelte et Tailwind). `go build` et `go test` n'ont pas besoin de Node : le résultat
@@ -44,6 +47,7 @@ du build, `internal/web/dist/`, est versionné. Après une modification dans `we
 cd web
 npm ci
 npm test
+npm run check      # compilateur Svelte, types et avertissements d'accessibilité
 npm run build      # met à jour internal/web/dist/, à committer avec votre changement
 npm run dev        # rechargement à chaud, avec l'API d'un service sur le port 8431
 ```

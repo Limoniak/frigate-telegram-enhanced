@@ -30,6 +30,8 @@
   const hourOptions = $derived(route.hour && !hours.includes(route.hour) ? [...hours, route.hour].sort((a, b) => b - a) : hours);
   const goHour = (v) => { location.hash = routeHash({ screen: "activity", hour: Number(v) || null }); };
   const sent = $derived(entries.filter((e) => e.sent).length);
+  // A filter narrows the list: its count is no longer that of the last detections.
+  const filtered = $derived(!!(camera || outcome || route.hour));
   let all = $state(false);
   // The state of the rows is kept by id and start: the same event can come twice.
   const key = (e) => e.id + "|" + e.at;
@@ -44,17 +46,18 @@
 
 <section id="activity" class="mx-auto flex w-full max-w-3xl flex-col gap-4">
   <div class="flex flex-col gap-1">
-    <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("Recent activity")}</h1>
+    <span class="lbl">{T("Recent activity")}</span>
+    <h1 class="m-0 text-[26px] font-semibold tracking-tight">{T("What happened to the latest detections?")}</h1>
     <p class="m-0 text-[var(--muted)]">{T("Frigate's latest detections and what happened to them — handy to understand why a notification didn't arrive.")}</p>
   </div>
   <div class="flex flex-wrap items-center gap-3">
     {#if hours.length}
-      <select id="activity-hour-pick" class="field" style="width:auto" aria-label={T("Hour")} value={route.hour || ""} onchange={(e) => goHour(e.currentTarget.value)}>
+      <select id="activity-hour-pick" class="field w-auto" aria-label={T("Hour")} value={route.hour || ""} onchange={(e) => goHour(e.currentTarget.value)}>
         <option value="">{T("All hours")}</option>{#each hourOptions as h (h)}<option value={h}>{timeText(h * 1000, ctx)} – {timeText((h + 3600) * 1000, ctx)}</option>{/each}
       </select>
     {/if}
     {#if cameras.length > 1}
-      <select id="activity-camera" class="field" style="width:auto" aria-label={T("Cameras")} bind:value={camera}>
+      <select id="activity-camera" class="field w-auto" aria-label={T("Cameras")} bind:value={camera}>
         <option value="">{T("All cameras")}</option>{#each cameras as c (c)}<option value={c}>{c}</option>{/each}
       </select>
     {/if}
@@ -120,7 +123,7 @@
     </ul>
     {#if entries.length}
       <div id="activity-foot" class="flex flex-wrap items-center gap-3 text-[12px] text-[var(--muted)]">
-        <span>{Tf("Out of the last %d detections: %d sent, %d ignored.", entries.length, sent, entries.length - sent)}</span>
+        <span>{filtered ? Tf("%d shown: %d sent, %d ignored.", entries.length, sent, entries.length - sent) : Tf("Out of the last %d detections: %d sent, %d ignored.", entries.length, sent, entries.length - sent)}</span>
         {#if entries.length > 8}
           <button type="button" class="btn-link" onclick={() => { all = !all; }}>{all ? T("Show less") : T("Show all")}</button>
         {/if}

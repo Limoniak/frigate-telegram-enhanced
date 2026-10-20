@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
+    <img src="docs/images/logo.svg" width="96" height="96" alt="">
+  </picture>
+</p>
+
 # frigate-telegram-enhanced
 
 [English](README.md) · **Français**
@@ -16,8 +23,8 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - Snapshot immédiat, puis le clip MP4 **dans le même message** (il remplace l'image, sans seconde notification) ou en réponse ; GIF en option ; au-delà de 50 Mo, le début du clip (ses 50 premiers Mo) avec un lien vers le clip entier, ou le clip entier ré-encodé sous 50 Mo (*Compresser les clips de plus de 50 Mo*, désactivé par défaut)
 - **Sons** (mode reviews) : aboiement, alarme incendie, parole… entendus par la détection audio de Frigate, notifiés comme les objets — `🐕 Aboiement — garage`, voir [Sons](#sons)
 - Description GenAI de Frigate ajoutée à la légende dès qu'elle est disponible
-- Étiquettes de Frigate (classification personnalisée comme le nom de ta voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
-- **Filtre sur les étiquettes** : ne pas être prévenu pour ta voiture ou ton chat, ou seulement pour les inconnus (attend jusqu'à 5 s que Frigate reconnaisse l'objet, seulement avec ce filtre)
+- Étiquettes de Frigate (classification personnalisée comme le nom de votre voiture, visages, plaques) ajoutées à la légende dès que Frigate les connaît — `🏷 clio 3`
+- **Filtre sur les étiquettes** : ne pas être prévenu pour votre voiture ou votre chat, ou seulement pour les inconnus (attend jusqu'à 5 s que Frigate reconnaisse l'objet, seulement avec ce filtre)
 - Filtres par caméra, objet, zone, score minimum et sévérité ; cooldown ; plages silencieuses et plages coupées
 - **Interface web** pour régler tout cela sans éditer de YAML, appliquée sans redémarrage
 - Plusieurs destinataires avec routage par caméra
@@ -28,7 +35,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - **Image recadrée** : le snapshot zoomé sur l'objet détecté, bien plus lisible sur un téléphone
 - En **anglais**, **français**, **allemand**, **espagnol**, **italien** ou **portugais** : messages Telegram (langue choisie sur la page d'installation) et interface web (sélecteur de langue) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
-- **Réglages par destinataire** : par exemple, toi tu reçois tout, la famille seulement les personnes la nuit
+- **Réglages par destinataire** : par exemple, vous recevez tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
 - **Alertes de panne** : un message Telegram quand Frigate ne répond plus ou qu'une caméra n'envoie plus d'images pendant 2 minutes, et un autre à son retour (*Alertes de panne* dans les réglages avancés pour les couper)
 - État persistant, `/healthz`, métriques Prometheus, image distroless multi-arch (amd64 et arm64)
@@ -37,8 +44,10 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 
 **Choisir un modèle de notification.** Quatre modèles — *Photo + vidéo*, *Photo seule*,
 *Photo + GIF*, *Texte seul* — chacun avec un aperçu du message tel qu'il arrivera dans
-Telegram. Un clic, et toutes les caméras l'adoptent. En dessous, quelques questions à
-choix simples : quoi signaler, à quelle fréquence, et que faire la nuit.
+Telegram. Un clic, et toutes les caméras l'adoptent. En dessous, quelques interrupteurs :
+recadrage sur l'objet, vidéo dans le même message, description GenAI de Frigate, et
+rafales. L'écran *Quand* pose ensuite quelques questions à choix simples : quoi
+signaler, à quelle fréquence, et que faire la nuit.
 
 <p align="center">
   <img src="docs/images/fr-style.png" width="820" alt="Style : quatre modèles de notification avec un aperçu en direct du message Telegram">
@@ -81,6 +90,8 @@ score trop bas, déjà signalé il y a peu…), avec un lien direct vers la cam�
    ```
 
 2. **Un bot Telegram** : écrire à [@BotFather](https://t.me/BotFather), `/newbot`, et garder le token.
+   Pour lui donner l'image du projet (facultatif) : envoyer `/setuserpic` à @BotFather,
+   choisir le bot, puis envoyer [bot-avatar.png](docs/images/bot-avatar.png).
 
 ## Installation
 
@@ -108,7 +119,7 @@ score trop bas, déjà signalé il y a peu…), avec un lien direct vers la cam�
    arrive bien dans Telegram.
 
 La connexion est enregistrée dans le volume (`/data/connection.yml`) et se modifie
-ensuite avec le lien *Connexion* en bas de l'interface.
+ensuite avec *Connexion*, le dernier élément du menu de l'interface.
 
 > Si Frigate et son broker MQTT tournent dans Docker sur la même machine, utilisez
 > l'adresse IP de la machine — `localhost` désignerait le conteneur
@@ -147,7 +158,7 @@ Copier [`config.example.yml`](config.example.yml) (commentaires en anglais) vers
 ```
 
 Quand `/config/config.yml` existe, il est seul pris en compte (la page d'installation
-et son lien *Connexion* ne servent alors plus). Ses valeurs sont prises telles quelles :
+et son menu *Connexion* ne servent alors plus). Ses valeurs sont prises telles quelles :
 `${VAR}` n'est pas remplacé. Il contient le token du bot et les mots de passe : ne le
 laissez lisible que par vous. Points clés :
 
@@ -192,9 +203,10 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
   aperçu du message tel qu'il arrivera dans Telegram, sur une photo d'exemple (zoomée sur
   la personne quand l'image est recadrée sur l'objet). Plus bas : les rafales (un message par
   détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
-  modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet) et la
-  vidéo (dans le même message que l'image, ou en réponse).
-- **Quand** : quoi signaler (les objets et les sons que tes caméras suivent dans Frigate,
+  modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet), la
+  vidéo (dans le même message que l'image, ou en réponse) et la description GenAI de
+  Frigate dans la légende. *M'envoyer un exemple* en envoie un dans Telegram.
+- **Quand** : quoi signaler (les objets et les sons que vos caméras suivent dans Frigate,
   chacun avec son emoji ; rien de coché = tout), à quelle fréquence au plus, quoi faire la
   nuit (comme le jour, sans son, rien — les heures de la nuit se règlent, 22 h-7 h par
   défaut) et, avec la présence configurée, quand quelqu'un est à la maison.
@@ -223,8 +235,10 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
   chaque adresse dès qu'elle est valide.
 
 Chaque changement est **enregistré tout seul** et prend effet **immédiatement**, sans
-redémarrage ; l'état en haut de la page le confirme. Un réglage n'est accepté que s'il
-est valide — un réglage refusé est signalé et laisse le service sur les précédents.
+redémarrage ; un état en bas de l'écran le confirme. Une valeur qui ne pourrait jamais
+s'appliquer (une plage qui commence où elle finit, une durée ou une adresse mal formée)
+est signalée sur son champ et n'est pas envoyée ; un réglage refusé par le service est
+signalé et le laisse sur les précédents.
 Sur *Quand*, les choix plus fins — rafales, labels connus et, hors du mode `reviews`,
 sensibilité — sont repliés sous *Plus de choix*, et les valeurs par défaut conviennent à
 la plupart des installations.
@@ -284,6 +298,13 @@ Avec un mot de passe, l'interface s'ouvre sur une page de connexion ; la session
 ensuite 30 jours, survit aux redémarrages et se ferme quand le mot de passe change
 (*Se déconnecter*, en bas de page, la ferme plus tôt). Après 5 mots de passe erronés en
 une minute, une adresse est bloquée 5 minutes.
+
+Un autre site ne peut pas afficher l'interface dans un cadre, ce qui lui permettrait de
+vous faire cliquer un interrupteur à votre insu. Home Assistant le peut, à l'adresse de
+son bouton 🏠 (*Réglages avancés*, *Liens*) : la carte *Page web* d'un tableau de bord
+affiche alors l'interface. Si vous ouvrez Home Assistant à une autre adresse et que la
+carte reste vide, ajoutez cette adresse sous *Sites autorisés à afficher cette page*,
+juste en dessous.
 
 L'authentification ne couvre que l'interface : `/healthz` reste toujours libre pour la
 sonde du conteneur, et `/metrics` aussi, sauf avec `protect_metrics: true`. Si le port

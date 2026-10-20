@@ -97,7 +97,7 @@ func buttons(camera, id, haURL string, lang i18n.Lang) *telegram.InlineKeyboardM
 			rows = append(rows, r)
 		}
 	}
-	row([2]string{lang.T("📷 Now"), actions.Snapshot(camera)}, [2]string{"🎬 Clip", actions.Clip(id)})
+	row([2]string{lang.T("📷 Now"), actions.Snapshot(camera)}, [2]string{lang.T("🎬 Clip"), actions.Clip(id)})
 	row([2]string{"🔇 1 h", actions.Mute(camera, time.Hour)}, [2]string{"⏸ 30 min", actions.Pause(30 * time.Minute)})
 	if haURL != "" {
 		rows = append(rows, []telegram.InlineKeyboardButton{{Text: "🏠 Home Assistant", URL: haURL}})

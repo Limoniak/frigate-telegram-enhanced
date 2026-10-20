@@ -8,6 +8,7 @@
   import TomSelect from "tom-select";
   import Card from "./lib/Card.svelte";
   import LangMenu from "./lib/LangMenu.svelte";
+  import Logo from "./lib/Logo.svelte";
   import ThemeMenu from "./lib/ThemeMenu.svelte";
   import WithLink from "./lib/WithLink.svelte";
 
@@ -46,7 +47,10 @@
   // A select one can search by typing (Tom Select); bind:value keeps working through its change events.
   function searchable(node, value) {
     const ts = new TomSelect(node, { maxOptions: null });
-    ts.on("type", (s) => ts.wrapper.classList.toggle("typing", !!s)); // the search then replaces the current value
+    // While a search is typed, it replaces the current value. Read from the box once Tom Select is done:
+    // picking a value empties it without a "type" event.
+    const typing = () => setTimeout(() => ts.wrapper.classList.toggle("typing", !!ts.control_input.value));
+    for (const e of ["type", "item_add", "blur"]) ts.on(e, typing);
     const update = (v) => { if (v && !ts.options[v]) ts.addOption({ value: v, text: v }); ts.setValue(v, true); };
     update(value);
     return { update, destroy: () => ts.destroy() };
@@ -341,9 +345,7 @@
 
 <header class="sticky top-[env(safe-area-inset-top,0px)] z-10 px-4 pt-4">
   <div class="mx-auto flex max-w-3xl items-center gap-3 rounded-full bg-[var(--glass)] py-1.5 pl-2 pr-1.5 ring-1 ring-[var(--ring)] backdrop-blur-xl">
-    <span class="grid h-8 w-8 flex-none place-items-center rounded-full bg-[var(--accent)] text-white" aria-hidden="true">
-      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-    </span>
+    <span class="grid h-8 w-8 flex-none place-items-center" aria-hidden="true"><Logo class="h-7 w-7" /></span>
     <h1 class="m-0 min-w-0 flex-1 truncate text-[15px] font-semibold">{T("Connection")}</h1>
     <LangMenu />
     <ThemeMenu />
@@ -458,7 +460,7 @@
         <input class="field font-mono" type="text" id="mqtt-broker" autocomplete="off" spellcheck="false" placeholder="192.168.1.10:1883"
           bind:this={mqttBrokerEl} bind:value={mqttBroker} use:typed={mqttEdited} onkeydown={onEnter(checkMqtt)}>
         <input class="field" type="text" id="mqtt-user" autocomplete="off" placeholder={T("Username (if any)")} aria-label={T("Username")} bind:value={mqttUser} use:typed={mqttEdited}>
-        <input class="field font-mono" type="text" id="mqtt-prefix" placeholder="frigate" aria-label="Topic prefix" bind:value={mqttPrefix} use:typed={mqttEdited}>
+        <input class="field font-mono" type="text" id="mqtt-prefix" placeholder="frigate" aria-label={T("Topic prefix")} bind:value={mqttPrefix} use:typed={mqttEdited}>
         <p class="m-0 text-[12.5px] text-[var(--faint)]">{T("Frigate's mqtt.topic_prefix: frigate unless you changed it.")}</p>
       </div>
     </details>
@@ -482,14 +484,17 @@
         {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.name}</option>{/each}
       </select>
       <label class="lbl" for="timezone">{T("Time zone")}</label>
-      <select class="field" id="timezone" bind:value={timezone} use:searchable={timezone}>
+      <!-- Named on its own: Tom Select ties the label to its search field, not to the select it hides. -->
+      <select class="field" id="timezone" aria-label={T("Time zone")} bind:value={timezone} use:searchable={timezone}>
         {#each zones as z (z)}<option value={z}>{z}</option>{/each}
       </select>
       <label class="lbl" for="mode">{T("What triggers a notification")}</label>
-      <select class="field" id="mode" bind:value={mode}>
-        <option value="reviews">{T("Frigate's alerts (review items, Frigate ≥ 0.14)")}</option>
+      <!-- Short choices, so that they fit a phone's select: the details in the hint below. -->
+      <select class="field" id="mode" aria-describedby="mode-hint" bind:value={mode}>
+        <option value="reviews">{T("Frigate's alerts")}</option>
         <option value="events">{T("Each object Frigate detects")}</option>
       </select>
+      <p id="mode-hint" class="m-0 text-[12.5px] text-[var(--faint)]">{T("Alerts are Frigate's review items (Frigate 0.14 or later): one message per scene. Each object: one message per detected object.")}</p>
     </div>
   </Card>
 
