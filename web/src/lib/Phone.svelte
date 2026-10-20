@@ -6,6 +6,7 @@
   import sample from "../assets/sample.jpg";
   import { T, Tf } from "./i18n.svelte.js";
   import { labelText } from "./labels.js";
+  import Logo from "./Logo.svelte";
   let { model, entry, image = "", real = false } = $props();
   const badge = (m) => (m === "gif" ? "GIF" : real ? "▶" : "▶ 0:14");
   const media = $derived(model.inMessage ?? model.reply);
@@ -14,7 +15,9 @@
 <div class="w-full max-w-[290px] rounded-[36px] bg-[#0b0d10] p-[9px] shadow-[0_40px_90px_-30px_rgba(0,0,0,.9)] ring-1 ring-white/10">
   <div class="overflow-hidden rounded-[28px] bg-[#0e1621] text-[#e9edf1]">
     <div class="flex items-center gap-2.5 bg-[#17212b] px-3 py-2.5">
-      <span class="h-8 w-8 rounded-full bg-gradient-to-br from-[#37aee2] to-[#1e96c8]"></span>
+      <!-- The bot's picture (docs/images/bot-avatar.png): the mark on the night, in its dark colors
+           whatever the page's theme, as Telegram shows it. -->
+      <span class="grid h-8 w-8 flex-none place-items-center rounded-full bg-[#0b1220] [--logo-dot:#7cc8f5] [--logo-ring:#2aabee]" aria-hidden="true"><Logo class="h-5 w-5" /></span>
       <div class="leading-tight"><div class="text-[13px] font-semibold">Frigate</div><div class="text-[11px] text-[#7d8b99]">bot</div></div>
     </div>
     <div class="grid gap-1.5 p-2.5 text-[12px] leading-[1.45]">
