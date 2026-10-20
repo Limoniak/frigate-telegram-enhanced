@@ -125,6 +125,7 @@ func TestValidationErrors(t *testing.T) {
 		{"hour", "notify:\n  quiet_hours: [{from: \"25:00\", to: \"07:00\"}]\n", "25:00"},
 		{"log level", "log_level: verbose\n", "log_level"},
 		{"metrics without password", "web:\n  protect_metrics: true\n", "protect_metrics"},
+		{"emoji", "cameras:\n  vhod:\n    emoji: 🚪🚪🚪🚪🚪🚪🚪🚪🚪\n", "emoji"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -133,6 +134,21 @@ func TestValidationErrors(t *testing.T) {
 				t.Fatalf("want an error containing %q, got %v", tc.want, err)
 			}
 		})
+	}
+}
+
+// The caption shows everything by default; a camera can hide parts of it and get an emoji.
+func TestCaptionChoices(t *testing.T) {
+	c := mustParse(t, minimal+"cameras:\n  vhod:\n    emoji: 🚪\n    show_zones: false\n    show_date: false\n")
+	if g := c.ForCamera("garage"); !g.ShowZones || !g.ShowScore || !g.ShowLink || !g.ShowDate || g.Emoji != "" {
+		t.Errorf("defaults = %+v", g)
+	}
+	v := c.ForCamera("vhod")
+	if v.Emoji != "🚪" || v.ShowZones || v.ShowDate || !v.ShowScore || !v.ShowLink {
+		t.Errorf("vhod = %+v", v)
+	}
+	if p := DiffPatch(c.Global(), v); p.Emoji == nil || *p.Emoji != "🚪" || p.ShowZones == nil || p.ShowScore != nil {
+		t.Errorf("DiffPatch = %+v", p)
 	}
 }
 

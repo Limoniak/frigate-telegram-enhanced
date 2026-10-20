@@ -11,16 +11,16 @@ export function timeText(iso, { tz, lang }) {
 }
 
 // messageTime is a time as the Telegram messages write it: the Go layout of their
-// caption ("Jan 2 15:04:05", translated by the catalog) in the time zone tz, so that the
-// preview matches what arrives, whatever clock the page uses.
-export function messageTime(iso, { tz, T }) {
+// caption ("Jan 2 15:04:05", translated by the catalog, or "15:04:05" without the date)
+// in the time zone tz, so that the preview matches what arrives, whatever clock the page uses.
+export function messageTime(iso, { tz, T, date = true }) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
     timeZone: tz, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
   }).formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
   const pad = (n) => String(n).padStart(2, "0");
   const month = new Date(iso).toLocaleDateString("en-US", { timeZone: tz, month: "numeric" });
-  const values = { Jan: parts.month, "2": parts.day, "02": pad(parts.day), "01": pad(month), "15": parts.hour, "04": parts.minute, "05": parts.second };
-  return T("Jan 2 15:04:05").replace(/Jan|15|04|05|02|01|2/g, (k) => values[k]);
+  const values = { Jan: parts.month, "2": parts.day, "02": pad(parts.day), "01": pad(month), "1": month, "15": parts.hour, "04": parts.minute, "05": parts.second };
+  return (date ? T("Jan 2 15:04:05") : "15:04:05").replace(/Jan|15|04|05|02|01|2|1/g, (k) => values[k]);
 }
 
 // hourStart is the start, in Unix seconds, of the chart's bar i (0..23, 23 the current

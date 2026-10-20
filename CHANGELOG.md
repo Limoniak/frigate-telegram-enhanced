@@ -7,6 +7,20 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Added
+
+- *Show in the caption* (Style screen): a switch each for the zones, the score, the
+  *Open in Frigate* link and the date (without it, the time alone). Saved as
+  `show_zones`, `show_score`, `show_link` and `show_date`, on by default; each camera can
+  set its own under *All settings*.
+- An emoji per camera (Cameras screen, `emoji`), written before its name in the
+  notifications: 🚪 front door. A picker offers those a camera's place suggests, and finds
+  any other by its name in the interface's language (names from Emojibase).
+- In reviews mode, the caption shows the score of the review's first detection, read
+  from Frigate before the notification leaves (3 s at most); the recent activity keeps
+  it too.
+- Slovenian, for the Telegram messages and the web interface.
+
 ## [2.2.1] - 2026-10-20
 
 ### Fixed

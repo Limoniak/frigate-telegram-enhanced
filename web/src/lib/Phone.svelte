@@ -11,6 +11,12 @@
   let { model, entry, image = "", real = false } = $props();
   const badge = (m) => (m === "gif" ? "GIF" : real ? "▶" : "▶ 0:14");
   const media = $derived(model.inMessage ?? model.reply);
+  const cameraName = (c) => (model.emoji ? model.emoji + " " + c : c);
+  // The zones and the score, as the caption joins them (each only if shown).
+  const details = $derived([
+    model.zones && entry.zones?.length ? "📍 " + entry.zones.join(", ") : "",
+    model.score && entry.score ? Math.round(entry.score * 100) + T("%") : "",
+  ].filter(Boolean).join(" · "));
 </script>
 
 <!-- The phone itself follows the theme too: black on the night, white on the light page. -->
@@ -37,15 +43,15 @@
           </div>
         {/if}
         <div class="px-2.5 pb-2 pt-2">
-          <b>{labelText(entry.label, entry.sound, T)}</b> — {entry.camera}
+          <b>{labelText(entry.label, entry.sound, T)}</b> — {cameraName(entry.camera)}
           {#if entry.sub_label}<br>🏷 {entry.sub_label}{/if}
-          {#if entry.details}<br>{entry.details}{/if}
+          {#if details}<br>{details}{/if}
           <br>🕑 {entry.time}
-          <br><span class="text-[var(--tg-link)]">{T("🔗 Open in Frigate")}</span>
+          {#if model.link}<br><span class="text-[var(--tg-link)]">{T("🔗 Open in Frigate")}</span>{/if}
           {#if model.genai && !real}<div class="mt-1.5 italic text-[var(--tg-muted)]">{T("A person walks up to the front door.")}</div>{/if}
           {#if model.grouped && entry.grouped?.length}
             <div class="mt-1.5 border-t border-[var(--tg-line)] pt-1.5 text-[var(--tg-muted)]">➕ {Tf("%d more detection(s):", entry.grouped.length)}
-              {#each entry.grouped as g (g.time + g.label)}<br>• {g.time} {labelText(g.label, false, T)} — {g.camera}{/each}
+              {#each entry.grouped as g (g.time + g.label)}<br>• {g.time} {labelText(g.label, false, T)} — {cameraName(g.camera)}{/each}
             </div>
           {/if}
         </div>

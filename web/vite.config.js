@@ -18,12 +18,19 @@ export default defineConfig({
   build: {
     outDir: here("../internal/web/dist"),
     emptyOutDir: true,
+    // The emoji names of one language weigh about 600 kB, loaded only when the picker opens.
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       input: { login: here("src/login.css"), setup: here("src/setup.html"), app: here("src/app.html") },
       output: {
         entryFileNames: "[name].js",
         // Not [name]: Rollup names a shared chunk after one of its modules (ThemeMenu…).
-        chunkFileNames: "assets/shared-[hash].js",
+        // The emoji names of a language (the camera picker loads them when it opens) are
+        // named for what they are.
+        chunkFileNames: (chunk) => {
+          const lang = /emojibase-data\/([\w-]+)\//.exec(chunk.facadeModuleId ?? "")?.[1];
+          return lang ? `assets/emoji-${lang}-[hash].js` : "assets/shared-[hash].js";
+        },
         assetFileNames: (info) => {
           const names = info.names ?? [];
           // login.css is its own entry; the sheet shared by the setup page and the main

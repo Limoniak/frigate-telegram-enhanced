@@ -73,11 +73,15 @@ func (n *Notifier) record(t *tracked, sentAt time.Time) {
 	n.histDirty = true
 }
 
-// updateHistory carries into the history the label that arrived afterwards. Called under n.mu.
+// updateHistory carries into the history the label, or the score, that arrived
+// afterwards. Called under n.mu.
 func (n *Notifier) updateHistory(t *tracked) {
 	for i := range n.history {
 		if n.history[i].ID == t.id {
 			n.history[i].SubLabel = t.subLabel
+			if t.hasScore {
+				n.history[i].Score = t.score
+			}
 			n.histDirty = true
 		}
 	}

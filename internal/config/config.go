@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 
@@ -123,10 +124,15 @@ type Notify struct {
 	CompressClips    bool // clips over 50 MB re-encoded rather than linked; global setting
 	OutageAlerts     bool // Telegram message when Frigate or a camera stops; global setting
 	GenAIDescription bool
-	ClipDelay        time.Duration
-	QuietHours       []TimeRange
-	OffHours         []TimeRange
-	WhenHome         string // HomeNotify, HomeSilent or HomeSkip
+	// What the caption shows besides the object and the camera: the zones, the score,
+	// the "Open in Frigate" link and the date (without it, the time alone).
+	ShowZones, ShowScore, ShowLink, ShowDate bool
+	// Emoji is written before the camera's name in the caption; empty: none.
+	Emoji      string
+	ClipDelay  time.Duration
+	QuietHours []TimeRange
+	OffHours   []TimeRange
+	WhenHome   string // HomeNotify, HomeSilent or HomeSkip
 	// Group groups bursts: for this long after a notification, the following
 	// detections are added to its message instead of sending a new one.
 	// Global setting (the one of notify); 0 = disabled.
@@ -316,6 +322,11 @@ type NotifyPatch struct {
 	CompressClips    *bool        `yaml:"compress_clips,omitempty" json:"compress_clips,omitempty"`
 	OutageAlerts     *bool        `yaml:"outage_alerts,omitempty" json:"outage_alerts,omitempty"`
 	GenAIDescription *bool        `yaml:"genai_description,omitempty" json:"genai_description,omitempty"`
+	ShowZones        *bool        `yaml:"show_zones,omitempty" json:"show_zones,omitempty"`
+	ShowScore        *bool        `yaml:"show_score,omitempty" json:"show_score,omitempty"`
+	ShowLink         *bool        `yaml:"show_link,omitempty" json:"show_link,omitempty"`
+	ShowDate         *bool        `yaml:"show_date,omitempty" json:"show_date,omitempty"`
+	Emoji            *string      `yaml:"emoji,omitempty" json:"emoji,omitempty"`
 	ClipDelay        *Duration    `yaml:"clip_delay,omitempty" json:"clip_delay,omitempty"`
 	QuietHours       *[]TimeRange `yaml:"quiet_hours,omitempty" json:"quiet_hours,omitempty"`
 	OffHours         *[]TimeRange `yaml:"off_hours,omitempty" json:"off_hours,omitempty"`
@@ -357,6 +368,11 @@ func (y NotifyPatch) ApplyTo(base Notify) Notify {
 	set(&n.CompressClips, y.CompressClips)
 	set(&n.OutageAlerts, y.OutageAlerts)
 	set(&n.GenAIDescription, y.GenAIDescription)
+	set(&n.ShowZones, y.ShowZones)
+	set(&n.ShowScore, y.ShowScore)
+	set(&n.ShowLink, y.ShowLink)
+	set(&n.ShowDate, y.ShowDate)
+	set(&n.Emoji, y.Emoji)
 	setDuration(&n.ClipDelay, y.ClipDelay)
 	set(&n.QuietHours, y.QuietHours)
 	set(&n.OffHours, y.OffHours)
@@ -377,6 +393,7 @@ func FullPatch(n Notify) NotifyPatch {
 		Severity: &n.Severity, Snapshot: &n.Snapshot, Crop: &n.Crop, Clip: &n.Clip, GIF: &n.GIF, MediaInPlace: &n.MediaInPlace,
 		CompressClips: &n.CompressClips, OutageAlerts: &n.OutageAlerts,
 		GenAIDescription: &n.GenAIDescription, ClipDelay: &clipDelay,
+		ShowZones: &n.ShowZones, ShowScore: &n.ShowScore, ShowLink: &n.ShowLink, ShowDate: &n.ShowDate, Emoji: &n.Emoji,
 		QuietHours: &n.QuietHours, OffHours: &n.OffHours, WhenHome: &n.WhenHome, Group: &group,
 		IgnoreSubLabels: &n.IgnoreSubLabels, IgnoreKnown: &n.IgnoreKnown, SubLabelWait: &wait,
 	}
@@ -406,6 +423,11 @@ func DiffPatch(base, n Notify) NotifyPatch {
 	diff(&p.CompressClips, base.CompressClips, n.CompressClips)
 	diff(&p.OutageAlerts, base.OutageAlerts, n.OutageAlerts)
 	diff(&p.GenAIDescription, base.GenAIDescription, n.GenAIDescription)
+	diff(&p.ShowZones, base.ShowZones, n.ShowZones)
+	diff(&p.ShowScore, base.ShowScore, n.ShowScore)
+	diff(&p.ShowLink, base.ShowLink, n.ShowLink)
+	diff(&p.ShowDate, base.ShowDate, n.ShowDate)
+	diff(&p.Emoji, base.Emoji, n.Emoji)
 	if base.ClipDelay != n.ClipDelay {
 		d := Duration(n.ClipDelay)
 		p.ClipDelay = &d
@@ -451,6 +473,10 @@ func defaultNotify(chats map[string]int64) Notify {
 		Clip:             true,
 		MediaInPlace:     true,
 		GenAIDescription: true,
+		ShowZones:        true,
+		ShowScore:        true,
+		ShowLink:         true,
+		ShowDate:         true,
 		OutageAlerts:     true,
 		ClipDelay:        5 * time.Second,
 		WhenHome:         HomeSkip,
@@ -662,11 +688,17 @@ func (c *Config) validateNotify(where string, n Notify, l i18n.Lang) []error {
 	if n.Cooldown < 0 || n.ClipDelay < 0 || n.Group < 0 || n.SubLabelWait < 0 {
 		errs = append(errs, l.Errorf("%s: durations cannot be negative", where))
 	}
+	if utf8.RuneCountInString(n.Emoji) > maxEmoji || strings.ContainsAny(n.Emoji, "\r\n") {
+		errs = append(errs, l.Errorf("%s.emoji: one emoji at most", where))
+	}
 	if emptyRange(n.QuietHours, n.OffHours) {
 		errs = append(errs, l.Errorf("%s: a time range must start and end at different times", where))
 	}
 	return errs
 }
+
+// maxEmoji bounds a camera's emoji, in code points: a family or a flag takes several.
+const maxEmoji = 8
 
 // emptyRange reports a range that starts where it ends: it would never apply.
 func emptyRange(lists ...[]TimeRange) bool {

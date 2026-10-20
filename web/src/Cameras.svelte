@@ -9,6 +9,7 @@
   import { labelText } from "./lib/labels.js";
   import { QUESTIONS } from "./lib/questions.js";
   import { STYLES, effective, same } from "./lib/settings.js";
+  import EmojiPicker from "./lib/EmojiPicker.svelte";
   import Field from "./lib/Field.svelte";
   import Objects from "./lib/Objects.svelte";
   import Pills from "./lib/Pills.svelte";
@@ -126,6 +127,10 @@
             {/snippet}
             {@render question(T("Where?"), T("Only when the object enters one of the chosen zones (defined in Frigate)."), where)}
           {/if}
+          {#snippet emoji()}
+            <EmojiPicker value={eff.emoji || ""} label={T("Emoji of ") + name} onchange={(v) => change({ emoji: v }, name)} />
+          {/snippet}
+          {@render question(T("Emoji"), T("Written before the camera's name in the notifications. Empty: none."), emoji)}
           {#if app.data.can_test && on}
             <div class="flex flex-wrap items-center gap-3">
               <button type="button" class="btn" disabled={result?.busy} onclick={() => test(name)}>{T("📨 Test this camera")}</button>

@@ -1543,6 +1543,49 @@ func TestBrowserCameras(t *testing.T) {
 }
 
 // Following a camera link of the overview opens that card on the Cameras screen.
+// A camera's emoji is picked from the grid, saved, then removed.
+func TestBrowserCameraEmoji(t *testing.T) {
+	_, path, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}}})
+	ctx, jsErrors := browser(t)
+	card := `//details[@data-camera="garage"]`
+	err := chromedp.Do(ctx,
+		inEnglish(ts.URL+"/#cameras/garage"),
+		chromedp.WaitVisible(`[data-camera="garage"] summary`),
+		chromedp.Click(byText(card, "Choose an emoji")),
+		chromedp.Click(chromedp.Search(card+`//*[contains(@class,"emoji-grid")]/button[normalize-space()="🚪"]`)),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage's emoji picked", func(c map[string]map[string]any) bool { return c["garage"]["emoji"] == "🚪" })
+	var input string
+	err = chromedp.Do(ctx,
+		into(chromedp.Evaluate[string](`document.querySelector('[aria-label="Emoji of garage"]').value`), &input),
+		chromedp.Click(byText(card, "Remove")),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input != "🚪" {
+		t.Errorf("field = %q, want the emoji picked", input)
+	}
+	waitCameras(t, path, "garage's emoji removed", func(c map[string]map[string]any) bool { _, ok := c["garage"]["emoji"]; return !ok })
+
+	// Any emoji is found by its name.
+	err = chromedp.Do(ctx,
+		chromedp.Click(byText(card, "Choose an emoji")),
+		chromedp.SendKeys(chromedp.Search(card+`//input[@type="search"]`), "deciduous"),
+		chromedp.Click(chromedp.Search(card+`//*[contains(@class,"emoji-grid")]/button[@aria-label="deciduous tree"]`)),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage's emoji searched", func(c map[string]map[string]any) bool { return c["garage"]["emoji"] == "🌳" })
+	if errs := jsErrors(); len(errs) > 0 {
+		t.Errorf("JavaScript errors: %q", errs)
+	}
+}
+
 func TestBrowserCamerasLink(t *testing.T) {
 	_, _, ts := setup(t, "", fakeCameras{cams: []frigate.CameraInfo{{Name: "garage"}, {Name: "entree"}}})
 	ctx, jsErrors := browser(t)

@@ -385,11 +385,11 @@ func (n *Notifier) uiLink(path string) string {
 }
 
 func (n *Notifier) captionData(t *tracked) captionData {
-	return captionData{
+	return dress(captionData{
 		Label: t.label, Sound: t.sound, SubLabel: t.subLabel, Camera: t.camera, Zones: t.zones,
 		Score: t.score, HasScore: t.hasScore, Start: t.start,
 		Description: t.description, Link: t.link, ClipNote: t.clipNote,
-	}
+	}, n.Config.ForCamera(t.camera))
 }
 
 func (n *Notifier) caption(t *tracked) string {
@@ -429,8 +429,38 @@ func (n *Notifier) notify(ctx context.Context, t *tracked, d filter.Decision) {
 		}
 	}
 	caption, silent, chats := n.caption(t), d.SilentFor, fresh
+	// A review carries no score: the one of its first detection is read from Frigate.
+	var scoreOf string
+	if !t.hasScore && len(t.eventIDs) > 0 && n.Config.ForCamera(t.camera).ShowScore {
+		scoreOf = t.eventIDs[0]
+	}
 	n.Log.Info("notification", "camera", t.camera, "label", d.Label, "event_id", t.id, "silent", d.Silent, "quiet_chats", d.QuietChats, "chats", chats)
-	n.goAsync(func() { n.sendSnapshot(ctx, t, path, caption, silent, chats) })
+	n.goAsync(func() {
+		if scoreOf != "" {
+			caption = n.addScore(ctx, t, scoreOf, caption)
+		}
+		n.sendSnapshot(ctx, t, path, caption, silent, chats)
+	})
+}
+
+// scoreWait bounds the wait for a detection's score before the notification leaves without it.
+const scoreWait = 3 * time.Second
+
+// addScore reads the score of the detection id for t, which had none, and returns
+// t's caption with it; caption unchanged if Frigate does not give it in time.
+func (n *Notifier) addScore(ctx context.Context, t *tracked, id, caption string) string {
+	ctx, cancel := context.WithTimeout(ctx, scoreWait)
+	defer cancel()
+	ev, err := n.Frigate.Event(ctx, id)
+	if err != nil || ev.Score() <= 0 {
+		n.Log.Debug("score unavailable", "event_id", id, "err", err)
+		return caption
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	t.score, t.hasScore = ev.Score(), true
+	n.updateHistory(t)
+	return n.caption(t)
 }
 
 // finish handles the end of an event: counting the filtering, or sending the clip
