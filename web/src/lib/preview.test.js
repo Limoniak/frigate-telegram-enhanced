@@ -18,4 +18,9 @@ describe("previewModel", () => {
   it("carries the GenAI description and the Home Assistant button", () => {
     expect(previewModel({ genai_description: true }, { homeAssistant: true })).toMatchObject({ genai: true, homeAssistant: true });
   });
+  it("shows every part of the caption unless turned off, and the camera's emoji", () => {
+    expect(previewModel({})).toMatchObject({ zones: true, score: true, link: true, date: true, emoji: "" });
+    expect(previewModel({ show_zones: false, show_score: false, show_link: false, show_date: false, emoji: "🚪" }))
+      .toMatchObject({ zones: false, score: false, link: false, date: false, emoji: "🚪" });
+  });
 });

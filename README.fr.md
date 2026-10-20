@@ -35,7 +35,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Regroupement des rafales** : les détections rapprochées s'ajoutent au premier message au lieu d'en envoyer de nouveaux
 - **Image recadrée** : le snapshot zoomé sur l'objet détecté, bien plus lisible sur un téléphone
-- En **anglais**, **français**, **allemand**, **espagnol**, **italien** ou **portugais** : messages Telegram (langue choisie sur la page d'installation) et interface web (sélecteur de langue) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
+- En **anglais**, **français**, **allemand**, **espagnol**, **italien**, **portugais** ou **slovène** : messages Telegram (langue choisie sur la page d'installation) et interface web (sélecteur de langue) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
 - **Réglages par destinataire** : par exemple, vous recevez tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
@@ -207,7 +207,9 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
   détection, ou les détections des 2 ou 5 minutes suivantes ajoutées au premier message,
   modifié, donc sans nouvelle sonnerie), le cadrage (plan large ou zoom sur l'objet), la
   vidéo (dans le même message que l'image, ou en réponse) et la description GenAI de
-  Frigate dans la légende. *M'envoyer un exemple* en envoie un dans Telegram.
+  Frigate dans la légende. *Afficher dans la légende* : un interrupteur pour les zones, le
+  score (en mode reviews, celui de la première détection), le lien *Ouvrir dans Frigate* et
+  la date (sans elle, l'heure seule). *M'envoyer un exemple* en envoie un dans Telegram.
 - **Quand** : quoi signaler (les objets et les sons que vos caméras suivent dans Frigate,
   chacun avec son emoji ; rien de coché = tout), à quelle fréquence au plus, quoi faire la
   nuit (comme le jour, sans son, rien — les heures de la nuit se règlent, 22 h-7 h par
@@ -217,8 +219,9 @@ de la page ouvre un écran par sujet (sur téléphone, un bouton ☰ le replie e
   cocher les chats, et ouvrir un nom pour en envoyer moins à cette personne — seulement
   certains objets, ou seulement la nuit, seulement le jour, sans son la nuit.
 - **Caméras** : un interrupteur par caméra ; en l'ouvrant, on lui donne un autre modèle,
-  d'autres objets ou seulement certaines zones (*Où ?* : partout, ou les zones définies dans
-  Frigate, en un clic). *M'envoyer un exemple* envoie une vraie notification de test. Chaque
+  un emoji écrit devant son nom dans les notifications (🚪 entrée), d'autres objets ou
+  seulement certaines zones (*Où ?* : partout, ou les zones définies dans Frigate, en un
+  clic). *M'envoyer un exemple* envoie une vraie notification de test. Chaque
   caméra a son propre lien (`#cameras/<nom>`). Les alertes de cohérence signalent une caméra
   réglée pour un objet que Frigate ne suit pas (absent de `objects.track`).
 - **Activité récente** (quand l'historique est disponible) : les 50 dernières détections avec
@@ -398,3 +401,4 @@ texte traduit, aucun en trop).
 qui sert uniquement à ré-encoder les clips de plus de 50 Mo.
 
 La photo d'exemple des aperçus (`web/src/assets/sample.jpg`) est sous [licence Unsplash](https://unsplash.com/license), voir `web/src/assets/CREDITS.md`.
+Les noms du sélecteur d'emoji viennent d'[Emojibase](https://emojibase.dev) (MIT).

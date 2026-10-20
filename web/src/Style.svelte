@@ -15,15 +15,19 @@
   const eff = $derived(effective(app.overlay));
   const current = $derived(styleOf(eff));
   const inPlace = $derived(eff.media_in_place !== false);
-  const model = $derived(previewModel(eff, { homeAssistant: !!app.overlay.home_assistant_url }));
-  const overrides = $derived(cameraOverrides(app.overlay, ["snapshot", "clip", "gif", "crop", "media_in_place", "genai_description"]));
+  // What the caption shows, each with its switch.
+  const SHOWN = ["show_zones", "show_score", "show_link", "show_date"];
+  const shown = () => ({ show_zones: T("Zones"), show_score: T("Score"), show_link: T("“Open in Frigate” link"), show_date: T("Date") });
+  const overrides = $derived(cameraOverrides(app.overlay, ["snapshot", "clip", "gif", "crop", "media_in_place", "genai_description", ...SHOWN]));
   const cams = $derived((app.data.cameras || []).map((c) => c.name).filter((n) => effective(app.overlay, n).enabled !== false));
+  // The sample's camera lends it its emoji.
+  const model = $derived({ ...previewModel(eff, { homeAssistant: !!app.overlay.home_assistant_url }), emoji: (cams[0] && effective(app.overlay, cams[0]).emoji) || "" });
   // The sample is dated now, written as the messages write times (the grouped lines: 15:04).
   const at = Date.now();
   const tz = $derived(app.data.timezone);
   const clock = (t) => new Date(t).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const sample = $derived({
-    label: "person", camera: cams[0] || T("front door"), time: messageTime(at, { tz, T }), details: T("📍 driveway · 87%"),
+    label: "person", camera: cams[0] || T("front door"), time: messageTime(at, { tz, T, date: eff.show_date !== false }), zones: [T("driveway")], score: 0.87,
     grouped: [{ time: clock(at + 60000), label: "car", camera: cams[0] || T("front door") }, { time: clock(at + 120000), label: "dog", camera: cams[0] || T("front door") }],
   });
 
@@ -101,6 +105,15 @@
             <button type="button" class="pill" data-group={value} aria-pressed={seconds(eff.group) === seconds(value)} onclick={() => change({ group: value })}>{label}</button>
           {/each}
         </div></div>
+    </Card>
+    <Card>
+      <div><div>{T("Show in the caption")}</div><div class="text-[12px] text-[var(--faint)]">{T("Besides the object and the camera. Without the date, the time alone.")}</div></div>
+      <div id="style-shown" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {#each SHOWN as key (key)}
+          <div class="flex items-center gap-4"><div class="min-w-0 flex-1">{shown()[key]}</div>
+            <Switch id={"style-" + key} checked={eff[key] !== false} label={shown()[key]} onchange={(v) => change({ [key]: v })} /></div>
+        {/each}
+      </div>
     </Card>
     {#if overrides.length}<p id="style-overrides" class="m-0 text-[var(--muted)]">{T("Applies to every camera, except those set differently:")} {#each overrides as name, i (name)}{i ? ", " : ""}<a href={routeHash({ screen: "cameras", camera: name })}>{name}</a>{/each}</p>{/if}
     {#if app.data.can_test && cams.length}

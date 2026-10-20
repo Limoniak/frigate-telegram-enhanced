@@ -66,6 +66,10 @@ notify:                          # global settings, can be overridden per camera
   compress_clips: false          # clip over 50 MB: re-encoded with ffmpeg (included in the image) instead of cut to its beginning; global setting
   outage_alerts: true            # Telegram message when Frigate or a camera stops for 2 min, and when it is back; global setting
   genai_description: true        # adds Frigate's GenAI description when it arrives
+  show_zones: true               # what the caption shows: the zones,
+  show_score: true               # the score (reviews mode: the one of the first detection),
+  show_link: true                # the "Open in Frigate" link,
+  show_date: true                # and the date (false = the time alone)
   clip_delay: 5s                 # wait after the end of the event before fetching the clip
   quiet_hours:                   # silent notifications
     - {from: "22:00", to: "07:00"}
@@ -93,6 +97,7 @@ notify:                          # global settings, can be overridden per camera
 cameras:
   jardin:
     zones: [allee, portail]
+    emoji: "🌳"                   # written before the camera's name in the caption
   garage:
     labels: [person]
     min_score: 0.8

@@ -12,6 +12,9 @@ describe("time", () => {
     expect(messageTime("2026-10-17T19:47:05Z", { tz: "Europe/Paris", T })).toBe("Oct 17 21:47:05");
     const fr = (s) => ({ "Jan 2 15:04:05": "02/01 15:04:05" })[s] ?? s;
     expect(messageTime("2026-03-04T23:05:09Z", { tz: "Europe/Paris", T: fr })).toBe("05/03 00:05:09");
+    expect(messageTime("2026-03-04T23:05:09Z", { tz: "Europe/Paris", T: fr, date: false })).toBe("00:05:09");
+    const sl = (s) => ({ "Jan 2 15:04:05": "2. 1. 15:04:05" })[s] ?? s; // the month without a zero
+    expect(messageTime("2026-10-20T19:27:33Z", { tz: "Europe/Ljubljana", T: sl })).toBe("20. 10. 21:27:33");
   });
   it("English follows the browser's variant, British by default", () => {
     expect(locale("en", [])).toBe("en-GB");

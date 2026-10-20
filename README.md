@@ -35,7 +35,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - Commands: `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Burst grouping**: detections close in time are added to the first message instead of sending new ones
 - **Cropped snapshots**: the image zoomed on the detected object, much more readable on a phone
-- In **English**, **French**, **German**, **Spanish**, **Italian** or **Portuguese**: Telegram messages (chosen on the setup page) and the web interface (language switch) — other languages can be added with a single file, see [Translating](#translating)
+- In **English**, **French**, **German**, **Spanish**, **Italian**, **Portuguese** or **Slovenian**: Telegram messages (chosen on the setup page) and the web interface (language switch) — other languages can be added with a single file, see [Translating](#translating)
 - **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
 - **Per-recipient settings**: e.g. you get everything, the family only people at night
 - After an MQTT outage, detections missed during the last hour are caught up from Frigate
@@ -204,8 +204,10 @@ page opens one screen per topic (on a phone, a ☰ button folds it into a list):
   when the image is cropped on the object). Below: bursts (one message per detection,
   or detections within 2 or 5 minutes added to the first message, edited so no extra
   sound), framing (wide shot or zoom on the object), video (in the same message as the
-  image, or as a reply) and Frigate's GenAI description in the caption. *Send me a
-  sample* sends one to Telegram.
+  image, or as a reply) and Frigate's GenAI description in the caption. *Show in the
+  caption*: a switch each for the zones, the score (in reviews mode, the one of the first
+  detection), the *Open in Frigate* link and the date (without it, the time alone).
+  *Send me a sample* sends one to Telegram.
 - **When**: what to report (the objects and sounds your cameras track in Frigate, each
   with its emoji; none ticked = everything), how often at most, what to do at night (same
   as daytime, silent, nothing — the night's hours are yours to set, 22:00–07:00 by
@@ -214,8 +216,8 @@ page opens one screen per topic (on a phone, a ☰ button folds it into a list):
   With several chats, *Who receives the notifications?*: tick the chats, and open a name
   to give that person less — only some objects, or only at night, only during the day,
   silent at night.
-- **Cameras**: one switch per camera; open it to give it another style, other objects or
-  only some zones (*Where?*: everywhere, or zones defined in Frigate, in one click).
+- **Cameras**: one switch per camera; open it to give it another style, an emoji written
+  before its name in the notifications (🚪 front door), other objects or only some zones (*Where?*: everywhere, or zones defined in Frigate, in one click).
   *Test this camera* sends a real sample notification. Each camera has its own link
   (`#cameras/<name>`). Consistency warnings flag a camera set to report an object that
   Frigate does not track (missing from `objects.track`).
@@ -390,3 +392,4 @@ translated, none left over).
 used only to re-encode the clips over 50 MB.
 
 The sample photo of the previews (`web/src/assets/sample.jpg`) is under the [Unsplash License](https://unsplash.com/license), see `web/src/assets/CREDITS.md`.
+The names of the emoji picker come from [Emojibase](https://emojibase.dev) (MIT).
