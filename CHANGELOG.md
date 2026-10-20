@@ -7,6 +7,8 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-20
+
 ### Changed
 
 - *What should be reported?* offers the objects and sounds the cameras track in Frigate,
@@ -250,7 +252,8 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v1.0.0...v1.1.0
