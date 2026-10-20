@@ -46,6 +46,23 @@ func TestReviewAlertSendsDetectionSnapshotAndRecordingClip(t *testing.T) {
 	}
 }
 
+// A review has no score: the notification shows the one of its first detection.
+func TestReviewCaptionGetsItsDetectionScore(t *testing.T) {
+	h := newHarness(t, "reviews")
+	score := 0.78
+	h.fr.byID = map[string]frigate.APIEvent{evID: {ID: evID, TopScore: &score}}
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.send(t, "frigate/reviews", reviewMsg("new", revID, "garage", "alert", []string{"person"}, nil, []string{evID}))
+
+	photos := h.tg.byMethod("sendPhoto")
+	if len(photos) == 0 || !strings.Contains(photos[0].Opts.Caption, "78%") {
+		t.Fatalf("photos = %+v; want the detection's score in the caption", photos)
+	}
+	if hist := h.n.History(); len(hist) != 1 || hist[0].Score != score {
+		t.Errorf("history = %+v; want the score", hist)
+	}
+}
+
 func TestReviewDetectionSeverityIgnored(t *testing.T) {
 	h := newHarness(t, "reviews")
 	h.send(t, "frigate/reviews", reviewMsg("new", revID, "garage", "detection", []string{"person"}, nil, []string{evID}))

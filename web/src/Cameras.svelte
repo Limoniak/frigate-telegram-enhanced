@@ -126,6 +126,11 @@
             {/snippet}
             {@render question(T("Where?"), T("Only when the object enters one of the chosen zones (defined in Frigate)."), where)}
           {/if}
+          {#snippet emoji()}
+            <input class="field w-24 text-center" maxlength="16" placeholder="🚪" aria-label={T("Emoji of ") + name}
+              value={eff.emoji || ""} onchange={(e) => change({ emoji: e.currentTarget.value.trim() }, name)}>
+          {/snippet}
+          {@render question(T("Emoji"), T("Written before the camera's name in the notifications. Empty: none."), emoji)}
           {#if app.data.can_test && on}
             <div class="flex flex-wrap items-center gap-3">
               <button type="button" class="btn" disabled={result?.busy} onclick={() => test(name)}>{T("📨 Test this camera")}</button>

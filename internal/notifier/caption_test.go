@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/i18n"
 )
 
@@ -46,6 +47,22 @@ func TestBuildCaptionEnglish(t *testing.T) {
 		"🔗 <a href=\"https://nvr.example/x\">Open in Frigate</a>"
 	if got != want {
 		t.Errorf("caption:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// A camera's choices: its emoji before its name, no zone, no link, the time alone.
+func TestBuildCaptionCameraChoices(t *testing.T) {
+	d := dress(captionData{
+		Label: "person", Camera: "vhod", Zones: []string{"vhod_zona"}, Score: 0.78, HasScore: true,
+		Start: time.Date(2026, 10, 20, 19, 27, 33, 0, time.UTC), Link: "https://nvr.example/x",
+	}, config.Notify{Emoji: "🚪", ShowScore: true})
+	want := "<b>🚶 Person</b> — 🚪 vhod\n78%\n🕑 19:27:33"
+	if got := buildCaption(d, time.UTC, i18n.EN); got != want {
+		t.Errorf("caption:\n%s\nwant:\n%s", got, want)
+	}
+	d.NoScore = true
+	if got := buildCaption(d, time.UTC, i18n.EN); strings.Contains(got, "78") {
+		t.Errorf("score hidden: caption = %q", got)
 	}
 }
 

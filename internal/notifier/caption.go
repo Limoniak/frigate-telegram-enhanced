@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"frigate-telegram-enhanced/internal/actions"
+	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/i18n"
 	"frigate-telegram-enhanced/internal/labels"
 	"frigate-telegram-enhanced/internal/telegram"
@@ -22,7 +23,8 @@ func openInFrigate(link string, lang i18n.Lang) string {
 
 type captionData struct {
 	Label, SubLabel, Camera string
-	Sound                   bool // Label is a sound of the audio detection
+	Emoji                   string // the camera's, before its name; empty: none
+	Sound                   bool   // Label is a sound of the audio detection
 	Zones                   []string
 	Score                   float64
 	HasScore                bool
@@ -31,28 +33,52 @@ type captionData struct {
 	Link                    string
 	Group                   string // HTML block of the grouped detections, already escaped
 	ClipNote                string // HTML line about the clip, already escaped
+	// The camera's choices of what to show; Link is left empty when the link is not.
+	NoZones, NoScore, NoDate bool
+}
+
+// dress applies to d the caption choices of its camera.
+func dress(d captionData, cfg config.Notify) captionData {
+	d.Emoji = cfg.Emoji
+	d.NoZones, d.NoScore, d.NoDate = !cfg.ShowZones, !cfg.ShowScore, !cfg.ShowDate
+	if !cfg.ShowLink {
+		d.Link = ""
+	}
+	return d
+}
+
+// cameraName is the camera as a caption names it, after its emoji if it has one.
+func cameraName(camera, emoji string) string {
+	if emoji == "" {
+		return camera
+	}
+	return emoji + " " + camera
 }
 
 // buildCaption builds the HTML caption (≤ 1024 characters; the description is truncated if needed).
 func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	esc := html.EscapeString
 	var b strings.Builder
-	b.WriteString("<b>" + esc(labels.Text(d.Label, d.Sound, lang)) + "</b> — " + esc(d.Camera))
+	b.WriteString("<b>" + esc(labels.Text(d.Label, d.Sound, lang)) + "</b> — " + esc(cameraName(d.Camera, d.Emoji)))
 	if d.SubLabel != "" {
 		// Frigate's label: classification ("clio 3 océane"), face, plate.
 		b.WriteString("\n🏷 " + esc(d.SubLabel))
 	}
 	var details []string
-	if len(d.Zones) > 0 {
+	if len(d.Zones) > 0 && !d.NoZones {
 		details = append(details, "📍 "+esc(strings.Join(d.Zones, ", ")))
 	}
-	if d.HasScore && d.Score > 0 {
+	if d.HasScore && d.Score > 0 && !d.NoScore {
 		details = append(details, lang.Tf("%d%%", int(math.Round(d.Score*100))))
 	}
 	if len(details) > 0 {
 		b.WriteString("\n" + strings.Join(details, " · "))
 	}
-	b.WriteString("\n🕑 " + d.Start.In(loc).Format(lang.DateTime()))
+	layout := lang.DateTime()
+	if d.NoDate {
+		layout = "15:04:05"
+	}
+	b.WriteString("\n🕑 " + d.Start.In(loc).Format(layout))
 
 	footer := d.Group
 	if d.Link != "" {

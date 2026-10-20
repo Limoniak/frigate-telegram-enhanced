@@ -85,11 +85,11 @@ func (n *Notifier) SendLast(ctx context.Context, chatID int64, camera string) er
 		return err
 	}
 	ev := evs[0]
-	caption := buildCaption(captionData{
+	caption := buildCaption(dress(captionData{
 		Label: ev.Label, SubLabel: string(ev.SubLabel), Camera: ev.Camera, Zones: ev.Zones,
 		Score: ev.Score(), HasScore: true, Start: frigate.UnixTime(ev.StartTime),
 		Link: n.uiLink("/explore?event_id=" + url.QueryEscape(ev.ID)),
-	}, n.Config.Location, n.Config.Language)
+	}, n.Config.ForCamera(ev.Camera)), n.Config.Location, n.Config.Language)
 	markup := buttons(ev.Camera, ev.ID, n.Config.HomeAssistantURL(), n.Config.Language)
 
 	var msg telegram.Message
@@ -130,7 +130,7 @@ func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 		return ErrNoRecipient
 	}
 	l := n.Config.Language
-	caption := "🧪 <b>" + l.T("Test notification") + "</b> — " + html.EscapeString(camera) +
+	caption := "🧪 <b>" + l.T("Test notification") + "</b> — " + html.EscapeString(cameraName(camera, cfg.Emoji)) +
 		"\n🕑 " + n.Now().In(n.Config.Location).Format(l.DateTime())
 	switch {
 	case cfg.Clip:
@@ -138,7 +138,7 @@ func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 	case cfg.GIF:
 		caption += l.T("\n🎞 On a real event, an animated GIF will follow as a reply.")
 	}
-	if link := n.uiLink("/#" + url.PathEscape(camera)); link != "" {
+	if link := n.uiLink("/#" + url.PathEscape(camera)); link != "" && cfg.ShowLink {
 		caption += openInFrigate(link, l)
 	}
 

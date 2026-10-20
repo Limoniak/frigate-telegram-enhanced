@@ -55,9 +55,9 @@ func (n *Notifier) startGroups(t *tracked, chats []string, now time.Time) {
 // addToGroups adds t to the groupings in progress of chats and updates their
 // messages. Called under n.mu.
 func (n *Notifier) addToGroups(ctx context.Context, t *tracked, chats []string) {
-	l := n.Config.Language
-	line := html.EscapeString(t.start.In(n.Config.Location).Format("15:04") + " " + labels.Text(t.label, t.sound, l) + " — " + t.camera)
-	if len(t.zones) > 0 {
+	l, cfg := n.Config.Language, n.Config.ForCamera(t.camera)
+	line := html.EscapeString(t.start.In(n.Config.Location).Format("15:04") + " " + labels.Text(t.label, t.sound, l) + " — " + cameraName(t.camera, cfg.Emoji))
+	if len(t.zones) > 0 && cfg.ShowZones {
 		line += " · 📍 " + html.EscapeString(strings.Join(t.zones, ", "))
 	}
 	for _, chat := range chats {

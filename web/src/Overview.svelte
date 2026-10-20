@@ -25,8 +25,9 @@
   const mutes = $derived(Object.fromEntries((app.live?.mutes || []).map((m) => [m.camera, m.until])));
   const home = $derived((app.live?.home || []).map((t) => { const p = t.split("/"); return p.length >= 2 && p.at(-1) === "state" ? p.at(-2) : p.at(-1); }));
   const lastEntry = $derived(last && {
-    label: last.label, sound: last.sound, sub_label: last.sub_label, camera: last.camera, time: messageTime(last.at, ctx),
-    details: [last.zones?.length ? "📍 " + last.zones.join(", ") : "", last.score ? Math.round(last.score * 100) + T("%") : ""].filter(Boolean).join(" · "),
+    label: last.label, sound: last.sound, sub_label: last.sub_label, camera: last.camera,
+    time: messageTime(last.at, { ...ctx, date: effective(app.overlay, last.camera).show_date !== false }),
+    zones: last.zones, score: last.score,
   });
 </script>
 
