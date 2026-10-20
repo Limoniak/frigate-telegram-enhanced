@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SAVE_DELAY, app, change, edit, flush, leave, load, pause, refreshHistory, resetSettings, sendTest } from "./store.svelte.js";
+import { SAVE_DELAY, app, change, edit, flush, leave, load, pause, refreshHistory, reloadIfIdle, resetSettings, sendTest } from "./store.svelte.js";
 
 // fakeServer answers like the Go handler: settings, saves (recorded), test.
 function fakeServer({ refuse = false, refuseReset = false } = {}) {
@@ -20,7 +20,7 @@ function fakeServer({ refuse = false, refuseReset = false } = {}) {
     if (path === "api/settings") {
       if (server.failLoad) return json({}, 500);
       return json({ mode: "reviews", timezone: "UTC", cameras: [{ name: "garage" }, { name: "entree" }], chats: ["moi"],
-        overlay: { notify: { snapshot: true, clip: true, gif: false, group: "0s" }, cameras: {} }, custom: false });
+        overlay: server.overlay || { notify: { snapshot: true, clip: true, gif: false, group: "0s" }, cameras: {} }, custom: false });
     }
     if (path === "api/test") { tests.push({ body: JSON.parse(opts.body), putsSoFar: puts.length }); return json({ status: "ok" }); }
     return json({});
@@ -47,6 +47,29 @@ describe("store", () => {
     await load();
     expect(app.overlay.cameras).toEqual({ garage: {}, entree: {} });
     expect(app.data.mode).toBe("reviews");
+  });
+
+  it("a change on any screen keeps the sites that may frame the page", async () => {
+    const { puts, server } = fakeServer();
+    server.overlay = { notify: {}, cameras: {}, frame_ancestors: ["http://dash.lan"] };
+    await load();
+    change({ crop: true });
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
+    expect(puts[0].frame_ancestors).toEqual(["http://dash.lan"]);
+  });
+
+  it("a tab shown again reads the settings changed elsewhere, unless a change is pending", async () => {
+    const { puts, server } = fakeServer();
+    await load();
+    server.overlay = { notify: { cooldown: "5m" }, cameras: {} };
+    await reloadIfIdle();
+    expect(app.overlay.notify.cooldown).toBe("5m");
+    change({ crop: true });
+    server.overlay = { notify: { cooldown: "9m" }, cameras: {} };
+    await reloadIfIdle();
+    expect(app.overlay.notify).toMatchObject({ cooldown: "5m", crop: true });
+    await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
+    expect(puts).toHaveLength(1);
   });
 
   it("saves once, shortly after a burst of changes", async () => {

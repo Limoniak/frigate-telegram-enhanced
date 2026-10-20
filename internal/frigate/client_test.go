@@ -222,6 +222,41 @@ func TestDownloadToFileStalled(t *testing.T) {
 	}
 }
 
+// A slow transfer that keeps going is not cut, however long it takes; only the wait
+// for Frigate to start answering is bounded.
+func TestDownloadToFileSlow(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/late.mp4" {
+			select {
+			case <-time.After(time.Second):
+			case <-r.Context().Done():
+			}
+			return
+		}
+		for range 6 {
+			w.Write([]byte("chunk"))
+			w.(http.Flusher).Flush()
+			time.Sleep(30 * time.Millisecond)
+		}
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv.URL, "", "")
+	c.answerTimeout, c.stallTimeout = 50*time.Millisecond, time.Second
+
+	path, err := c.DownloadToFile(context.Background(), "/slow.mp4", 1024)
+	if err != nil {
+		t.Fatalf("slow transfer: %v", err)
+	}
+	defer os.Remove(path)
+	if b, _ := os.ReadFile(path); len(b) != 30 {
+		t.Errorf("received %d bytes, want 30", len(b))
+	}
+
+	if _, err := c.DownloadToFile(context.Background(), "/late.mp4", 1024); !errors.Is(err, errNoAnswer) || !Retryable(err) {
+		t.Errorf("no answer: %v; want errNoAnswer, retryable", err)
+	}
+}
+
 func TestCamerasEventsReview(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

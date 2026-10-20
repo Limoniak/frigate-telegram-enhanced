@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"time"
 
+	"frigate-telegram-enhanced/internal/atomicfile"
 	"frigate-telegram-enhanced/internal/frigate"
 )
 
@@ -171,7 +171,7 @@ func (n *Notifier) FlushHistory() error {
 	n.mu.Unlock()
 	b, err := json.Marshal(entries)
 	if err == nil {
-		err = writeAtomic(n.HistoryFile, b)
+		err = atomicfile.Write(n.HistoryFile, b)
 	}
 	if err != nil {
 		n.mu.Lock()
@@ -180,17 +180,4 @@ func (n *Notifier) FlushHistory() error {
 		return fmt.Errorf("writing the activity: %w", err)
 	}
 	return nil
-}
-
-// writeAtomic writes b to path through a temporary file: an interrupted write
-// never leaves a truncated file.
-func writeAtomic(path string, b []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
 }
