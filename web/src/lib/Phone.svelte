@@ -13,8 +13,9 @@
   const media = $derived(model.inMessage ?? model.reply);
 </script>
 
-<div class="w-full max-w-[290px] rounded-[36px] bg-[#0b0d10] p-[9px] shadow-[0_40px_90px_-30px_rgba(0,0,0,.9)] ring-1 ring-white/10">
-  <div class="overflow-hidden rounded-[28px] bg-[var(--tg-chat)] text-[var(--tg-ink)]">
+<!-- The phone itself follows the theme too: black on the night, white on the light page. -->
+<div class="w-full max-w-[290px] rounded-[36px] bg-[var(--phone-frame)] p-[9px] shadow-[var(--phone-shadow)] ring-1 ring-[var(--phone-ring)]">
+  <div class="overflow-hidden rounded-[28px] bg-[var(--tg-chat)] text-[var(--tg-ink)] ring-1 ring-[var(--phone-ring)]">
     <div class="flex items-center gap-2.5 bg-[var(--tg-header)] px-3 py-2.5">
       <!-- The bot's picture (docs/images/bot-avatar.png): the mark on the night, in its dark colors
            in both modes: it is a picture, the same in Telegram's day and night. -->

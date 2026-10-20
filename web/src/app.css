@@ -25,6 +25,7 @@
   --tg-chat: #0e1621; --tg-ink: #e9edf1; --tg-header: #17212b; --tg-sub: #7d8b99; --tg-bubble: #182533;
   --tg-media: #26313b; --tg-link: #6ab2f2; --tg-muted: #aab8c4; --tg-line: rgba(255, 255, 255, 0.1);
   --tg-button: rgba(255, 255, 255, 0.1);
+  --phone-frame: #0b0d10; --phone-ring: rgba(255, 255, 255, 0.1); --phone-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
@@ -41,6 +42,7 @@
     --tg-chat: #dfe7ee; --tg-ink: #0f1419; --tg-header: #ffffff; --tg-sub: #707579; --tg-bubble: #ffffff;
     --tg-media: #d5dde3; --tg-link: #0b6fa0; /* Telegram's #168acd falls short of 4.5:1 on white */ --tg-muted: #707579; --tg-line: rgba(0, 0, 0, 0.1);
     --tg-button: rgba(255, 255, 255, 0.75);
+    --phone-frame: #ffffff; --phone-ring: rgba(15, 23, 42, 0.1); --phone-shadow: 0 30px 70px -30px rgba(15, 23, 42, 0.35);
     color-scheme: light;
   }
 }
@@ -57,6 +59,7 @@
   --tg-chat: #dfe7ee; --tg-ink: #0f1419; --tg-header: #ffffff; --tg-sub: #707579; --tg-bubble: #ffffff;
   --tg-media: #d5dde3; --tg-link: #0b6fa0; /* Telegram's #168acd falls short of 4.5:1 on white */ --tg-muted: #707579; --tg-line: rgba(0, 0, 0, 0.1);
   --tg-button: rgba(255, 255, 255, 0.75);
+  --phone-frame: #ffffff; --phone-ring: rgba(15, 23, 42, 0.1); --phone-shadow: 0 30px 70px -30px rgba(15, 23, 42, 0.35);
   color-scheme: light;
 }
 

@@ -46,7 +46,8 @@ never a breaking 3.0, while `:latest` follows `main`.
   page and at the top of the README. The README tells how to give the bot the matching
   picture (`docs/images/bot-avatar.png`), which the phone of the previews shows too.
 - The phone of the previews follows the interface's theme: Telegram's night mode in the
-  dark theme, its day mode in the light one.
+  dark theme, its day mode in the light one; the phone itself is black on the night and
+  white on the light page.
 - The connection to Telegram, Frigate and MQTT is the last item of the menu,
   *Connection*, instead of a link at the bottom of the page.
 - The minimum score per object names the objects as the other screens do.
