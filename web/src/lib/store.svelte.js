@@ -30,6 +30,7 @@ export async function load() {
   const overlay = {
     notify: o.notify || {}, cameras: o.cameras || {}, recipients: o.recipients || {},
     external_url: o.external_url || "", home_assistant_url: o.home_assistant_url || "",
+    frame_ancestors: o.frame_ancestors || [],
     ...(o.night ? { night: o.night } : {}),
   };
   // Every known camera gets an entry (empty = follows the global level) before the
@@ -90,6 +91,14 @@ export async function save() {
   try { await saving; } finally { saving = null; }
   if (ok && dirty()) touched(); // changed while it was being sent: one more save
   return ok;
+}
+
+// reloadIfIdle reads the settings again when nothing is waiting to be sent: a tab left
+// open must not send back, on its next change, the settings another tab changed since.
+// shortcut: a change made while the reload is in flight is lost; guard it if users hit it.
+export async function reloadIfIdle() {
+  if (saving || dirty()) return;
+  await load().catch(() => {});
 }
 
 // flush saves what is pending right away; false when the settings were refused.
@@ -195,6 +204,7 @@ export function startPolling() {
     if (app.data.can_history) refreshHistory();
     if (app.data.can_health) refreshHealth();
   }, 30000);
+  addEventListener("visibilitychange", () => { if (!document.hidden) reloadIfIdle(); });
   addEventListener("beforeunload", (e) => {
     if (!dirty()) return;
     save();

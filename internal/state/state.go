@@ -8,10 +8,11 @@ import (
 	"io/fs"
 	"maps"
 	"os"
-	"path/filepath"
 	"slices"
 	"sync"
 	"time"
+
+	"frigate-telegram-enhanced/internal/atomicfile"
 )
 
 // Forever stands for a pause without a deadline (until /resume).
@@ -190,7 +191,7 @@ func (s *Store) FlushIfDirty() error {
 	return s.saveLocked()
 }
 
-// saveLocked writes atomically (temporary file then rename).
+// saveLocked writes the state file (see atomicfile).
 func (s *Store) saveLocked() error {
 	b, err := json.MarshalIndent(fileData{
 		GlobalPauseUntil: s.pause,
@@ -200,14 +201,7 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return fmt.Errorf("writing the state: %w", err)
-	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return fmt.Errorf("writing the state: %w", err)
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
+	if err := atomicfile.Write(s.path, b); err != nil {
 		return fmt.Errorf("writing the state: %w", err)
 	}
 	s.dirty = false

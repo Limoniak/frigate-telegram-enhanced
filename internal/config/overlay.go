@@ -6,12 +6,12 @@ import (
 	"maps"
 	"net/url"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	"frigate-telegram-enhanced/internal/atomicfile"
 	"frigate-telegram-enhanced/internal/i18n"
 )
 
@@ -77,24 +77,7 @@ func SaveOverlay(path string, o Overlay) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, ".notify-*.yml")
-	if err != nil {
-		return fmt.Errorf("writing %s: %w", path, err)
-	}
-	tmp := f.Name()
-	defer os.Remove(tmp) // no effect after a successful rename
-	_, err = f.WriteString(overlayHeader + string(body))
-	if err == nil {
-		err = f.Chmod(0o600)
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		return fmt.Errorf("writing %s: %w", path, err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := atomicfile.Write(path, []byte(overlayHeader+string(body))); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 	return nil

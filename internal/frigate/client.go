@@ -44,6 +44,14 @@ var ErrIncomplete = i18n.NewError("Frigate stopped sending the clip before the e
 // stallTimeout is the silence after which a download is considered stalled.
 const stallTimeout = 15 * time.Second
 
+// answerTimeout bounds the wait for Frigate to start answering a download (it builds a
+// recording clip first). The transfer itself has no deadline: a large clip on a slow
+// link may take minutes, and stallTimeout ends a transfer that stopped.
+const answerTimeout = 2 * time.Minute
+
+// errNoAnswer reports a download Frigate did not start answering within answerTimeout.
+var errNoAnswer = errors.New("no answer from Frigate in time to send the media")
+
 // Retryable reports whether retrying may succeed (media not ready yet, server or network in trouble).
 // A stalled clip is not retried: Frigate stalls at the same place every time.
 // 400 is retried: Frigate answers it ("No recordings found") for a clip whose
@@ -67,7 +75,7 @@ type Client struct {
 	loginMu    sync.Mutex
 	loggedIn   time.Time // last successful login (under loginMu)
 
-	stallTimeout time.Duration
+	stallTimeout, answerTimeout time.Duration
 }
 
 func NewClient(cfg config.Frigate) (*Client, error) {
@@ -89,7 +97,7 @@ func NewClient(cfg config.Frigate) (*Client, error) {
 		pass: cfg.Password,
 		http: &http.Client{Transport: tr, Jar: jar},
 
-		stallTimeout: stallTimeout,
+		stallTimeout: stallTimeout, answerTimeout: answerTimeout,
 	}, nil
 }
 
@@ -176,12 +184,17 @@ func (c *Client) GetBytes(ctx context.Context, path string, max int64) ([]byte, 
 // returns ErrIncomplete, with the path of what was received if anything was. Over
 // max bytes, it returns ErrTooLarge with the path of the first max bytes.
 func (c *Client) DownloadToFile(ctx context.Context, path string, max int64) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
 	ctx, stall := context.WithCancelCause(ctx)
 	defer stall(nil)
+	answer := time.AfterFunc(c.answerTimeout, func() { stall(errNoAnswer) })
 	resp, err := c.do(ctx, path)
+	if !answer.Stop() {
+		err = errNoAnswer // retryable, unlike a canceled context
+	}
 	if err != nil {
+		if resp != nil {
+			resp.Body.Close()
+		}
 		return "", err
 	}
 	defer resp.Body.Close()
