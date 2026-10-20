@@ -63,6 +63,12 @@
           {/each}
           <span class="absolute right-0">{T("now")}</span>
         </div>
+      {:else}
+        <!-- Until the count arrives: the number's and the chart's places, so that the card keeps its size. -->
+        <div class="grid animate-pulse gap-4" aria-hidden="true">
+          <span class="h-14 w-24 rounded-[12px] bg-[var(--glass-hi)]"></span>
+          <span class="h-16 rounded-[8px] bg-[var(--glass-hi)]"></span>
+        </div>
       {/if}
     </Card>
 

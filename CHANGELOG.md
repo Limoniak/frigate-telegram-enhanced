@@ -39,9 +39,12 @@ never a breaking 3.0, while `:latest` follows `main`.
   response also carries `nosniff` and a same-origin referrer policy.
 - The French texts all say *vous*, in the interface and the README; a test keeps French
   and German to one register. Italian uses the same ellipsis and quotes as elsewhere.
+- While the overview loads its count, the card shows placeholders instead of staying
+  empty.
 - A new mark, *Ouverture* (an open lens and a dot leaving it), replaces the bell: in the
   favicon, which follows the browser's theme, in the navigation bar, on the connection
-  page and at the top of the README.
+  page and at the top of the README. The README tells how to give the bot the matching
+  picture (`docs/images/bot-avatar.png`).
 - The connection to Telegram, Frigate and MQTT is the last item of the menu,
   *Connection*, instead of a link at the bottom of the page.
 - The minimum score per object names the objects as the other screens do.

@@ -90,6 +90,8 @@ score trop bas, déjà signalé il y a peu…), avec un lien direct vers la cam�
    ```
 
 2. **Un bot Telegram** : écrire à [@BotFather](https://t.me/BotFather), `/newbot`, et garder le token.
+   Pour lui donner l'image du projet (facultatif) : envoyer `/setuserpic` à @BotFather,
+   choisir le bot, puis envoyer [bot-avatar.png](docs/images/bot-avatar.png).
 
 ## Installation
 

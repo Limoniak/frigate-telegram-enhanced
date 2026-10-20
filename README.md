@@ -91,6 +91,8 @@ the camera to adjust.
    ```
 
 2. **A Telegram bot**: message [@BotFather](https://t.me/BotFather), send `/newbot`, and keep the token.
+   To give it the project's picture (optional): send `/setuserpic` to @BotFather, pick
+   the bot, then send [bot-avatar.png](docs/images/bot-avatar.png).
 
 ## Installation
 
