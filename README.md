@@ -392,3 +392,4 @@ translated, none left over).
 used only to re-encode the clips over 50 MB.
 
 The sample photo of the previews (`web/src/assets/sample.jpg`) is under the [Unsplash License](https://unsplash.com/license), see `web/src/assets/CREDITS.md`.
+The names of the emoji picker come from [Emojibase](https://emojibase.dev) (MIT).

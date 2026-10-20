@@ -14,7 +14,8 @@ never a breaking 3.0, while `:latest` follows `main`.
   `show_zones`, `show_score`, `show_link` and `show_date`, on by default; each camera can
   set its own under *All settings*.
 - An emoji per camera (Cameras screen, `emoji`), written before its name in the
-  notifications: 🚪 front door.
+  notifications: 🚪 front door. A picker offers those a camera's place suggests, and finds
+  any other by its name in the interface's language (names from Emojibase).
 - In reviews mode, the caption shows the score of the review's first detection, read
   from Frigate before the notification leaves (3 s at most); the recent activity keeps
   it too.

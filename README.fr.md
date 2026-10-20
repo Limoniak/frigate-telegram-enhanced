@@ -401,3 +401,4 @@ texte traduit, aucun en trop).
 qui sert uniquement à ré-encoder les clips de plus de 50 Mo.
 
 La photo d'exemple des aperçus (`web/src/assets/sample.jpg`) est sous [licence Unsplash](https://unsplash.com/license), voir `web/src/assets/CREDITS.md`.
+Les noms du sélecteur d'emoji viennent d'[Emojibase](https://emojibase.dev) (MIT).

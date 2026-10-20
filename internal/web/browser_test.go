@@ -1570,6 +1570,17 @@ func TestBrowserCameraEmoji(t *testing.T) {
 		t.Errorf("field = %q, want the emoji picked", input)
 	}
 	waitCameras(t, path, "garage's emoji removed", func(c map[string]map[string]any) bool { _, ok := c["garage"]["emoji"]; return !ok })
+
+	// Any emoji is found by its name.
+	err = chromedp.Do(ctx,
+		chromedp.Click(byText(card, "Choose an emoji")),
+		chromedp.SendKeys(chromedp.Search(card+`//input[@type="search"]`), "deciduous"),
+		chromedp.Click(chromedp.Search(card+`//*[contains(@class,"emoji-grid")]/button[@aria-label="deciduous tree"]`)),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCameras(t, path, "garage's emoji searched", func(c map[string]map[string]any) bool { return c["garage"]["emoji"] == "🌳" })
 	if errs := jsErrors(); len(errs) > 0 {
 		t.Errorf("JavaScript errors: %q", errs)
 	}
