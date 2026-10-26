@@ -3,6 +3,7 @@ package actions
 
 import (
 	"fmt"
+	"html"
 	"strconv"
 	"strings"
 	"time"
@@ -50,6 +51,7 @@ func Clip(id string) string { return KindClip + ":" + id }
 func Snapshot(camera string) string { return KindSnapshot + ":" + camera }
 
 func Parse(data string) (Action, error) {
+	data = html.UnescapeString(data)
 	invalid := fmt.Errorf("invalid action %q", data)
 	body, menu := strings.CutPrefix(data, menuPrefix)
 	a, err := parse(body)
