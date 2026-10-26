@@ -294,24 +294,20 @@ func (o SendOptions) applyCommon(p map[string]string) {
 }
 
 func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, o SendOptions) (Message, error) {
-	p := map[string]string{"chat_id": chatParam(chatID), "text": text, "link_preview_options": `{"is_disabled":true}`}
 	o.Caption = ""
-	o.apply(p)
-	var m Message
-	err := c.call(ctx, request{method: "sendMessage", chatID: chatID, params: p, unique: true}, &m)
-	return m, err
+	return c.SendRichMessage(ctx, chatID, InputRichMessage{HTML: text}, o)
 }
 
 func (c *Client) SendPhoto(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
-	return c.sendMedia(ctx, "sendPhoto", "photo", chatID, f, o, nil)
+	return c.SendRichMedia(ctx, chatID, "photo", f, o.Caption, o)
 }
 
 func (c *Client) SendVideo(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
-	return c.sendMedia(ctx, "sendVideo", "video", chatID, f, o, map[string]string{"supports_streaming": "true"})
+	return c.SendRichMedia(ctx, chatID, "video", f, o.Caption, o)
 }
 
 func (c *Client) SendAnimation(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
-	return c.sendMedia(ctx, "sendAnimation", "animation", chatID, f, o, nil)
+	return c.SendRichMedia(ctx, chatID, "animation", f, o.Caption, o)
 }
 
 // SendRichMessage sends HTML, Markdown, or block-based rich content using
@@ -337,7 +333,10 @@ func (c *Client) SendRichMedia(ctx context.Context, chatID int64, kind string, f
 	if kind != "photo" && kind != "video" && kind != "animation" {
 		return Message{}, fmt.Errorf("telegram rich media: unsupported kind %q", kind)
 	}
-	media := map[string]string{"type": kind, "media": f.FileID}
+	media := map[string]any{"type": kind, "media": f.FileID}
+	if kind == "video" {
+		media["supports_streaming"] = true
+	}
 	file := (*fileParam)(nil)
 	if f.FileID == "" {
 		media["media"] = "attach://file"

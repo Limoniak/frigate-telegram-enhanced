@@ -29,7 +29,7 @@ func okResult(w http.ResponseWriter, result string) {
 
 func TestSendPhotoMultipart(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/bot"+token+"/sendPhoto" {
+		if r.URL.Path != "/bot"+token+"/sendRichMessage" {
 			t.Errorf("path = %s", r.URL.Path)
 		}
 		if r.ContentLength <= 0 {
@@ -38,11 +38,18 @@ func TestSendPhotoMultipart(t *testing.T) {
 		if err := r.ParseMultipartForm(1 << 20); err != nil {
 			t.Fatal(err)
 		}
-		checks := map[string]string{"chat_id": "42", "caption": "<b>hi</b>", "parse_mode": "HTML", "disable_notification": "true"}
+		checks := map[string]string{"chat_id": "42", "disable_notification": "true"}
 		for k, want := range checks {
 			if got := r.FormValue(k); got != want {
 				t.Errorf("%s = %q, want %q", k, got, want)
 			}
+		}
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil ||
+			len(rich.Blocks) != 1 || !strings.Contains(string(rich.Blocks[0]), `"type":"photo"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"media":"attach://file"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"text":"hi"`) {
+			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
 		}
 		var markup InlineKeyboardMarkup
 		if err := json.Unmarshal([]byte(r.FormValue("reply_markup")), &markup); err != nil || markup.InlineKeyboard[0][0].CallbackData != "p:1800" {
@@ -51,7 +58,7 @@ func TestSendPhotoMultipart(t *testing.T) {
 		if !strings.Contains(r.FormValue("reply_parameters"), `"message_id":5`) {
 			t.Errorf("reply_parameters = %q", r.FormValue("reply_parameters"))
 		}
-		f, h, err := r.FormFile("photo")
+		f, h, err := r.FormFile("file")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -59,7 +66,7 @@ func TestSendPhotoMultipart(t *testing.T) {
 		if h.Filename != "snapshot.jpg" || string(b) != "jpegdata" {
 			t.Errorf("file = %s %q", h.Filename, b)
 		}
-		okResult(w, `{"message_id":7,"chat":{"id":42},"photo":[{"file_id":"small"},{"file_id":"big"}]}`)
+		okResult(w, `{"message_id":7,"chat":{"id":42},"rich_message":{"blocks":[{"type":"photo","photo":[{"file_id":"small"},{"file_id":"big"}]}]}}`)
 	}))
 	defer srv.Close()
 
@@ -79,11 +86,11 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
-		if r.FormValue("supports_streaming") != "true" {
+		if !strings.Contains(r.FormValue("rich_message"), `"supports_streaming":true`) {
 			t.Error("supports_streaming missing")
 		}
 		if n == 1 {
-			f, _, err := r.FormFile("video")
+			f, _, err := r.FormFile("file")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,10 +98,10 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 			if string(b) != "mp4data" {
 				t.Errorf("content = %q", b)
 			}
-		} else if r.FormValue("video") != "vid-1" {
-			t.Errorf("file_id = %q", r.FormValue("video"))
+		} else if !strings.Contains(r.FormValue("rich_message"), `"media":"vid-1"`) {
+			t.Errorf("file_id = %q", r.FormValue("rich_message"))
 		}
-		okResult(w, `{"message_id":8,"chat":{"id":1},"video":{"file_id":"vid-1"}}`)
+		okResult(w, `{"message_id":8,"chat":{"id":1},"rich_message":{"blocks":[{"type":"video","video":{"file_id":"vid-1"}}]}}`)
 	}))
 	defer srv.Close()
 	path := filepath.Join(t.TempDir(), "clip.mp4")
@@ -247,7 +254,7 @@ func TestNoRetryOn400AndHook(t *testing.T) {
 	if !errors.As(err, &apiErr) || apiErr.Code != 400 {
 		t.Fatalf("err = %v", err)
 	}
-	if calls.Load() != 1 || hookMethod != "sendMessage" || hookCode != 400 {
+	if calls.Load() != 1 || hookMethod != "sendRichMessage" || hookCode != 400 {
 		t.Errorf("calls=%d hook=%s/%d", calls.Load(), hookMethod, hookCode)
 	}
 }
