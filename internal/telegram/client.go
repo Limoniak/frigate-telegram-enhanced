@@ -537,7 +537,7 @@ func (c *Client) EditMessageText(ctx context.Context, chatID int64, messageID in
 		"message_id":   strconv.Itoa(messageID),
 		"rich_message": string(b),
 	}
-	SendOptions{Markup: markup}.applyCommon(p)
+	SendOptions{}.applyCommon(p)
 	return c.call(ctx, request{method: "editMessageText", chatID: chatID, params: p}, nil)
 }
 

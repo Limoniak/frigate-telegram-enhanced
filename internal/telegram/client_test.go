@@ -234,17 +234,19 @@ func TestEditMessageTextUsesRichMessage(t *testing.T) {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		var rich InputRichMessage
-		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil || rich.HTML != "<b>updated</b>" {
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil || len(rich.Blocks) != 2 ||
+			!strings.Contains(string(rich.Blocks[0]), `"type":"paragraph"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"x"`) {
 			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
 		}
-		if r.FormValue("text") != "" || r.FormValue("parse_mode") != "" {
-			t.Errorf("legacy fields leaked: text=%q parse_mode=%q", r.FormValue("text"), r.FormValue("parse_mode"))
+		if r.FormValue("text") != "" || r.FormValue("parse_mode") != "" || r.FormValue("reply_markup") != "" {
+			t.Errorf("legacy fields leaked: text=%q parse_mode=%q reply_markup=%q", r.FormValue("text"), r.FormValue("parse_mode"), r.FormValue("reply_markup"))
 		}
 		okResult(w, `true`)
 	}))
 	defer srv.Close()
 
-	if err := testClient(srv.URL).EditMessageText(context.Background(), 42, 7, "<b>updated</b>", nil); err != nil {
+	if err := testClient(srv.URL).EditMessageText(context.Background(), 42, 7, "<b>updated</b>", &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{{Text: "x", CallbackData: "x"}}}}); err != nil {
 		t.Fatal(err)
 	}
 }
