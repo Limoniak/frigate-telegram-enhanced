@@ -14,6 +14,7 @@ func TestRoundTrip(t *testing.T) {
 		{Pause(30 * time.Minute), Action{Kind: KindPause, Duration: 30 * time.Minute}},
 		{Clip("1727520000.123456-abc123"), Action{Kind: KindClip, ID: "1727520000.123456-abc123"}},
 		{Snapshot("garage"), Action{Kind: KindSnapshot, Camera: "garage"}},
+		{SnapshotPicker("garage"), Action{Kind: KindSnapshotPicker, Camera: "garage"}},
 	}
 	for _, tc := range cases {
 		got, err := Parse(tc.data)

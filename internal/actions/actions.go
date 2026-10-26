@@ -10,13 +10,14 @@ import (
 )
 
 const (
-	KindMute     = "m" // m:<camera>:<seconds>
-	KindPause    = "p" // p:<secondes>
-	KindClip     = "c" // c:<event or review id>
-	KindSnapshot = "s" // s:<camera>
-	KindUnmute   = "u" // u:<camera>
-	KindResume   = "r" // r:all
-	KindRefresh  = "f" // f:menu
+	KindMute           = "m" // m:<camera>:<seconds>
+	KindPause          = "p" // p:<secondes>
+	KindClip           = "c" // c:<event or review id>
+	KindSnapshot       = "s" // s:<camera>
+	KindSnapshotPicker = "S" // S:<camera>, selected from /snapshot
+	KindUnmute         = "u" // u:<camera>
+	KindResume         = "r" // r:all
+	KindRefresh        = "f" // f:menu
 
 	// menuPrefix marks a button of the control menu: after the action, the menu
 	// message is redrawn to show the new state.
@@ -49,6 +50,8 @@ func Pause(d time.Duration) string { return KindPause + ":" + strconv.Itoa(int(d
 func Clip(id string) string { return KindClip + ":" + id }
 
 func Snapshot(camera string) string { return KindSnapshot + ":" + camera }
+
+func SnapshotPicker(camera string) string { return KindSnapshotPicker + ":" + camera }
 
 func Parse(data string) (Action, error) {
 	data = html.UnescapeString(data)
@@ -91,7 +94,7 @@ func parse(data string) (Action, error) {
 		return Action{Kind: kind, Duration: d}, nil
 	case KindClip:
 		return Action{Kind: kind, ID: rest}, nil
-	case KindSnapshot, KindUnmute:
+	case KindSnapshot, KindSnapshotPicker, KindUnmute:
 		return Action{Kind: kind, Camera: rest}, nil
 	case KindResume, KindRefresh:
 		return Action{Kind: kind}, nil

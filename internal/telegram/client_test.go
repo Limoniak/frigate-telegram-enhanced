@@ -450,24 +450,47 @@ func TestEditRichMediaUsesRichMessage(t *testing.T) {
 		if r.URL.Path != "/bot123:abc/editMessageText" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		if r.FormValue("chat_id") != "42" || r.FormValue("message_id") != "7" {
+			t.Errorf("target = chat %q message %q", r.FormValue("chat_id"), r.FormValue("message_id"))
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer file.Close()
+		data, err := io.ReadAll(file)
+		if err != nil || header.Filename != "clip.mp4" || string(data) != "mp4-bytes" {
+			t.Fatalf("uploaded %q %q, err=%v", header.Filename, data, err)
+		}
 		var rich InputRichMessage
 		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
 			t.Fatal(err)
 		}
 		if len(rich.Blocks) != 2 || !strings.Contains(string(rich.Blocks[0]), `"type":"video"`) ||
-			!strings.Contains(string(rich.Blocks[0]), `"media":"VID"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"media":"attach://file"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"Person"`) ||
 			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"open"`) ||
 			r.FormValue("reply_markup") != "" {
 			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
 		}
-		okResult(w, `{"message_id":7,"rich_message":{"blocks":[]}}`)
+		okResult(w, `{"message_id":7,"rich_message":{"blocks":[{"type":"video","video":{"file_id":"NEWVID"}}]}}`)
 	}))
 	defer srv.Close()
 
-	if _, err := New("123:abc", WithBaseURL(srv.URL), WithBackoff(0)).EditRichMedia(
-		context.Background(), 42, 7, "video", InputFile{FileID: "VID"}, "<b>Person</b>",
-		SendOptions{Markup: &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Open", CallbackData: "open"}}}}}); err != nil {
+	m, err := New("123:abc", WithBaseURL(srv.URL), WithBackoff(0)).EditRichMedia(
+		context.Background(), 42, 7, "video", InputFile{Name: "clip.mp4", Data: []byte("mp4-bytes")}, "<b>Person</b>",
+		SendOptions{Markup: &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Open", CallbackData: "open"}}}}})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if m.MessageID != 7 || m.FileID() != "NEWVID" {
+		t.Fatalf("edited message = %+v, file_id=%q", m, m.FileID())
 	}
 }
 

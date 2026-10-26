@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"frigate-telegram-enhanced/internal/actions"
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/i18n"
 	"frigate-telegram-enhanced/internal/state"
@@ -244,9 +245,25 @@ func TestSnapshotCommands(t *testing.T) {
 	if e.tg.keyboards != 1 {
 		t.Error("want a selection keyboard without an argument")
 	}
+	if got := buttonsOf(e.tg.lastMarkup)["garage"]; got != actions.SnapshotPicker("garage") {
+		t.Fatalf("snapshot picker callback = %q", got)
+	}
 	e.cmd("/snapshot jardin", 1)
 	if len(e.tg.photos) != 1 || !strings.Contains(e.tg.photos[0], "jardin") {
 		t.Errorf("photos = %v", e.tg.photos)
+	}
+}
+
+func TestSnapshotPickerSelectionIsNotAReply(t *testing.T) {
+	e := newEnv(t)
+	e.b.HandleUpdate(context.Background(), telegram.Update{CallbackQuery: &telegram.CallbackQuery{
+		ID: "picker", From: telegram.User{ID: 1}, Data: actions.SnapshotPicker("garage"),
+		Message: &telegram.Message{MessageID: 42, Chat: telegram.Chat{ID: 1}}}})
+	e.b.Wait()
+	e.tg.mu.Lock()
+	defer e.tg.mu.Unlock()
+	if len(e.tg.photos) != 1 || e.tg.photoReplyTo != 0 {
+		t.Fatalf("photos=%q reply_to=%d, want one standalone photo", e.tg.photos, e.tg.photoReplyTo)
 	}
 }
 
@@ -438,6 +455,9 @@ func TestMenu(t *testing.T) {
 	e.cmd("/menu", 1)
 	if !strings.Contains(e.tg.last(), "Control") || !strings.Contains(e.tg.last(), "Notifications active") {
 		t.Fatalf("menu = %q", e.tg.last())
+	}
+	if !strings.Contains(e.tg.last(), "Notifications active\n\n<b>Cameras</b>\nTap a camera to pause notifications for 1 hour; tap it again to resume.") {
+		t.Fatalf("menu sections are not separated: %q", e.tg.last())
 	}
 	btns := buttonsOf(e.tg.lastMarkup)
 	for _, want := range []string{"⏸ 30 min", "✅ garage", "✅ jardin", "🔄 Refresh"} {

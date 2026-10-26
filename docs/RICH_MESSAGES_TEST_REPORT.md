@@ -1,49 +1,47 @@
 # Telegram Rich Messages: test report
 
 **Date:** 2026-10-27
-**Test target:** `feature/telegram-rich-messages`, based on upstream `dev` at `27646bd`.
+**Target:** `feature/telegram-rich-messages`, based on upstream `dev` at `27646bd`.
 
 ## Automated checks
 
-| Command | Result | Notes |
+| Check | Result | Evidence / boundary |
 |---|---|---|
-| `go test ./...` | PASS | All Go packages passed. Tests use local fakes and `httptest`; no real Telegram calls. |
-| `go vet ./...` | PASS | No diagnostics. |
-| `git diff --check` | PASS | No whitespace errors in the reviewed changes. |
-| `go test -race ./...` | BLOCKED | This Windows environment has `CGO_ENABLED=0` and no C compiler; Go requires cgo for `-race`. |
-| `go test -tags browser -run Browser ./internal/web/` | NOT RUN | Not part of this Go-only feature change; no browser validation performed. |
-| Full GitHub CI / Docker build | NOT RUN | Requires upstream CI; no image was built or deployed. |
-
-`go test -list '^Test' ./...` found 299 top-level test functions across the repository. This is a discovered test count, not an assertion that all 299 relate to Rich Messages. The final `go test ./...` run passed.
+| `go test ./...` | PASS | All Go packages passed on the final code changes. Telegram requests use mocks/`httptest`. |
+| `go vet ./...` | PASS | Completed with no diagnostics. |
+| `git diff --check` | PASS | Final check recorded after documentation updates. |
+| `go test -race ./...` | BLOCKED | Windows Go reports `-race requires cgo`; WSL and a C compiler are unavailable. Existing GitHub CI already runs race tests. |
+| Docker build | NOT RUN | Docker CLI/daemon is unavailable in this environment. |
+| Russian integration copy | PASS (mock) | PR #48 Russian catalog was loaded in an isolated source copy with only the new menu text and pause labels adapted; catalog parity and `/menu` text/buttons passed. No PR commits entered this feature branch. |
+| Live Telegram/client | BLOCKED | No dedicated test bot/chat credentials or approved test target were discoverable. No real messages were sent. |
 
 ## Scenario matrix
 
-“PASS (mock)” means a deterministic test exercises the application path with fake Frigate/Telegram or an `httptest` Bot API server. It does not mean a live bot or mobile client was tested.
+PASS means a local deterministic test. It does not mean a live Telegram client test.
 
 | ID | Scenario | Result | Evidence / boundary |
 |---|---|---|---|
-| T01 | Text notification | PASS (mock) | `TestMissingSnapshotFallsBackToText`; Telegram client serialization tests. |
-| T02 | Snapshot and buttons | PASS (mock) | `TestNewEventSendsSnapshotToEveryChat`; rich media and button serialization tests. |
-| T03 | Snapshot replaced by video | PASS (mock) | `TestEndReplacesSnapshotWithClip`, `TestEditRichMediaUsesRichMessage`. |
-| T04 | Snapshot followed by GIF | PASS (mock) | `TestGIFWhenTheClipIsUnavailable`; no Telegram client upload. |
-| T05 | Edit rejection and fallback | PASS (mock) | `TestClipReplacementFallbackOnlyAfterDefinitiveRejection`: 400, “not modified”, timeout, and 502 outcomes. |
-| T06 | Video reply to original snapshot | PASS (mock) | `TestEndSendsClipAsReplyToSnapshot`. |
-| T07 | Video without snapshot message | PASS (mock) | `TestClipRepliesToTextOnlyNotification`. |
-| T08 | Event without media | PASS (mock) | Text-only snapshot fallback path; live Frigate not used. |
-| T09 | Caption update after media replacement | PASS (mock) | `TestLateCaptionUpdateDoesNotOverwriteClipReplacement`. |
-| T10 | Callback actions | PASS (handler mock) | `TestCallbacks`, `TestMenu`, snapshot callback tests; no live button taps. |
-| T11 | Russian `/menu` | BLOCKED | The isolated branch intentionally excludes PR #48 and therefore has no Russian catalog. Recheck after that PR merges or against a separately prepared integration branch. |
-| T12 | Long event description | PASS (unit) | `TestBuildCaptionTruncatesDescriptionAtRichMessageLimit`. |
-| T13 | Several events for one camera | PASS (mock) | `TestBurstIsGroupedIntoTheFirstMessage`. |
-| T14 | Simultaneous independent cameras | NOT RUN | Per-message lock isolation is unit-tested; no concurrent multi-camera integration run. |
-| T15 | Timeout, 429, and 5xx | PASS (mock) | `TestRetryOn429`, `TestRetryOn5xx`, `TestUniqueSendNotRetriedOn5xx`, response-lost tests, and T05. |
-| T16 | Large video | PASS (mock) | Oversize/truncation/compression paths are tested locally; actual 50 MB Telegram upload is NOT RUN. |
-| T17 | Repeated MQTT event | PASS (handler mock) | Duplicate end delivery is exercised in `TestEndReplacesSnapshotWithClip`; no MQTT broker replay test. |
-| T18 | Restart during media preparation | NOT RUN | No process restart or durable in-flight media recovery test. |
+| T01 | Text notification | PASS (mock) | Text-only fallback and rich request serialization tests. |
+| T02 | Snapshot and buttons | PASS (mock) | Notifier mock plus rich serialization; callback blocks included. |
+| T03 | Snapshot → Video | PASS (mock) | `TestEndReplacesSnapshotWithClip` plus multipart `EditRichMedia` request/response assertions, including same `message_id`, caption, buttons, and returned `file_id`. |
+| T04 | Snapshot → GIF | PASS (mock) | GIF follow-up path covered; live upload not run. |
+| T05 | Edit rejection → fallback | PASS (mock) | Definitive rejection falls back; ambiguous timeout/5xx does not duplicate. |
+| T06 | Video reply to source | PASS (mock) | Existing notifier reply test. |
+| T07 | Video without snapshot | PASS (mock) | Text-only event remains reply target. |
+| T08 | Event without media | PASS (mock) | Existing text-only fallback. |
+| T09 | Caption after replacement | PASS (mock) | Late caption edit uses the updated media file ID. |
+| T10 | Callback actions | PASS (handler mock) | Existing menu, notification, pause/resume, clip, snapshot, refresh and URL serialization tests; no live taps. |
+| T11 | Russian `/menu` | PASS (integration mock) | Russian heading, line breaks, description and pause labels checked in an isolated copy of the current PR #48 catalog. |
+| T12 | Long description | PASS (unit) | Caption truncation test. |
+| T13 | Several events, same camera | PASS (mock) | Grouping/burst test. |
+| T14 | Simultaneous independent cameras | NOT RUN | Lock isolation is tested, but no concurrent multi-camera integration run was performed. |
+| T15 | Timeout/429/5xx | PASS (mock) | Retry policy, lost responses and fallback classification covered. |
+| T16 | Large video | PASS (mock) | Local size/transcode paths; no real upload at the Telegram limit. |
+| T17 | Repeated MQTT event | PASS (handler mock) | Duplicate end-event handling covered; no broker replay test. |
+| T18 | Restart during preparation | NOT RUN | No durable in-flight recovery; tracked media state is in memory. |
 
-## Manual/integration coverage
+## Manual evidence and limits
 
-- No real Telegram bot, chat, phone, Bot API server, or production service was contacted from these tests.
-- Local test runs establish request bodies, retries, and notifier decisions against mocks only.
-- Mobile layout, button wrapping, camera/clip playback, and client-specific Rich Message rendering still need a dedicated test bot check.
-- Race-detector validation remains outstanding because cgo is unavailable in this environment.
+- Earlier user-provided screenshots show rich notifications and controls on Telegram clients. They are prior evidence, not a live test performed in this QA pass.
+- Phone layout, button wrapping/colors, real snapshot-to-video rendering, real callback actions, and playback still require a dedicated test bot and client check.
+- No production Telegram, Frigate, MQTT, Home Assistant, or Docker service was changed.

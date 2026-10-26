@@ -1,7 +1,10 @@
 {
     "name": "Deutsch",
     "messages": {
-        "\n\nTap a camera to mute it for 1 h, or to turn it back on.": "\n\nTippen Sie auf eine Kamera, um sie für 1 Std. stummzuschalten oder wieder einzuschalten.",
+        "⏸ 30 min": "⏸ 30 Min.",
+        "⏸ 1 h": "⏸ 1 Std.",
+        "⏸ 8 h": "⏸ 8 Std.",
+        "Tap a camera to pause notifications for 1 hour; tap it again to resume.": "Tippen Sie auf eine Kamera, um ihre Benachrichtigungen für 1 Stunde zu pausieren; tippen Sie erneut, um sie fortzusetzen.",
         "\n🎞 On a real event, an animated GIF will follow as a reply.": "\n🎞 Bei einem echten Ereignis folgt ein animiertes GIF als Antwort.",
         "\n🎬 On a real event, the video clip will follow as a reply.": "\n🎬 Bei einem echten Ereignis folgt der Videoclip als Antwort.",
         "\n🏠 At home: ": "\n🏠 Zu Hause: ",
