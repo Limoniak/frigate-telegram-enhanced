@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/net/html"
 	"io"
 	"maps"
 	"mime/multipart"
@@ -276,6 +277,10 @@ func (o SendOptions) apply(p map[string]string) {
 	if o.Caption != "" {
 		p["caption"] = o.Caption
 	}
+	o.applyCommon(p)
+}
+
+func (o SendOptions) applyCommon(p map[string]string) {
 	if o.Silent {
 		p["disable_notification"] = "true"
 	}
@@ -307,6 +312,93 @@ func (c *Client) SendVideo(ctx context.Context, chatID int64, f InputFile, o Sen
 
 func (c *Client) SendAnimation(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
 	return c.sendMedia(ctx, "sendAnimation", "animation", chatID, f, o, nil)
+}
+
+// SendRichMessage sends HTML, Markdown, or block-based rich content using
+// Telegram Bot API 10.1+. The content shape is validated before the request.
+func (c *Client) SendRichMessage(ctx context.Context, chatID int64, rich InputRichMessage, o SendOptions) (Message, error) {
+	if err := rich.validate(); err != nil {
+		return Message{}, err
+	}
+	b, err := json.Marshal(rich)
+	if err != nil {
+		return Message{}, err
+	}
+	p := map[string]string{"chat_id": chatParam(chatID), "rich_message": string(b)}
+	o.applyCommon(p)
+	var m Message
+	err = c.call(ctx, request{method: "sendRichMessage", chatID: chatID, params: p, unique: true}, &m)
+	return m, err
+}
+
+// SendRichMedia sends one photo, video, or animation block. When f is a new
+// upload it is attached as attach://file inside the rich block.
+func (c *Client) SendRichMedia(ctx context.Context, chatID int64, kind string, f InputFile, caption string, o SendOptions) (Message, error) {
+	if kind != "photo" && kind != "video" && kind != "animation" {
+		return Message{}, fmt.Errorf("telegram rich media: unsupported kind %q", kind)
+	}
+	media := map[string]string{"type": kind, "media": f.FileID}
+	file := (*fileParam)(nil)
+	if f.FileID == "" {
+		media["media"] = "attach://file"
+		file = &fileParam{field: "file", file: f}
+	}
+	block := map[string]any{"type": kind, kind: media}
+	if caption != "" {
+		block["caption"] = map[string]string{"text": richCaptionText(caption)}
+	}
+	bb, err := json.Marshal(block)
+	if err != nil {
+		return Message{}, err
+	}
+	rich, err := json.Marshal(InputRichMessage{Blocks: []json.RawMessage{bb}})
+	if err != nil {
+		return Message{}, err
+	}
+	p := map[string]string{"chat_id": chatParam(chatID), "rich_message": string(rich)}
+	o.applyCommon(p)
+	timeout := 30 * time.Second
+	if file != nil {
+		timeout = 5 * time.Minute
+	}
+	var m Message
+	err = c.call(ctx, request{method: "sendRichMessage", chatID: chatID, params: p, file: file, timeout: timeout, unique: true}, &m)
+	return m, err
+}
+
+func richCaptionText(s string) string {
+	t := html.NewTokenizer(strings.NewReader(s))
+	var b strings.Builder
+	for {
+		switch tt := t.Next(); tt {
+		case html.ErrorToken:
+			return b.String()
+		case html.TextToken:
+			b.WriteString(string(t.Text()))
+		case html.StartTagToken:
+			name, _ := t.TagName()
+			if string(name) == "br" {
+				b.WriteByte('\n')
+			}
+		}
+	}
+}
+
+func (r InputRichMessage) validate() error {
+	set := 0
+	if r.HTML != "" {
+		set++
+	}
+	if r.Markdown != "" {
+		set++
+	}
+	if len(r.Blocks) > 0 {
+		set++
+	}
+	if set != 1 {
+		return errors.New("telegram rich_message: exactly one of html, markdown, or blocks is required")
+	}
+	return nil
 }
 
 func (c *Client) sendMedia(ctx context.Context, method, field string, chatID int64, f InputFile, o SendOptions, extra map[string]string) (Message, error) {

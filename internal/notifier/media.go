@@ -88,9 +88,17 @@ func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption s
 	if photo == nil {
 		n.deliver(ctx, chats, "text", telegram.InputFile{},
 			func(ctx context.Context, chatID int64, chat string, _ telegram.InputFile) (telegram.Message, error) {
-				return n.Telegram.SendMessage(ctx, chatID, caption, telegram.SendOptions{Silent: silent(chat), Markup: markup})
+				return n.Telegram.SendRichMessage(ctx, chatID, telegram.InputRichMessage{HTML: caption}, telegram.SendOptions{Silent: silent(chat), Markup: markup})
 			},
 			func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID, text: true}) })
+		return
+	}
+	if !n.Config.ForCamera(t.camera).MediaInPlace {
+		n.deliver(ctx, chats, "photo", telegram.InputFile{Name: "snapshot.jpg", Data: photo},
+			func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
+				return n.Telegram.SendRichMedia(ctx, chatID, "photo", f, caption, telegram.SendOptions{Silent: silent(chat), Markup: markup})
+			},
+			func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID}) })
 		return
 	}
 	n.deliver(ctx, chats, "photo", telegram.InputFile{Name: "snapshot.jpg", Data: photo},
@@ -132,7 +140,7 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 		text := n.tooLargeText(path)
 		n.deliver(ctx, chats, "text", telegram.InputFile{},
 			func(ctx context.Context, chatID int64, chat string, _ telegram.InputFile) (telegram.Message, error) {
-				return n.Telegram.SendMessage(ctx, chatID, text, telegram.SendOptions{Silent: true, ReplyTo: t.message(chat).id})
+				return n.Telegram.SendRichMessage(ctx, chatID, telegram.InputRichMessage{HTML: text}, telegram.SendOptions{Silent: true, ReplyTo: t.message(chat).id})
 			}, nil)
 		return
 	}
@@ -159,6 +167,9 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	n.deliver(ctx, chats, kind, telegram.InputFile{Name: name, Path: file},
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
 			m := t.message(chat)
+			if !inPlace {
+				return n.Telegram.SendRichMedia(ctx, chatID, kind, f, note, telegram.SendOptions{Silent: true, ReplyTo: m.id})
+			}
 			if inPlace && m.id != 0 && !m.text {
 				n.mu.Lock()
 				caption := n.captionFor(t, chat)

@@ -235,6 +235,24 @@ func (f *fakeTelegram) SendMessage(_ context.Context, chatID int64, text string,
 	return telegram.Message{MessageID: f.add(tgCall{Method: "sendMessage", ChatID: chatID, Text: text, Opts: o})}, nil
 }
 
+func (f *fakeTelegram) SendRichMessage(_ context.Context, chatID int64, rich telegram.InputRichMessage, o telegram.SendOptions) (telegram.Message, error) {
+	return telegram.Message{MessageID: f.add(tgCall{Method: "sendRichMessage", ChatID: chatID, Text: rich.HTML, Opts: o}), RichMessage: &telegram.RichMessage{}}, nil
+}
+
+func (f *fakeTelegram) SendRichMedia(_ context.Context, chatID int64, kind string, file telegram.InputFile, caption string, o telegram.SendOptions) (telegram.Message, error) {
+	id := f.add(tgCall{Method: "sendRichMedia:" + kind, ChatID: chatID, Text: caption, FileID: file.FileID, Data: fileData(file), Opts: o})
+	m := telegram.Message{MessageID: id, RichMessage: &telegram.RichMessage{}}
+	switch kind {
+	case "photo":
+		m.Photo = []telegram.PhotoSize{{FileID: "photo-file"}}
+	case "video":
+		m.Video = &telegram.Video{FileID: "video-file"}
+	case "animation":
+		m.Animation = &telegram.Animation{FileID: "gif-file"}
+	}
+	return m, nil
+}
+
 func (f *fakeTelegram) SendPhoto(_ context.Context, chatID int64, file telegram.InputFile, o telegram.SendOptions) (telegram.Message, error) {
 	id := f.add(tgCall{Method: "sendPhoto", ChatID: chatID, Text: o.Caption, FileID: file.FileID, Data: fileData(file), Opts: o})
 	return telegram.Message{MessageID: id, Photo: []telegram.PhotoSize{{FileID: "photo-file"}}}, nil
@@ -267,7 +285,13 @@ func (f *fakeTelegram) EditMessageMedia(_ context.Context, chatID int64, message
 
 // videos returns the delivered clips, whether they replace the image or arrive as a reply.
 func (f *fakeTelegram) videos() []tgCall {
-	return append(f.byMethod("editMessageMedia:video"), f.byMethod("sendVideo")...)
+	out := append(f.byMethod("editMessageMedia:video"), f.byMethod("sendVideo")...)
+	return append(out, f.byMethod("sendRichMedia:video")...)
+}
+
+func (f *fakeTelegram) photos() []tgCall {
+	out := f.byMethod("sendPhoto")
+	return append(out, f.byMethod("sendRichMedia:photo")...)
 }
 
 func (f *fakeTelegram) byMethod(method string) []tgCall {

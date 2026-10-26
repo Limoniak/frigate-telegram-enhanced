@@ -108,7 +108,7 @@ func TestEndSendsClipAsReplyToSnapshot(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 
-	photos, videos := h.tg.byMethod("sendPhoto"), h.tg.byMethod("sendVideo")
+	photos, videos := h.tg.photos(), h.tg.videos()
 	if len(videos) != 2 {
 		t.Fatalf("videos = %d, want 2", len(videos))
 	}
@@ -225,7 +225,7 @@ func TestClipTooLargeSendsLink(t *testing.T) {
 	h.fr.tooLarge[frigate.EventClipPath(evID)] = true
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
-	msgs := h.tg.byMethod("sendMessage")
+	msgs := h.tg.byMethod("sendRichMessage")
 	if len(msgs) != 2 || !strings.Contains(msgs[0].Text, "https://nvr.example/api/events/"+evID+"/clip.mp4") {
 		t.Fatalf("messages = %+v", msgs)
 	}
@@ -237,7 +237,7 @@ func TestClipTooLargeSendsLink(t *testing.T) {
 func TestMissingSnapshotFallsBackToText(t *testing.T) {
 	h := newHarness(t, "events")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
-	msgs := h.tg.byMethod("sendMessage")
+	msgs := h.tg.byMethod("sendRichMessage")
 	if len(msgs) != 2 || !strings.Contains(msgs[0].Text, "Person") {
 		t.Fatalf("messages = %+v", msgs)
 	}
@@ -373,7 +373,7 @@ func TestClipRepliesToTextOnlyNotification(t *testing.T) {
 		t.Errorf("replacements = %d, want 0", n)
 	}
 	replies := h.tg.byMethod("sendVideo")
-	texts := h.tg.byMethod("sendMessage")
+	texts := h.tg.byMethod("sendRichMessage")
 	if len(replies) != 2 {
 		t.Fatalf("video replies = %d, want 2", len(replies))
 	}

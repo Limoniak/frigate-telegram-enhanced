@@ -110,6 +110,88 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 	}
 }
 
+func TestSendRichMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bot"+token+"/sendRichMessage" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
+			t.Fatal(err)
+		}
+		if rich.HTML != "<b>Hello</b>" || r.FormValue("disable_notification") != "true" ||
+			!strings.Contains(r.FormValue("reply_parameters"), `"message_id":7`) {
+			t.Errorf("rich message = %+v, form = %v", rich, r.Form)
+		}
+		okResult(w, `{"message_id":9,"chat":{"id":42},"rich_message":{"blocks":[]}}`)
+	}))
+	defer srv.Close()
+
+	m, err := testClient(srv.URL).SendRichMessage(context.Background(), 42,
+		InputRichMessage{HTML: "<b>Hello</b>"}, SendOptions{Silent: true, ReplyTo: 7})
+	if err != nil || m.MessageID != 9 || m.RichMessage == nil {
+		t.Fatalf("send rich message: %+v, %v", m, err)
+	}
+}
+
+func TestSendRichMessageRequiresOneContentForm(t *testing.T) {
+	if _, err := testClient("http://127.0.0.1:1").SendRichMessage(context.Background(), 42, InputRichMessage{}, SendOptions{}); err == nil {
+		t.Fatal("empty rich message should be rejected before the request")
+	}
+}
+
+func TestSendRichMediaMultipart(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bot"+token+"/sendRichMessage" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		var rich struct {
+			Blocks []struct {
+				Type  string `json:"type"`
+				Video struct {
+					Type  string `json:"type"`
+					Media string `json:"media"`
+				} `json:"video"`
+				Caption struct {
+					Text string `json:"text"`
+				} `json:"caption"`
+			} `json:"blocks"`
+		}
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
+			t.Fatal(err)
+		}
+		f, _, err := r.FormFile("file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := io.ReadAll(f)
+		if len(rich.Blocks) != 1 || rich.Blocks[0].Type != "video" || rich.Blocks[0].Video.Media != "attach://file" ||
+			rich.Blocks[0].Caption.Text != "clip" || string(data) != "mp4data" {
+			t.Errorf("rich=%+v data=%q", rich, data)
+		}
+		okResult(w, `{"message_id":10,"chat":{"id":42},"rich_message":{"blocks":[]}}`)
+	}))
+	defer srv.Close()
+
+	m, err := testClient(srv.URL).SendRichMedia(context.Background(), 42, "video",
+		InputFile{Name: "clip.mp4", Data: []byte("mp4data")}, "clip", SendOptions{ReplyTo: 7})
+	if err != nil || m.MessageID != 10 {
+		t.Fatalf("send rich media: %+v, %v", m, err)
+	}
+}
+
+func TestRichMessageFileID(t *testing.T) {
+	m := Message{RichMessage: &RichMessage{Blocks: []json.RawMessage{
+		json.RawMessage(`{"type":"video","video":{"file_id":"rich-video"}}`),
+	}}}
+	if got := m.FileID(); got != "rich-video" {
+		t.Fatalf("FileID() = %q, want rich-video", got)
+	}
+}
+
 func TestRetryOn429(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

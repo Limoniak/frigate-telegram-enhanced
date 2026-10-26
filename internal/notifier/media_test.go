@@ -89,7 +89,7 @@ func TestLargeClipIsCompressed(t *testing.T) {
 	if n := len(h.tg.videos()); n != 2 {
 		t.Errorf("videos sent = %d, want 2", n)
 	}
-	for _, m := range h.tg.byMethod("sendMessage") {
+	for _, m := range h.tg.byMethod("sendRichMessage") {
 		if strings.Contains(m.Text, "clip.mp4") {
 			t.Errorf("unexpected link: %q", m.Text)
 		}
@@ -117,7 +117,7 @@ func TestFailedCompressionSendsLink(t *testing.T) {
 		t.Error("want no video")
 	}
 	if !sentLink(h) {
-		t.Errorf("want the link to the clip, messages = %+v", h.tg.byMethod("sendMessage"))
+		t.Errorf("want the link to the clip, messages = %+v", h.tg.byMethod("sendRichMessage"))
 	}
 }
 
@@ -147,7 +147,7 @@ func TestCompressionOffSendsLink(t *testing.T) {
 }
 
 func sentLink(h *harness) bool {
-	for _, m := range h.tg.byMethod("sendMessage") {
+	for _, m := range h.tg.byMethod("sendRichMessage") {
 		if strings.Contains(m.Text, "/api/events/"+evID+"/clip.mp4") {
 			return true
 		}

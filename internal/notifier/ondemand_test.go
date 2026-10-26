@@ -143,7 +143,7 @@ func TestSendTestFallsBackToTextWithoutSnapshot(t *testing.T) {
 	if err := h.n.SendTest(context.Background(), "garage"); err != nil {
 		t.Fatal(err)
 	}
-	if n := len(h.tg.byMethod("sendMessage")); n != 2 {
+	if n := len(h.tg.byMethod("sendRichMessage")); n != 2 {
 		t.Errorf("text messages = %d, want 2", n)
 	}
 }

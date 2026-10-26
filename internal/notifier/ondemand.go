@@ -162,7 +162,12 @@ func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 	if photo == nil {
 		n.deliver(ctx, cfg.Chats, "text", telegram.InputFile{},
 			func(ctx context.Context, chatID int64, _ string, _ telegram.InputFile) (telegram.Message, error) {
-				return record(n.Telegram.SendMessage(ctx, chatID, caption, telegram.SendOptions{}))
+				return record(n.Telegram.SendRichMessage(ctx, chatID, telegram.InputRichMessage{HTML: caption}, telegram.SendOptions{}))
+			}, nil)
+	} else if !cfg.MediaInPlace {
+		n.deliver(ctx, cfg.Chats, "photo", telegram.InputFile{Name: "test.jpg", Data: photo},
+			func(ctx context.Context, chatID int64, _ string, f telegram.InputFile) (telegram.Message, error) {
+				return record(n.Telegram.SendRichMedia(ctx, chatID, "photo", f, caption, telegram.SendOptions{}))
 			}, nil)
 	} else {
 		n.deliver(ctx, cfg.Chats, "photo", telegram.InputFile{Name: "test.jpg", Data: photo},
