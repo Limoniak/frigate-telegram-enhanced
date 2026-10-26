@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"frigate-telegram-enhanced/internal/actions"
-	"frigate-telegram-enhanced/internal/i18n"
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
@@ -43,18 +42,12 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 	btn := func(text, data string) telegram.InlineKeyboardButton {
 		return telegram.InlineKeyboardButton{Text: text, CallbackData: actions.InMenu(data)}
 	}
-	pauseLabel := func(s string) string {
-		if l == i18n.RU {
-			return map[string]string{"30 min": "30 мин", "1 h": "1 ч", "8 h": "8 ч"}[s]
-		}
-		return s
-	}
 	var rows [][]telegram.InlineKeyboardButton
 	if st.PausedUntil.IsZero() {
 		rows = append(rows, []telegram.InlineKeyboardButton{
-			btn("⏸ "+pauseLabel("30 min"), actions.Pause(30*time.Minute)),
-			btn("⏸ "+pauseLabel("1 h"), actions.Pause(time.Hour)),
-			btn("⏸ "+pauseLabel("8 h"), actions.Pause(8*time.Hour)),
+			btn(l.T("⏸ 30 min"), actions.Pause(30*time.Minute)),
+			btn(l.T("⏸ 1 h"), actions.Pause(time.Hour)),
+			btn(l.T("⏸ 8 h"), actions.Pause(8*time.Hour)),
 		})
 	} else {
 		rows = append(rows, []telegram.InlineKeyboardButton{btn(l.T("▶️ Resume"), actions.Resume())})

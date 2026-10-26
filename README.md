@@ -7,7 +7,7 @@
 
 # frigate-telegram-enhanced
 
-**English** · [Français](README.fr.md)
+**English** · [Français](README.fr.md) · Russian
 
 [![Release](https://img.shields.io/github/v/release/Limoniak/frigate-telegram-enhanced)](https://github.com/Limoniak/frigate-telegram-enhanced/releases/latest) [![CI](https://img.shields.io/github/actions/workflow/status/Limoniak/frigate-telegram-enhanced/docker.yml?branch=main&label=ci)](https://github.com/Limoniak/frigate-telegram-enhanced/actions/workflows/docker.yml) [![License: MIT](https://img.shields.io/github/license/Limoniak/frigate-telegram-enhanced)](LICENSE)
 

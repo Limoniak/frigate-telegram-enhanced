@@ -23,7 +23,6 @@ type Lang string
 const (
 	EN Lang = "en"
 	FR Lang = "fr"
-	RU Lang = "ru"
 
 	Default = EN
 )
@@ -87,12 +86,6 @@ func (l Lang) Name() string {
 var aliases = map[string]Lang{"english": EN, "french": FR, "français": FR, "francais": FR}
 
 // Parse reads a language ("en", "fr", "fr-FR", "English"…); empty gives Default.
-func init() {
-	aliases["russian"] = RU
-	aliases["русский"] = RU
-	aliases["русский язык"] = RU
-}
-
 func Parse(s string) (Lang, error) {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if s == "" {
