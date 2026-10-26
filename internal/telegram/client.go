@@ -448,7 +448,7 @@ func richHTMLWithButtons(text string, markup *InlineKeyboardMarkup) string {
 			b.WriteString("\n<tg-button-row align=\"center\">")
 			for _, button := range validRow[start:end] {
 				if button.CallbackData != "" {
-					b.WriteString(`<tg-button type="callback_data" data="` + html.EscapeString(button.CallbackData) + `">` + html.EscapeString(button.Text) + `</tg-button>`)
+					b.WriteString(`<tg-button type="callback_data" style="primary" data="` + html.EscapeString(button.CallbackData) + `">` + html.EscapeString(button.Text) + `</tg-button>`)
 				} else if button.URL != "" {
 					b.WriteString(`<tg-button type="url" url="` + html.EscapeString(button.URL) + `">` + html.EscapeString(button.Text) + `</tg-button>`)
 				}
@@ -473,6 +473,7 @@ func richButtonBlocks(markup *InlineKeyboardMarkup) []json.RawMessage {
 				switch {
 				case b.CallbackData != "":
 					button["callback_data"] = b.CallbackData
+					button["style"] = "primary"
 				case b.URL != "":
 					button["url"] = b.URL
 				default:

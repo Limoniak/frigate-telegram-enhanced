@@ -147,7 +147,7 @@ func TestSendRichMessageHTMLWithMarkupUsesRichButtons(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !strings.Contains(rich.HTML, `<tg-button-row align="center">`) ||
-			!strings.Contains(rich.HTML, `type="callback_data" data="action"`) ||
+			!strings.Contains(rich.HTML, `type="callback_data" style="primary" data="action"`) ||
 			len(rich.Blocks) != 0 ||
 			r.FormValue("reply_markup") != "" {
 			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
@@ -260,7 +260,7 @@ func TestEditMessageTextUsesRichMessage(t *testing.T) {
 		var rich InputRichMessage
 		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil ||
 			!strings.Contains(rich.HTML, `<tg-button-row align="center">`) ||
-			!strings.Contains(rich.HTML, `type="callback_data" data="x"`) || len(rich.Blocks) != 0 {
+			!strings.Contains(rich.HTML, `type="callback_data" style="primary" data="x"`) || len(rich.Blocks) != 0 {
 			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
 		}
 		if r.FormValue("text") != "" || r.FormValue("parse_mode") != "" || r.FormValue("reply_markup") != "" {
