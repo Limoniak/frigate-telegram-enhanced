@@ -61,6 +61,19 @@ type InputRichMessageMedia struct {
 	Media json.RawMessage `json:"media"`
 }
 
+type richMessageButton struct {
+	Text         string `json:"text"`
+	Style        string `json:"style,omitempty"`
+	URL          string `json:"url,omitempty"`
+	CallbackData string `json:"callback_data,omitempty"`
+}
+
+type richButtonsBlock struct {
+	Type    string              `json:"type"`
+	Buttons []richMessageButton `json:"buttons"`
+	Align   string              `json:"align,omitempty"`
+}
+
 // FileID returns the ID of the media sent, reusable for another chat without a new upload.
 func (m Message) FileID() string {
 	switch {

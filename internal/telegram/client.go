@@ -75,8 +75,7 @@ type request struct {
 	file    *fileParam
 	timeout time.Duration
 	noRetry bool
-	// unique: replaying the request would create a second message (send*). It is then
-	// only retried if it was not fully transmitted to Telegram.
+	// unique marks message creation: replaying it may create a duplicate.
 	unique bool
 }
 
@@ -143,6 +142,9 @@ func (c *Client) retryDelay(ctx context.Context, r request, err error, attempt i
 			}
 			return min(d, time.Minute), true
 		case apiErr.Code >= 500:
+			if r.unique {
+				return 0, false // the server may have accepted a send before failing
+			}
 			return c.backoff << attempt, true
 		default:
 			return 0, false
@@ -298,7 +300,7 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, o S
 	o.Caption = ""
 	rich := InputRichMessage{HTML: text}
 	if o.Markup != nil {
-		rich = InputRichMessage{HTML: richHTMLWithButtons(text, o.Markup)}
+		rich = InputRichMessage{Blocks: append([]json.RawMessage{richParagraph(text)}, richButtonBlocks(o.Markup)...)}
 		o.Markup = nil
 	}
 	return c.SendRichMessage(ctx, chatID, rich, o)
@@ -317,18 +319,9 @@ func (c *Client) SendAnimation(ctx context.Context, chatID int64, f InputFile, o
 }
 
 // SendRichMessage sends HTML, Markdown, or block-based rich content using
-// Telegram Bot API 10.1+. The content shape is validated before the request.
+// Telegram Bot API 10.1+; button blocks require 10.3+. The content shape is validated.
 func (c *Client) SendRichMessage(ctx context.Context, chatID int64, rich InputRichMessage, o SendOptions) (Message, error) {
-	if o.Markup != nil {
-		switch {
-		case len(rich.Blocks) > 0:
-			rich.Blocks = append(rich.Blocks, richButtonBlocks(o.Markup)...)
-			o.Markup = nil
-		case rich.HTML != "":
-			rich.HTML = richHTMLWithButtons(rich.HTML, o.Markup)
-			o.Markup = nil
-		}
-	}
+	rich, o.Markup = richWithButtons(rich, o.Markup)
 	if err := rich.validate(); err != nil {
 		return Message{}, err
 	}
@@ -396,7 +389,7 @@ func (c *Client) richMediaRequest(ctx context.Context, method string, chatID int
 		timeout = 5 * time.Minute
 	}
 	var m Message
-	err = c.call(ctx, request{method: method, chatID: chatID, params: p, file: file, timeout: timeout, unique: true}, &m)
+	err = c.call(ctx, request{method: method, chatID: chatID, params: p, file: file, timeout: timeout, unique: messageID == 0}, &m)
 	return m, err
 }
 
@@ -433,34 +426,22 @@ func richParagraph(s string) json.RawMessage {
 	return b
 }
 
-func richHTMLWithButtons(text string, markup *InlineKeyboardMarkup) string {
+func richWithButtons(rich InputRichMessage, markup *InlineKeyboardMarkup) (InputRichMessage, *InlineKeyboardMarkup) {
 	if markup == nil {
-		return text
+		return rich, nil
 	}
-	var b strings.Builder
-	b.WriteString(text)
-	for _, row := range markup.InlineKeyboard {
-		validRow := slices.DeleteFunc(slices.Clone(row), func(button InlineKeyboardButton) bool {
-			return button.CallbackData == "" && button.URL == ""
-		})
-		for start := 0; start < len(validRow); start += 8 {
-			end := min(start+8, len(validRow))
-			b.WriteString("\n<tg-button-row align=\"center\">")
-			for _, button := range validRow[start:end] {
-				if button.CallbackData != "" {
-					b.WriteString(`<tg-button type="callback_data" style="primary" data="` + richAttr(button.CallbackData) + `">` + html.EscapeString(button.Text) + `</tg-button>`)
-				} else if button.URL != "" {
-					b.WriteString(`<tg-button type="url" url="` + richAttr(button.URL) + `">` + html.EscapeString(button.Text) + `</tg-button>`)
-				}
-			}
-			b.WriteString("</tg-button-row>")
-		}
+	switch {
+	case len(rich.Blocks) > 0:
+		rich.Blocks = append(rich.Blocks, richButtonBlocks(markup)...)
+		return rich, nil
+	case rich.HTML != "":
+		rich.Blocks = append([]json.RawMessage{richParagraph(rich.HTML)}, richButtonBlocks(markup)...)
+		rich.HTML = ""
+		return rich, nil
+	default:
+		// Keep Markdown keyboards in sendRichMessage's supported reply_markup field.
+		return rich, markup
 	}
-	return b.String()
-}
-
-func richAttr(s string) string {
-	return strings.NewReplacer("&", "&amp;", `"`, "&quot;", "<", "&lt;", ">", "&gt;").Replace(s)
 }
 
 func richButtonBlocks(markup *InlineKeyboardMarkup) []json.RawMessage {
@@ -469,27 +450,26 @@ func richButtonBlocks(markup *InlineKeyboardMarkup) []json.RawMessage {
 	}
 	var blocks []json.RawMessage
 	for _, row := range markup.InlineKeyboard {
-		for start := 0; start < len(row); start += 8 {
-			end := min(start+8, len(row))
-			buttons := make([]map[string]string, 0, end-start)
-			for _, b := range row[start:end] {
-				button := map[string]string{"text": b.Text}
-				switch {
-				case b.CallbackData != "":
-					button["callback_data"] = b.CallbackData
-					button["style"] = "primary"
-				case b.URL != "":
-					button["url"] = b.URL
-				default:
-					continue
-				}
-				buttons = append(buttons, button)
-			}
-			if len(buttons) == 0 {
+		buttons := make([]richMessageButton, 0, len(row))
+		for _, b := range row {
+			if b.Text == "" {
 				continue
 			}
-			block, _ := json.Marshal(map[string]any{"type": "buttons", "buttons": buttons})
-			blocks = append(blocks, block)
+			switch {
+			case b.CallbackData != "":
+				if len(b.CallbackData) > 64 {
+					continue
+				}
+				buttons = append(buttons, richMessageButton{Text: b.Text, Style: "primary", CallbackData: b.CallbackData})
+			case b.URL != "":
+				buttons = append(buttons, richMessageButton{Text: b.Text, Style: "primary", URL: b.URL})
+			}
+		}
+		for start := 0; start < len(buttons); start += 8 {
+			end := min(start+8, len(buttons))
+			block := richButtonsBlock{Type: "buttons", Buttons: buttons[start:end], Align: "left"}
+			encoded, _ := json.Marshal(block)
+			blocks = append(blocks, encoded)
 		}
 	}
 	return blocks
@@ -574,7 +554,7 @@ func (c *Client) EditMessageCaption(ctx context.Context, chatID int64, messageID
 }
 
 func (c *Client) EditMessageText(ctx context.Context, chatID int64, messageID int, text string, markup *InlineKeyboardMarkup) error {
-	rich := InputRichMessage{HTML: richHTMLWithButtons(text, markup)}
+	rich, markup := richWithButtons(InputRichMessage{HTML: text}, markup)
 	b, err := json.Marshal(rich)
 	if err != nil {
 		return err
@@ -584,7 +564,7 @@ func (c *Client) EditMessageText(ctx context.Context, chatID int64, messageID in
 		"message_id":   strconv.Itoa(messageID),
 		"rich_message": string(b),
 	}
-	SendOptions{}.applyCommon(p)
+	SendOptions{Markup: markup}.applyCommon(p)
 	return c.call(ctx, request{method: "editMessageText", chatID: chatID, params: p}, nil)
 }
 

@@ -209,9 +209,11 @@ type tgCall struct {
 }
 
 type fakeTelegram struct {
-	mu     sync.Mutex
-	calls  []tgCall
-	nextID int
+	mu                sync.Mutex
+	calls             []tgCall
+	nextID            int
+	editRichMediaHook func(chatID int64, kind string, file telegram.InputFile)
+	editRichMediaErr  error
 }
 
 func (f *fakeTelegram) add(c tgCall) int {
@@ -274,11 +276,17 @@ func (f *fakeTelegram) EditMessageCaption(_ context.Context, chatID int64, messa
 }
 
 func (f *fakeTelegram) EditRichMedia(_ context.Context, chatID int64, messageID int, kind string, file telegram.InputFile, caption string, _ telegram.SendOptions) (telegram.Message, error) {
+	if f.editRichMediaHook != nil {
+		f.editRichMediaHook(chatID, kind, file)
+	}
 	method := "editMessageMedia:" + kind
 	if file.FileID != "" && kind == "photo" {
 		method = "editMessageCaption"
 	}
 	id := f.add(tgCall{Method: method, ChatID: chatID, Target: messageID, Text: caption, FileID: file.FileID, Data: fileData(file)})
+	if f.editRichMediaErr != nil {
+		return telegram.Message{}, f.editRichMediaErr
+	}
 	m := telegram.Message{MessageID: id, RichMessage: &telegram.RichMessage{}}
 	switch kind {
 	case "photo":

@@ -105,6 +105,8 @@ func (n *Notifier) editCaption(ctx context.Context, t *tracked, chat string) {
 	case <-ctx.Done():
 		return
 	}
+	unlock := t.lockMessage(chat)
+	defer unlock()
 	m := t.message(chat)
 	if m.id == 0 {
 		return

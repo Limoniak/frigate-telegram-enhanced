@@ -170,6 +170,8 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	}
 	n.deliver(ctx, chats, kind, telegram.InputFile{Name: name, Path: file},
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
+			unlock := t.lockMessage(chat)
+			defer unlock()
 			m := t.message(chat)
 			if !inPlace {
 				return n.Telegram.SendRichMedia(ctx, chatID, kind, f, note, telegram.SendOptions{Silent: true, ReplyTo: m.id, Markup: buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language)})
@@ -182,6 +184,21 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 				if err == nil {
 					t.setMessage(chat, sentMsg{id: m.id, kind: kind, fileID: edited.FileID()})
 					return edited, nil
+				}
+				var apiErr *telegram.APIError
+				if errors.As(err, &apiErr) && strings.Contains(strings.ToLower(apiErr.Description), "message is not modified") {
+					fileID := ""
+					if m.kind == kind {
+						fileID = m.fileID
+					}
+					t.setMessage(chat, sentMsg{id: m.id, kind: kind, fileID: fileID})
+					return telegram.Message{MessageID: m.id}, nil
+				}
+				if !errors.As(err, &apiErr) || apiErr.Code < 400 || apiErr.Code >= 500 || apiErr.Code == 429 {
+					// The edit may have succeeded; a reply here could duplicate the clip.
+					t.setMessage(chat, sentMsg{id: m.id, kind: kind})
+					n.Log.Warn("media replacement result is unknown; not sending a fallback", "kind", kind, "chat", chat, "err", err)
+					return telegram.Message{}, err
 				}
 				// Message deleted in the meantime, for example: fall back to a reply.
 				n.Log.Warn("replacing the image failed, sending as a reply", "kind", kind, "chat", chat, "err", err)

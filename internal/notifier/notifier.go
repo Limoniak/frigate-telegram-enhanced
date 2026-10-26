@@ -141,11 +141,12 @@ type tracked struct {
 	chats             []string
 	endedAt, lastSeen time.Time
 
-	ready    chan struct{} // closed when the snapshot was sent to every chat
-	msgMu    sync.Mutex
-	messages map[string]sentMsg // chat name → message sent
-	groups   map[string]*group  // groupings t is the head of, per chat (under n.mu)
-	grouped  bool               // added to the message of another notification
+	ready      chan struct{} // closed when the snapshot was sent to every chat
+	msgMu      sync.Mutex
+	messages   map[string]sentMsg // chat name → message sent
+	messageOps map[string]*sync.Mutex
+	groups     map[string]*group // groupings t is the head of, per chat (under n.mu)
+	grouped    bool              // added to the message of another notification
 	// pending: a detection that would be notified, waiting for its label for the
 	// label filter (see decide); nil otherwise.
 	pending *filter.Input
@@ -161,6 +162,21 @@ func (t *tracked) message(chat string) sentMsg {
 	t.msgMu.Lock()
 	defer t.msgMu.Unlock()
 	return t.messages[chat]
+}
+
+func (t *tracked) lockMessage(chat string) func() {
+	t.msgMu.Lock()
+	if t.messageOps == nil {
+		t.messageOps = make(map[string]*sync.Mutex)
+	}
+	mu := t.messageOps[chat]
+	if mu == nil {
+		mu = &sync.Mutex{}
+		t.messageOps[chat] = mu
+	}
+	t.msgMu.Unlock()
+	mu.Lock()
+	return mu.Unlock
 }
 
 func New(d Deps) *Notifier {

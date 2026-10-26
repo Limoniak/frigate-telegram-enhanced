@@ -294,6 +294,14 @@ func TestCallbacks(t *testing.T) {
 	if !e.st.IsPaused(now.Add(20 * time.Minute)) {
 		t.Error("pause button had no effect")
 	}
+	e.callback("p:28800", 1)
+	if !e.st.IsPaused(now.Add(7 * time.Hour)) {
+		t.Error("8 h pause button had no effect")
+	}
+	e.callback("r:all", 1)
+	if e.st.IsPaused(now) {
+		t.Error("resume callback had no effect")
+	}
 	e.callback("c:evt1", 1)
 	if len(e.notif.clips) != 1 || e.notif.clips[0] != "1/77/evt1" {
 		t.Errorf("clips = %v", e.notif.clips)

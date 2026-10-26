@@ -2,7 +2,9 @@ package notifier
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/frigate"
+	"frigate-telegram-enhanced/internal/telegram"
 )
 
 const evID = "1790604000.000001-abc"
@@ -75,6 +78,7 @@ func TestEndReplacesSnapshotWithClip(t *testing.T) {
 	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 
 	photos, edits := h.tg.byMethod("sendPhoto"), h.tg.byMethod("editMessageMedia:video")
 	if len(edits) != 2 || len(h.tg.byMethod("sendVideo")) != 0 {
@@ -123,6 +127,70 @@ func TestEndSendsClipAsReplyToSnapshot(t *testing.T) {
 	}
 	if countData(videos, "mp4") != 1 {
 		t.Error("the clip must be uploaded only once")
+	}
+}
+
+func TestClipReplacementFallbackOnlyAfterDefinitiveRejection(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantReply int
+	}{
+		{name: "definitive rejection", err: &telegram.APIError{Code: 400, Description: "message can't be edited"}, wantReply: 2},
+		{name: "already applied", err: &telegram.APIError{Code: 400, Description: "message is not modified"}, wantReply: 0},
+		{name: "rate limited", err: &telegram.APIError{Code: 429, Description: "Too Many Requests"}, wantReply: 0},
+		{name: "unknown outcome", err: errors.New("response timed out"), wantReply: 0},
+		{name: "server error", err: &telegram.APIError{Code: 502, Description: "bad gateway"}, wantReply: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, "events")
+			h.tg.editRichMediaErr = tc.err
+			h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+			h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+			h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+			h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+			if got := len(h.tg.byMethod("sendVideo")); got != tc.wantReply {
+				t.Errorf("fallback replies = %d, want %d", got, tc.wantReply)
+			}
+		})
+	}
+}
+
+func TestLateCaptionUpdateDoesNotOverwriteClipReplacement(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+	started, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	h.tg.editRichMediaHook = func(chatID int64, kind string, _ telegram.InputFile) {
+		if chatID == 1 && kind == "video" {
+			once.Do(func() {
+				close(started)
+				<-release
+			})
+		}
+	}
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.n.Process(t.Context(), "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("clip replacement did not start")
+	}
+	h.n.Process(t.Context(), "frigate/events", withSubLabel(eventMsg("update", evID, "garage", "person", nil), "Alice"))
+	close(release)
+	if !h.n.Wait(5 * time.Second) {
+		t.Fatal("message edits did not finish")
+	}
+
+	var chatOne []tgCall
+	for _, call := range h.tg.byMethod("editMessageMedia:video") {
+		if call.ChatID == 1 {
+			chatOne = append(chatOne, call)
+		}
+	}
+	if len(chatOne) != 2 || chatOne[1].FileID != "video-file" || !strings.Contains(chatOne[1].Text, "Alice") {
+		t.Fatalf("video replacement and subsequent caption edit = %+v", chatOne)
 	}
 }
 

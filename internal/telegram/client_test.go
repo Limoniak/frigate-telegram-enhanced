@@ -140,15 +140,18 @@ func TestSendRichMessage(t *testing.T) {
 	}
 }
 
-func TestSendRichMessageHTMLWithMarkupUsesRichButtons(t *testing.T) {
+func TestSendRichMessageHTMLWithMarkupUsesButtonBlocks(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var rich InputRichMessage
 		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(rich.HTML, `<tg-button-row align="center">`) ||
-			!strings.Contains(rich.HTML, `type="callback_data" style="primary" data="action"`) ||
-			len(rich.Blocks) != 0 ||
+		if rich.HTML != "" || len(rich.Blocks) != 2 ||
+			!strings.Contains(string(rich.Blocks[0]), `"type":"paragraph"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"type":"bold"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"type":"buttons"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"action"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"align":"left"`) ||
 			r.FormValue("reply_markup") != "" {
 			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
 		}
@@ -230,11 +233,19 @@ func TestRichButtonBlocks(t *testing.T) {
 }
 
 func TestRichMessageFileID(t *testing.T) {
-	m := Message{RichMessage: &RichMessage{Blocks: []json.RawMessage{
-		json.RawMessage(`{"type":"video","video":{"file_id":"rich-video"}}`),
-	}}}
-	if got := m.FileID(); got != "rich-video" {
-		t.Fatalf("FileID() = %q, want rich-video", got)
+	for _, tc := range []struct {
+		kind, payload, want string
+	}{
+		{"photo", `"photo":[{"file_id":"rich-photo"}]`, "rich-photo"},
+		{"video", `"video":{"file_id":"rich-video"}`, "rich-video"},
+		{"animation", `"animation":{"file_id":"rich-gif"}`, "rich-gif"},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			m := Message{RichMessage: &RichMessage{Blocks: []json.RawMessage{json.RawMessage(`{"type":"` + tc.kind + `",` + tc.payload + `}`)}}}
+			if got := m.FileID(); got != tc.want {
+				t.Fatalf("FileID() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -252,6 +263,17 @@ func TestRichCaptionTextPreservesFormatting(t *testing.T) {
 	}
 }
 
+func TestRichCaptionTextDecodesEntitiesAndUnicode(t *testing.T) {
+	var got []any
+	if err := json.Unmarshal(richCaptionText(`<b>Привет 🚶</b> &amp; <i>мир</i>`), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[1] != " & " ||
+		got[0].(map[string]any)["text"] != "Привет 🚶" || got[2].(map[string]any)["text"] != "мир" {
+		t.Fatalf("rich caption text = %#v", got)
+	}
+}
+
 func TestEditMessageTextUsesRichMessage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/bot"+token+"/editMessageText" {
@@ -259,8 +281,10 @@ func TestEditMessageTextUsesRichMessage(t *testing.T) {
 		}
 		var rich InputRichMessage
 		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil ||
-			!strings.Contains(rich.HTML, `<tg-button-row align="center">`) ||
-			!strings.Contains(rich.HTML, `type="callback_data" style="primary" data="x"`) || len(rich.Blocks) != 0 {
+			rich.HTML != "" || len(rich.Blocks) != 2 ||
+			!strings.Contains(string(rich.Blocks[1]), `"type":"buttons"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"x"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"align":"left"`) {
 			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
 		}
 		if r.FormValue("text") != "" || r.FormValue("parse_mode") != "" || r.FormValue("reply_markup") != "" {
@@ -303,14 +327,30 @@ func TestRetryOn5xx(t *testing.T) {
 			io.WriteString(w, `<html>bad gateway</html>`)
 			return
 		}
-		okResult(w, `{"message_id":1,"chat":{"id":1}}`)
+		okResult(w, `true`)
 	}))
 	defer srv.Close()
-	if _, err := testClient(srv.URL).SendMessage(context.Background(), 1, "hi", SendOptions{}); err != nil {
+	if err := testClient(srv.URL).EditMessageText(context.Background(), 1, 7, "hi", nil); err != nil {
 		t.Fatal(err)
 	}
 	if calls.Load() != 3 {
 		t.Errorf("calls = %d, want 3", calls.Load())
+	}
+}
+
+func TestUniqueSendNotRetriedOn5xx(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusBadGateway)
+		io.WriteString(w, `{"ok":false,"error_code":502,"description":"Bad Gateway"}`)
+	}))
+	defer srv.Close()
+	if _, err := testClient(srv.URL).SendMessage(context.Background(), 1, "hi", SendOptions{}); err == nil {
+		t.Fatal("want an error when the send result is uncertain")
+	}
+	if calls.Load() != 1 {
+		t.Errorf("calls = %d, want one attempt to avoid a duplicate message", calls.Load())
 	}
 }
 
