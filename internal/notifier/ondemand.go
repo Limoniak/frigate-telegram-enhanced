@@ -141,7 +141,7 @@ func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 	if link := n.uiLink("/#" + url.PathEscape(camera)); link != "" && cfg.ShowLink {
 		caption += openInFrigate(link, l)
 	}
-	markup := buttons(camera, "test", n.Config.HomeAssistantURL(), l)
+	markup := buttons(camera, "", n.Config.HomeAssistantURL(), l)
 
 	var photo []byte
 	if cfg.Snapshot {
