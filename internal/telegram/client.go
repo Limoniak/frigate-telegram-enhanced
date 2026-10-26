@@ -466,19 +466,6 @@ func (r InputRichMessage) validate() error {
 	return nil
 }
 
-func (c *Client) sendMedia(ctx context.Context, method, field string, chatID int64, f InputFile, o SendOptions, extra map[string]string) (Message, error) {
-	p := map[string]string{"chat_id": chatParam(chatID)}
-	maps.Copy(p, extra)
-	o.apply(p)
-	timeout := 30 * time.Second
-	if f.FileID == "" {
-		timeout = 5 * time.Minute // upload up to 50 MB
-	}
-	var m Message
-	err := c.call(ctx, request{method: method, chatID: chatID, params: p, file: &fileParam{field: field, file: f}, timeout: timeout, unique: true}, &m)
-	return m, err
-}
-
 func (c *Client) EditMessageCaption(ctx context.Context, chatID int64, messageID int, caption string, markup *InlineKeyboardMarkup) error {
 	p := map[string]string{"chat_id": chatParam(chatID), "message_id": strconv.Itoa(messageID)}
 	SendOptions{Caption: caption, Markup: markup}.apply(p)
