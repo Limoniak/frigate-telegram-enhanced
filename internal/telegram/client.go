@@ -420,8 +420,16 @@ func (c *Client) EditMessageCaption(ctx context.Context, chatID int64, messageID
 }
 
 func (c *Client) EditMessageText(ctx context.Context, chatID int64, messageID int, text string, markup *InlineKeyboardMarkup) error {
-	p := map[string]string{"chat_id": chatParam(chatID), "message_id": strconv.Itoa(messageID), "text": text, "link_preview_options": `{"is_disabled":true}`}
-	SendOptions{Markup: markup}.apply(p)
+	b, err := json.Marshal(InputRichMessage{HTML: text})
+	if err != nil {
+		return err
+	}
+	p := map[string]string{
+		"chat_id":      chatParam(chatID),
+		"message_id":   strconv.Itoa(messageID),
+		"rich_message": string(b),
+	}
+	SendOptions{Markup: markup}.applyCommon(p)
 	return c.call(ctx, request{method: "editMessageText", chatID: chatID, params: p}, nil)
 }
 

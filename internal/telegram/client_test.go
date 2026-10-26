@@ -199,6 +199,27 @@ func TestRichMessageFileID(t *testing.T) {
 	}
 }
 
+func TestEditMessageTextUsesRichMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bot"+token+"/editMessageText" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil || rich.HTML != "<b>updated</b>" {
+			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
+		}
+		if r.FormValue("text") != "" || r.FormValue("parse_mode") != "" {
+			t.Errorf("legacy fields leaked: text=%q parse_mode=%q", r.FormValue("text"), r.FormValue("parse_mode"))
+		}
+		okResult(w, `true`)
+	}))
+	defer srv.Close()
+
+	if err := testClient(srv.URL).EditMessageText(context.Background(), 42, 7, "<b>updated</b>", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRetryOn429(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
