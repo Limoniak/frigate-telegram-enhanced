@@ -35,7 +35,7 @@ interface to set everything up in a few clicks, and control from Telegram itself
 - Commands: `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Burst grouping**: detections close in time are added to the first message instead of sending new ones
 - **Cropped snapshots**: the image zoomed on the detected object, much more readable on a phone
-- In **English**, **French**, **German**, **Spanish**, **Italian**, **Portuguese** or **Slovenian**: Telegram messages (chosen on the setup page) and the web interface (language switch) — other languages can be added with a single file, see [Translating](#translating)
+- In **English**, **Russian**, **French**, **German**, **Spanish**, **Italian**, **Portuguese** or **Slovenian**: Telegram messages (chosen on the setup page) and the web interface (language switch) — other languages can be added with a single file, see [Translating](#translating)
 - **Presence**: no notifications (or silent ones) while someone is home, from Home Assistant or any MQTT topic
 - **Per-recipient settings**: e.g. you get everything, the family only people at night
 - After an MQTT outage, detections missed during the last hour are caught up from Frigate

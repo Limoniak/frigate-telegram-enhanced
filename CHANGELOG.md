@@ -7,6 +7,22 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Added / Добавлено
+
+- Russian localization for the web interface, setup flow, errors and Telegram messages,
+  including Russian date and time formatting.
+  Русская локализация веб-интерфейса, первичной настройки, ошибок и сообщений Telegram,
+  включая русские форматы даты и времени.
+
+### Changed / Изменено
+
+- Telegram pause-menu buttons now use translated labels, and Russian wording was polished
+  across the interface.
+  Кнопки меню паузы в Telegram теперь используют переведённые подписи, а русские формулировки
+  в интерфейсе были отредактированы.
+- Native select option menus follow the selected light or dark theme more closely.
+  Выпадающие списки native select лучше соответствуют выбранной светлой или тёмной теме.
+
 ### Security
 
 - Built with Go 1.27.3, which distrusts compromised intermediate certificates in

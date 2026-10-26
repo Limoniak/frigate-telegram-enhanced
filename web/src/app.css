@@ -91,6 +91,8 @@ body {
 .field::placeholder { color: var(--faint); }
 .field:disabled { opacity: 0.5; }
 select.field { appearance: auto; }
+/* Native option popups use the browser's palette, so keep them aligned with the page theme. */
+select option { color: var(--ink); background: var(--bg); }
 .field[aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--err); }
 }
 /* Tom Select (a searchable select): the wrapper keeps .field's look, its parts follow the theme.
