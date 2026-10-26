@@ -48,6 +48,7 @@ type Telegram interface {
 	SendPhoto(ctx context.Context, chatID int64, f telegram.InputFile, o telegram.SendOptions) (telegram.Message, error)
 	SendVideo(ctx context.Context, chatID int64, f telegram.InputFile, o telegram.SendOptions) (telegram.Message, error)
 	SendAnimation(ctx context.Context, chatID int64, f telegram.InputFile, o telegram.SendOptions) (telegram.Message, error)
+	EditRichMedia(ctx context.Context, chatID int64, messageID int, kind string, f telegram.InputFile, caption string, o telegram.SendOptions) (telegram.Message, error)
 	EditMessageCaption(ctx context.Context, chatID int64, messageID int, caption string, markup *telegram.InlineKeyboardMarkup) error
 	EditMessageText(ctx context.Context, chatID int64, messageID int, text string, markup *telegram.InlineKeyboardMarkup) error
 	EditMessageMedia(ctx context.Context, chatID int64, messageID int, kind string, f telegram.InputFile, caption string, markup *telegram.InlineKeyboardMarkup) (telegram.Message, error)
@@ -104,8 +105,10 @@ type inMsg struct {
 type topics struct{ events, reviews, updates string }
 
 type sentMsg struct {
-	id   int
-	text bool // text message (no photo): edited with editMessageText
+	id     int
+	text   bool // text message (no media): edited with editMessageText
+	kind   string
+	fileID string
 }
 
 // tracked follows an event (events mode) or a review (reviews mode).

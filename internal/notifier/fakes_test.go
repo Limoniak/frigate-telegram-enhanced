@@ -273,6 +273,24 @@ func (f *fakeTelegram) EditMessageCaption(_ context.Context, chatID int64, messa
 	return nil
 }
 
+func (f *fakeTelegram) EditRichMedia(_ context.Context, chatID int64, messageID int, kind string, file telegram.InputFile, caption string, _ telegram.SendOptions) (telegram.Message, error) {
+	method := "editMessageMedia:" + kind
+	if file.FileID != "" && kind == "photo" {
+		method = "editMessageCaption"
+	}
+	id := f.add(tgCall{Method: method, ChatID: chatID, Target: messageID, Text: caption, FileID: file.FileID, Data: fileData(file)})
+	m := telegram.Message{MessageID: id, RichMessage: &telegram.RichMessage{}}
+	switch kind {
+	case "photo":
+		m.Photo = []telegram.PhotoSize{{FileID: "photo-file"}}
+	case "video":
+		m.Video = &telegram.Video{FileID: "video-file"}
+	case "animation":
+		m.Animation = &telegram.Animation{FileID: "gif-file"}
+	}
+	return m, nil
+}
+
 func (f *fakeTelegram) EditMessageText(_ context.Context, chatID int64, messageID int, text string, _ *telegram.InlineKeyboardMarkup) error {
 	f.add(tgCall{Method: "editMessageText", ChatID: chatID, Target: messageID, Text: text})
 	return nil

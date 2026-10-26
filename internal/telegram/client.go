@@ -347,6 +347,16 @@ func (c *Client) SendRichMessage(ctx context.Context, chatID int64, rich InputRi
 // SendRichMedia sends one photo, video, or animation block. When f is a new
 // upload it is attached as attach://file inside the rich block.
 func (c *Client) SendRichMedia(ctx context.Context, chatID int64, kind string, f InputFile, caption string, o SendOptions) (Message, error) {
+	return c.richMediaRequest(ctx, "sendRichMessage", chatID, 0, kind, f, caption, o)
+}
+
+// EditRichMedia updates a media block in a RichMessage without falling back to
+// legacy reply_markup/editMessageMedia.
+func (c *Client) EditRichMedia(ctx context.Context, chatID int64, messageID int, kind string, f InputFile, caption string, o SendOptions) (Message, error) {
+	return c.richMediaRequest(ctx, "editMessageText", chatID, messageID, kind, f, caption, o)
+}
+
+func (c *Client) richMediaRequest(ctx context.Context, method string, chatID int64, messageID int, kind string, f InputFile, caption string, o SendOptions) (Message, error) {
 	if kind != "photo" && kind != "video" && kind != "animation" {
 		return Message{}, fmt.Errorf("telegram rich media: unsupported kind %q", kind)
 	}
@@ -378,13 +388,16 @@ func (c *Client) SendRichMedia(ctx context.Context, chatID int64, kind string, f
 		return Message{}, err
 	}
 	p := map[string]string{"chat_id": chatParam(chatID), "rich_message": string(rich)}
+	if messageID != 0 {
+		p["message_id"] = strconv.Itoa(messageID)
+	}
 	o.applyCommon(p)
 	timeout := 30 * time.Second
 	if file != nil {
 		timeout = 5 * time.Minute
 	}
 	var m Message
-	err = c.call(ctx, request{method: "sendRichMessage", chatID: chatID, params: p, file: file, timeout: timeout, unique: true}, &m)
+	err = c.call(ctx, request{method: method, chatID: chatID, params: p, file: file, timeout: timeout, unique: true}, &m)
 	return m, err
 }
 

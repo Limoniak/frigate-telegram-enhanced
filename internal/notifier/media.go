@@ -98,14 +98,18 @@ func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption s
 			func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
 				return n.Telegram.SendRichMedia(ctx, chatID, "photo", f, caption, telegram.SendOptions{Silent: silent(chat), Markup: markup})
 			},
-			func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID}) })
+			func(chat string, m telegram.Message) {
+				t.setMessage(chat, sentMsg{id: m.MessageID, kind: "photo", fileID: m.FileID()})
+			})
 		return
 	}
 	n.deliver(ctx, chats, "photo", telegram.InputFile{Name: "snapshot.jpg", Data: photo},
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
 			return n.Telegram.SendPhoto(ctx, chatID, f, telegram.SendOptions{Caption: caption, Silent: silent(chat), Markup: markup})
 		},
-		func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID}) })
+		func(chat string, m telegram.Message) {
+			t.setMessage(chat, sentMsg{id: m.MessageID, kind: "photo", fileID: m.FileID()})
+		})
 }
 
 // sendFollowUp sends the clip ("video") or the GIF ("animation"). With inPlace, it
@@ -168,20 +172,21 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
 			m := t.message(chat)
 			if !inPlace {
-				return n.Telegram.SendRichMedia(ctx, chatID, kind, f, note, telegram.SendOptions{Silent: true, ReplyTo: m.id})
+				return n.Telegram.SendRichMedia(ctx, chatID, kind, f, note, telegram.SendOptions{Silent: true, ReplyTo: m.id, Markup: buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language)})
 			}
 			if inPlace && m.id != 0 && !m.text {
 				n.mu.Lock()
 				caption := n.captionFor(t, chat)
 				n.mu.Unlock()
-				edited, err := n.Telegram.EditMessageMedia(ctx, chatID, m.id, kind, f, caption, buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language))
+				edited, err := n.Telegram.EditRichMedia(ctx, chatID, m.id, kind, f, caption, telegram.SendOptions{Markup: buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language)})
 				if err == nil {
+					t.setMessage(chat, sentMsg{id: m.id, kind: kind, fileID: edited.FileID()})
 					return edited, nil
 				}
 				// Message deleted in the meantime, for example: fall back to a reply.
 				n.Log.Warn("replacing the image failed, sending as a reply", "kind", kind, "chat", chat, "err", err)
 			}
-			o := telegram.SendOptions{Silent: true, ReplyTo: m.id, Caption: note}
+			o := telegram.SendOptions{Silent: true, ReplyTo: m.id, Caption: note, Markup: buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language)}
 			if kind == "animation" {
 				return n.Telegram.SendAnimation(ctx, chatID, f, o)
 			}

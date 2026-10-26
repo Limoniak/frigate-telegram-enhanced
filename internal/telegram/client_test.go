@@ -405,6 +405,32 @@ func TestEditMessageMedia(t *testing.T) {
 	}
 }
 
+func TestEditRichMediaUsesRichMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bot123:abc/editMessageText" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
+			t.Fatal(err)
+		}
+		if len(rich.Blocks) != 2 || !strings.Contains(string(rich.Blocks[0]), `"type":"video"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"media":"VID"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"open"`) ||
+			r.FormValue("reply_markup") != "" {
+			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
+		}
+		okResult(w, `{"message_id":7,"rich_message":{"blocks":[]}}`)
+	}))
+	defer srv.Close()
+
+	if _, err := New("123:abc", WithBaseURL(srv.URL), WithBackoff(0)).EditRichMedia(
+		context.Background(), 42, 7, "video", InputFile{FileID: "VID"}, "<b>Person</b>",
+		SendOptions{Markup: &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Open", CallbackData: "open"}}}}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // dropAfterRead reads the request, then closes the connection without answering:
 // Telegram got the send, but the response was lost.
 func dropAfterRead(calls *atomic.Int32) http.HandlerFunc {
