@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/net/html"
 	"io"
 	"maps"
 	"mime/multipart"
@@ -19,6 +18,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/net/html"
 )
 
 const defaultBaseURL = "https://api.telegram.org"
@@ -344,7 +345,7 @@ func (c *Client) SendRichMedia(ctx context.Context, chatID int64, kind string, f
 	}
 	block := map[string]any{"type": kind, kind: media}
 	if caption != "" {
-		block["caption"] = map[string]string{"text": richCaptionText(caption)}
+		block["caption"] = map[string]json.RawMessage{"text": richCaptionText(caption)}
 	}
 	bb, err := json.Marshal(block)
 	if err != nil {
@@ -365,22 +366,87 @@ func (c *Client) SendRichMedia(ctx context.Context, chatID int64, kind string, f
 	return m, err
 }
 
-func richCaptionText(s string) string {
-	t := html.NewTokenizer(strings.NewReader(s))
-	var b strings.Builder
-	for {
-		switch tt := t.Next(); tt {
-		case html.ErrorToken:
-			return b.String()
-		case html.TextToken:
-			b.WriteString(string(t.Text()))
-		case html.StartTagToken:
-			name, _ := t.TagName()
-			if string(name) == "br" {
-				b.WriteByte('\n')
+func richCaptionText(s string) json.RawMessage {
+	root, err := html.Parse(strings.NewReader("<div>" + s + "</div>"))
+	if err != nil {
+		b, _ := json.Marshal(s)
+		return b
+	}
+	container := root
+	for child := root.FirstChild; child != nil; child = child.NextSibling {
+		if child.Type == html.ElementNode && child.Data == "html" {
+			for body := child.FirstChild; body != nil; body = body.NextSibling {
+				if body.Type == html.ElementNode && body.Data == "body" {
+					for div := body.FirstChild; div != nil; div = div.NextSibling {
+						if div.Type == html.ElementNode && div.Data == "div" {
+							container = div
+						}
+					}
+				}
 			}
 		}
 	}
+	b, err := json.Marshal(richTextValue(children(container)))
+	if err != nil {
+		plain := html.UnescapeString(s)
+		b, _ = json.Marshal(plain)
+	}
+	return b
+}
+
+func richTextValue(nodes []*html.Node) any {
+	parts := make([]any, 0, len(nodes))
+	for _, n := range nodes {
+		if part := richTextNode(n); part != nil {
+			parts = append(parts, part)
+		}
+	}
+	switch len(parts) {
+	case 0:
+		return ""
+	case 1:
+		return parts[0]
+	default:
+		return parts
+	}
+}
+
+func richTextNode(n *html.Node) any {
+	switch n.Type {
+	case html.TextNode:
+		return n.Data
+	case html.ElementNode:
+		if n.Data == "br" {
+			return "\n"
+		}
+		text := richTextValue(children(n))
+		typeName := map[string]string{
+			"b": "bold", "strong": "bold", "i": "italic", "em": "italic",
+			"u": "underline", "ins": "underline", "s": "strikethrough",
+			"strike": "strikethrough", "del": "strikethrough", "code": "code",
+		}[n.Data]
+		if typeName != "" {
+			return map[string]any{"type": typeName, "text": text}
+		}
+		if n.Data == "a" {
+			for _, attr := range n.Attr {
+				if attr.Key == "href" && attr.Val != "" {
+					return map[string]any{"type": "url", "text": text, "url": attr.Val}
+				}
+			}
+		}
+		return text
+	default:
+		return nil
+	}
+}
+
+func children(n *html.Node) []*html.Node {
+	children := make([]*html.Node, 0)
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		children = append(children, child)
+	}
+	return children
 }
 
 func (r InputRichMessage) validate() error {

@@ -48,7 +48,7 @@ func TestSendPhotoMultipart(t *testing.T) {
 		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil ||
 			len(rich.Blocks) != 1 || !strings.Contains(string(rich.Blocks[0]), `"type":"photo"`) ||
 			!strings.Contains(string(rich.Blocks[0]), `"media":"attach://file"`) ||
-			!strings.Contains(string(rich.Blocks[0]), `"text":"hi"`) {
+			!strings.Contains(string(rich.Blocks[0]), `"type":"bold"`) || !strings.Contains(string(rich.Blocks[0]), `"text":"hi"`) {
 			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
 		}
 		var markup InlineKeyboardMarkup
@@ -196,6 +196,20 @@ func TestRichMessageFileID(t *testing.T) {
 	}}}
 	if got := m.FileID(); got != "rich-video" {
 		t.Fatalf("FileID() = %q, want rich-video", got)
+	}
+}
+
+func TestRichCaptionTextPreservesFormatting(t *testing.T) {
+	var got any
+	if err := json.Unmarshal(richCaptionText(`<b>Person</b><br><a href="https://frigate.local">Open</a>`), &got); err != nil {
+		t.Fatal(err)
+	}
+	parts, ok := got.([]any)
+	if !ok || len(parts) != 3 {
+		t.Fatalf("caption = %#v, want three rich text parts", got)
+	}
+	if parts[0].(map[string]any)["type"] != "bold" || parts[1] != "\n" || parts[2].(map[string]any)["type"] != "url" {
+		t.Fatalf("caption parts = %#v", parts)
 	}
 }
 
