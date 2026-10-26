@@ -319,9 +319,16 @@ func (c *Client) SendAnimation(ctx context.Context, chatID int64, f InputFile, o
 // SendRichMessage sends HTML, Markdown, or block-based rich content using
 // Telegram Bot API 10.1+. The content shape is validated before the request.
 func (c *Client) SendRichMessage(ctx context.Context, chatID int64, rich InputRichMessage, o SendOptions) (Message, error) {
-	if len(rich.Blocks) > 0 && o.Markup != nil {
-		rich.Blocks = append(rich.Blocks, richButtonBlocks(o.Markup)...)
-		o.Markup = nil
+	if o.Markup != nil {
+		switch {
+		case len(rich.Blocks) > 0:
+			rich.Blocks = append(rich.Blocks, richButtonBlocks(o.Markup)...)
+			o.Markup = nil
+		case rich.HTML != "":
+			rich.Blocks = append([]json.RawMessage{richParagraph(rich.HTML)}, richButtonBlocks(o.Markup)...)
+			rich.HTML = ""
+			o.Markup = nil
+		}
 	}
 	if err := rich.validate(); err != nil {
 		return Message{}, err

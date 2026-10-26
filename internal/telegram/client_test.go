@@ -140,6 +140,30 @@ func TestSendRichMessage(t *testing.T) {
 	}
 }
 
+func TestSendRichMessageHTMLWithMarkupUsesRichButtons(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
+			t.Fatal(err)
+		}
+		if rich.HTML != "" || len(rich.Blocks) != 2 ||
+			!strings.Contains(string(rich.Blocks[0]), `"type":"paragraph"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"action"`) ||
+			r.FormValue("reply_markup") != "" {
+			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
+		}
+		okResult(w, `{"message_id":11,"chat":{"id":42},"rich_message":{"blocks":[]}}`)
+	}))
+	defer srv.Close()
+
+	if _, err := testClient(srv.URL).SendRichMessage(context.Background(), 42,
+		InputRichMessage{HTML: "<b>Alert</b>"}, SendOptions{Markup: &InlineKeyboardMarkup{
+			InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Action", CallbackData: "action"}}},
+		}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSendRichMessageRequiresOneContentForm(t *testing.T) {
 	if _, err := testClient("http://127.0.0.1:1").SendRichMessage(context.Background(), 42, InputRichMessage{}, SendOptions{}); err == nil {
 		t.Fatal("empty rich message should be rejected before the request")
