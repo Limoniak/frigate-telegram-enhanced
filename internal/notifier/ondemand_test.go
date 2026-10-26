@@ -136,6 +136,9 @@ func TestSendTestUsesLiveSnapshotAndRecipients(t *testing.T) {
 	if !strings.Contains(photos[0].Text, "Test notification") || !strings.Contains(photos[0].Text, "video clip will follow") {
 		t.Errorf("caption = %q", photos[0].Text)
 	}
+	if photos[0].Opts.Markup == nil || len(photos[0].Opts.Markup.InlineKeyboard) == 0 {
+		t.Fatal("test notification has no buttons")
+	}
 }
 
 func TestSendTestFallsBackToTextWithoutSnapshot(t *testing.T) {

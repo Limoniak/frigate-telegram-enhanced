@@ -141,6 +141,7 @@ func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 	if link := n.uiLink("/#" + url.PathEscape(camera)); link != "" && cfg.ShowLink {
 		caption += openInFrigate(link, l)
 	}
+	markup := buttons(camera, "test", n.Config.HomeAssistantURL(), l)
 
 	var photo []byte
 	if cfg.Snapshot {
@@ -162,17 +163,17 @@ func (n *Notifier) SendTest(ctx context.Context, camera string) error {
 	if photo == nil {
 		n.deliver(ctx, cfg.Chats, "text", telegram.InputFile{},
 			func(ctx context.Context, chatID int64, _ string, _ telegram.InputFile) (telegram.Message, error) {
-				return record(n.Telegram.SendRichMessage(ctx, chatID, telegram.InputRichMessage{HTML: caption}, telegram.SendOptions{}))
+				return record(n.Telegram.SendRichMessage(ctx, chatID, telegram.InputRichMessage{HTML: caption}, telegram.SendOptions{Markup: markup}))
 			}, nil)
 	} else if !cfg.MediaInPlace {
 		n.deliver(ctx, cfg.Chats, "photo", telegram.InputFile{Name: "test.jpg", Data: photo},
 			func(ctx context.Context, chatID int64, _ string, f telegram.InputFile) (telegram.Message, error) {
-				return record(n.Telegram.SendRichMedia(ctx, chatID, "photo", f, caption, telegram.SendOptions{}))
+				return record(n.Telegram.SendRichMedia(ctx, chatID, "photo", f, caption, telegram.SendOptions{Markup: markup}))
 			}, nil)
 	} else {
 		n.deliver(ctx, cfg.Chats, "photo", telegram.InputFile{Name: "test.jpg", Data: photo},
 			func(ctx context.Context, chatID int64, _ string, f telegram.InputFile) (telegram.Message, error) {
-				return record(n.Telegram.SendPhoto(ctx, chatID, f, telegram.SendOptions{Caption: caption}))
+				return record(n.Telegram.SendPhoto(ctx, chatID, f, telegram.SendOptions{Caption: caption, Markup: markup}))
 			}, nil)
 	}
 	if sent == 0 && lastErr != nil {
