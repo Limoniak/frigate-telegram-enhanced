@@ -146,9 +146,9 @@ func TestSendRichMessageHTMLWithMarkupUsesRichButtons(t *testing.T) {
 		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
 			t.Fatal(err)
 		}
-		if rich.HTML != "" || len(rich.Blocks) != 2 ||
-			!strings.Contains(string(rich.Blocks[0]), `"type":"paragraph"`) ||
-			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"action"`) ||
+		if !strings.Contains(rich.HTML, `<tg-button-row align="center">`) ||
+			!strings.Contains(rich.HTML, `type="callback_data" data="action"`) ||
+			len(rich.Blocks) != 0 ||
 			r.FormValue("reply_markup") != "" {
 			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
 		}
@@ -258,9 +258,9 @@ func TestEditMessageTextUsesRichMessage(t *testing.T) {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		var rich InputRichMessage
-		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil || len(rich.Blocks) != 2 ||
-			!strings.Contains(string(rich.Blocks[0]), `"type":"paragraph"`) ||
-			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"x"`) {
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil ||
+			!strings.Contains(rich.HTML, `<tg-button-row align="center">`) ||
+			!strings.Contains(rich.HTML, `type="callback_data" data="x"`) || len(rich.Blocks) != 0 {
 			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
 		}
 		if r.FormValue("text") != "" || r.FormValue("parse_mode") != "" || r.FormValue("reply_markup") != "" {

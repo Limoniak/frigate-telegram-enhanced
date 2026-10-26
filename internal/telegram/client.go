@@ -298,7 +298,7 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, o S
 	o.Caption = ""
 	rich := InputRichMessage{HTML: text}
 	if o.Markup != nil {
-		rich = InputRichMessage{Blocks: []json.RawMessage{richParagraph(text)}}
+		rich = InputRichMessage{HTML: richHTMLWithButtons(text, o.Markup)}
 		o.Markup = nil
 	}
 	return c.SendRichMessage(ctx, chatID, rich, o)
@@ -325,8 +325,7 @@ func (c *Client) SendRichMessage(ctx context.Context, chatID int64, rich InputRi
 			rich.Blocks = append(rich.Blocks, richButtonBlocks(o.Markup)...)
 			o.Markup = nil
 		case rich.HTML != "":
-			rich.Blocks = append([]json.RawMessage{richParagraph(rich.HTML)}, richButtonBlocks(o.Markup)...)
-			rich.HTML = ""
+			rich.HTML = richHTMLWithButtons(rich.HTML, o.Markup)
 			o.Markup = nil
 		}
 	}
@@ -432,6 +431,32 @@ func richCaptionText(s string) json.RawMessage {
 func richParagraph(s string) json.RawMessage {
 	b, _ := json.Marshal(map[string]any{"type": "paragraph", "text": richCaptionText(s)})
 	return b
+}
+
+func richHTMLWithButtons(text string, markup *InlineKeyboardMarkup) string {
+	if markup == nil {
+		return text
+	}
+	var b strings.Builder
+	b.WriteString(text)
+	for _, row := range markup.InlineKeyboard {
+		validRow := slices.DeleteFunc(slices.Clone(row), func(button InlineKeyboardButton) bool {
+			return button.CallbackData == "" && button.URL == ""
+		})
+		for start := 0; start < len(validRow); start += 8 {
+			end := min(start+8, len(validRow))
+			b.WriteString("\n<tg-button-row align=\"center\">")
+			for _, button := range validRow[start:end] {
+				if button.CallbackData != "" {
+					b.WriteString(`<tg-button type="callback_data" data="` + html.EscapeString(button.CallbackData) + `">` + html.EscapeString(button.Text) + `</tg-button>`)
+				} else if button.URL != "" {
+					b.WriteString(`<tg-button type="url" url="` + html.EscapeString(button.URL) + `">` + html.EscapeString(button.Text) + `</tg-button>`)
+				}
+			}
+			b.WriteString("</tg-button-row>")
+		}
+	}
+	return b.String()
 }
 
 func richButtonBlocks(markup *InlineKeyboardMarkup) []json.RawMessage {
@@ -544,10 +569,7 @@ func (c *Client) EditMessageCaption(ctx context.Context, chatID int64, messageID
 }
 
 func (c *Client) EditMessageText(ctx context.Context, chatID int64, messageID int, text string, markup *InlineKeyboardMarkup) error {
-	rich := InputRichMessage{HTML: text}
-	if markup != nil {
-		rich = InputRichMessage{Blocks: append([]json.RawMessage{richParagraph(text)}, richButtonBlocks(markup)...)}
-	}
+	rich := InputRichMessage{HTML: richHTMLWithButtons(text, markup)}
 	b, err := json.Marshal(rich)
 	if err != nil {
 		return err
