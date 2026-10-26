@@ -296,7 +296,12 @@ func (o SendOptions) applyCommon(p map[string]string) {
 
 func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, o SendOptions) (Message, error) {
 	o.Caption = ""
-	return c.SendRichMessage(ctx, chatID, InputRichMessage{HTML: text}, o)
+	rich := InputRichMessage{HTML: text}
+	if o.Markup != nil {
+		rich = InputRichMessage{Blocks: []json.RawMessage{richParagraph(text)}}
+		o.Markup = nil
+	}
+	return c.SendRichMessage(ctx, chatID, rich, o)
 }
 
 func (c *Client) SendPhoto(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
@@ -314,6 +319,10 @@ func (c *Client) SendAnimation(ctx context.Context, chatID int64, f InputFile, o
 // SendRichMessage sends HTML, Markdown, or block-based rich content using
 // Telegram Bot API 10.1+. The content shape is validated before the request.
 func (c *Client) SendRichMessage(ctx context.Context, chatID int64, rich InputRichMessage, o SendOptions) (Message, error) {
+	if len(rich.Blocks) > 0 && o.Markup != nil {
+		rich.Blocks = append(rich.Blocks, richButtonBlocks(o.Markup)...)
+		o.Markup = nil
+	}
 	if err := rich.validate(); err != nil {
 		return Message{}, err
 	}
@@ -347,11 +356,17 @@ func (c *Client) SendRichMedia(ctx context.Context, chatID int64, kind string, f
 	if caption != "" {
 		block["caption"] = map[string]json.RawMessage{"text": richCaptionText(caption)}
 	}
+	blocks := []json.RawMessage{}
 	bb, err := json.Marshal(block)
 	if err != nil {
 		return Message{}, err
 	}
-	rich, err := json.Marshal(InputRichMessage{Blocks: []json.RawMessage{bb}})
+	blocks = append(blocks, bb)
+	if o.Markup != nil {
+		blocks = append(blocks, richButtonBlocks(o.Markup)...)
+		o.Markup = nil
+	}
+	rich, err := json.Marshal(InputRichMessage{Blocks: blocks})
 	if err != nil {
 		return Message{}, err
 	}
@@ -392,6 +407,42 @@ func richCaptionText(s string) json.RawMessage {
 		b, _ = json.Marshal(plain)
 	}
 	return b
+}
+
+func richParagraph(s string) json.RawMessage {
+	b, _ := json.Marshal(map[string]any{"type": "paragraph", "text": richCaptionText(s)})
+	return b
+}
+
+func richButtonBlocks(markup *InlineKeyboardMarkup) []json.RawMessage {
+	if markup == nil {
+		return nil
+	}
+	var blocks []json.RawMessage
+	for _, row := range markup.InlineKeyboard {
+		for start := 0; start < len(row); start += 8 {
+			end := min(start+8, len(row))
+			buttons := make([]map[string]string, 0, end-start)
+			for _, b := range row[start:end] {
+				button := map[string]string{"text": b.Text}
+				switch {
+				case b.CallbackData != "":
+					button["callback_data"] = b.CallbackData
+				case b.URL != "":
+					button["url"] = b.URL
+				default:
+					continue
+				}
+				buttons = append(buttons, button)
+			}
+			if len(buttons) == 0 {
+				continue
+			}
+			block, _ := json.Marshal(map[string]any{"type": "buttons", "buttons": buttons})
+			blocks = append(blocks, block)
+		}
+	}
+	return blocks
 }
 
 func richTextValue(nodes []*html.Node) any {
@@ -473,7 +524,11 @@ func (c *Client) EditMessageCaption(ctx context.Context, chatID int64, messageID
 }
 
 func (c *Client) EditMessageText(ctx context.Context, chatID int64, messageID int, text string, markup *InlineKeyboardMarkup) error {
-	b, err := json.Marshal(InputRichMessage{HTML: text})
+	rich := InputRichMessage{HTML: text}
+	if markup != nil {
+		rich = InputRichMessage{Blocks: append([]json.RawMessage{richParagraph(text)}, richButtonBlocks(markup)...)}
+	}
+	b, err := json.Marshal(rich)
 	if err != nil {
 		return err
 	}

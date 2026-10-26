@@ -46,14 +46,13 @@ func TestSendPhotoMultipart(t *testing.T) {
 		}
 		var rich InputRichMessage
 		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil ||
-			len(rich.Blocks) != 1 || !strings.Contains(string(rich.Blocks[0]), `"type":"photo"`) ||
+			len(rich.Blocks) != 2 || !strings.Contains(string(rich.Blocks[0]), `"type":"photo"`) ||
 			!strings.Contains(string(rich.Blocks[0]), `"media":"attach://file"`) ||
 			!strings.Contains(string(rich.Blocks[0]), `"type":"bold"`) || !strings.Contains(string(rich.Blocks[0]), `"text":"hi"`) {
 			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
 		}
-		var markup InlineKeyboardMarkup
-		if err := json.Unmarshal([]byte(r.FormValue("reply_markup")), &markup); err != nil || markup.InlineKeyboard[0][0].CallbackData != "p:1800" {
-			t.Errorf("reply_markup = %q", r.FormValue("reply_markup"))
+		if !strings.Contains(r.FormValue("rich_message"), `"callback_data":"p:1800"`) {
+			t.Errorf("rich buttons = %q", r.FormValue("rich_message"))
 		}
 		if !strings.Contains(r.FormValue("reply_parameters"), `"message_id":5`) {
 			t.Errorf("reply_parameters = %q", r.FormValue("reply_parameters"))
@@ -175,18 +174,34 @@ func TestSendRichMediaMultipart(t *testing.T) {
 			t.Fatal(err)
 		}
 		data, _ := io.ReadAll(f)
-		if len(rich.Blocks) != 1 || rich.Blocks[0].Type != "video" || rich.Blocks[0].Video.Media != "attach://file" ||
+		if len(rich.Blocks) != 2 || rich.Blocks[0].Type != "video" || rich.Blocks[0].Video.Media != "attach://file" ||
 			rich.Blocks[0].Caption.Text != "clip" || string(data) != "mp4data" {
 			t.Errorf("rich=%+v data=%q", rich, data)
+		}
+		if !strings.Contains(string(r.FormValue("rich_message")), `"callback_data":"open"`) {
+			t.Errorf("rich buttons missing: %q", r.FormValue("rich_message"))
 		}
 		okResult(w, `{"message_id":10,"chat":{"id":42},"rich_message":{"blocks":[]}}`)
 	}))
 	defer srv.Close()
 
 	m, err := testClient(srv.URL).SendRichMedia(context.Background(), 42, "video",
-		InputFile{Name: "clip.mp4", Data: []byte("mp4data")}, "clip", SendOptions{ReplyTo: 7})
+		InputFile{Name: "clip.mp4", Data: []byte("mp4data")}, "clip", SendOptions{ReplyTo: 7,
+			Markup: &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Open", CallbackData: "open"}}}}})
 	if err != nil || m.MessageID != 10 {
 		t.Fatalf("send rich media: %+v, %v", m, err)
+	}
+}
+
+func TestRichButtonBlocks(t *testing.T) {
+	blocks := richButtonBlocks(&InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{
+		{Text: "Open", URL: "https://example.com"},
+		{Text: "Action", CallbackData: "action"},
+	}}})
+	if len(blocks) != 1 || !strings.Contains(string(blocks[0]), `"type":"buttons"`) ||
+		!strings.Contains(string(blocks[0]), `"url":"https://example.com"`) ||
+		!strings.Contains(string(blocks[0]), `"callback_data":"action"`) {
+		t.Fatalf("button blocks = %s", blocks)
 	}
 }
 
