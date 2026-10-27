@@ -180,7 +180,7 @@ func TestClipWaitsForTheRecording(t *testing.T) {
 	if h.fr.recArgs[0] != "garage 1790604000 1790604035" {
 		t.Errorf("recordings asked for %q", h.fr.recArgs[0])
 	}
-	if len(h.tg.byMethod("editMessageMedia:video")) != 2 {
+	if len(h.tg.byMethod("editRichMedia:video")) != 2 {
 		t.Error("the clip must replace the image once recorded")
 	}
 }
@@ -198,7 +198,7 @@ func TestClipSentWhenRecordingStaysIncomplete(t *testing.T) {
 	if n := h.fr.countCalls("recordings"); n != 11 {
 		t.Errorf("recordings asked %d times, want 11 (10 ms in 1 ms polls, plus the first)", n)
 	}
-	if len(h.tg.byMethod("editMessageMedia:video")) != 2 {
+	if len(h.tg.byMethod("editRichMedia:video")) != 2 {
 		t.Error("the clip must be sent after the wait")
 	}
 }
@@ -217,7 +217,7 @@ func TestLargeClipSendsItsBeginning(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 
-	v := h.tg.byMethod("editMessageMedia:video")
+	v := h.tg.byMethod("editRichMedia:video")
 	if len(v) != 2 {
 		t.Fatalf("videos = %d, want 2", len(v))
 	}
@@ -242,7 +242,7 @@ func TestGIFWhenTheClipIsUnavailable(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 
-	if len(h.tg.byMethod("editMessageMedia:video")) != 0 || len(h.tg.byMethod("editMessageMedia:animation")) != 2 {
+	if len(h.tg.byMethod("editRichMedia:video")) != 0 || len(h.tg.byMethod("editRichMedia:animation")) != 2 {
 		t.Errorf("want the GIF in place of the missing clip, got %d calls", h.tg.count())
 	}
 }
@@ -255,7 +255,7 @@ func TestClipNotDelayedWhenRecordingsUnavailable(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 
-	if n := h.fr.countCalls("recordings"); n != 1 || len(h.tg.byMethod("editMessageMedia:video")) != 2 {
+	if n := h.fr.countCalls("recordings"); n != 1 || len(h.tg.byMethod("editRichMedia:video")) != 2 {
 		t.Errorf("recordings asked %d times; the clip must be sent without waiting", n)
 	}
 }

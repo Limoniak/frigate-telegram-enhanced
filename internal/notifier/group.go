@@ -105,6 +105,8 @@ func (n *Notifier) editCaption(ctx context.Context, t *tracked, chat string) {
 	case <-ctx.Done():
 		return
 	}
+	unlock := t.lockMessage(chat)
+	defer unlock()
 	m := t.message(chat)
 	if m.id == 0 {
 		return
@@ -116,8 +118,10 @@ func (n *Notifier) editCaption(ctx context.Context, t *tracked, chat string) {
 	var err error
 	if m.text {
 		err = n.Telegram.EditMessageText(ctx, chatID, m.id, caption, markup)
+	} else if m.kind != "" && m.fileID != "" {
+		_, err = n.Telegram.EditRichMedia(ctx, chatID, m.id, m.kind, telegram.InputFile{FileID: m.fileID}, caption, telegram.SendOptions{Markup: markup})
 	} else {
-		err = n.Telegram.EditMessageCaption(ctx, chatID, m.id, caption, markup)
+		err = errors.New("rich media message has no reusable file id")
 	}
 	var ae *telegram.APIError
 	if err != nil && !(errors.As(err, &ae) && strings.Contains(ae.Description, "message is not modified")) {

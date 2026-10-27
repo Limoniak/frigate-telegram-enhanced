@@ -52,7 +52,7 @@ func fakeTelegram(t *testing.T, polled chan<- struct{}) *httptest.Server {
 			case <-stop:
 			}
 			return
-		case "sendMessage":
+		case "sendRichMessage":
 			result = map[string]any{"message_id": 2, "chat": map[string]any{"id": 42}}
 		}
 		json.NewEncoder(w).Encode(map[string]any{"ok": true, "result": result})

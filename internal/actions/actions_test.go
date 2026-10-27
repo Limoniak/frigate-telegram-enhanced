@@ -26,6 +26,16 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+func TestParseEscapedRichCallbackData(t *testing.T) {
+	got, err := Parse("s:front&amp;yard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Kind != KindSnapshot || got.Camera != "front&yard" {
+		t.Fatalf("action = %+v, want the original callback payload", got)
+	}
+}
+
 func TestParseRejectsGarbage(t *testing.T) {
 	for _, data := range []string{"", "x", "z:1", "m:jardin", "m:jardin:abc", "p:-5", "c:"} {
 		if _, err := Parse(data); err == nil {

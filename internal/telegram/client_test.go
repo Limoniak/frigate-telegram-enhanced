@@ -29,7 +29,7 @@ func okResult(w http.ResponseWriter, result string) {
 
 func TestSendPhotoMultipart(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/bot"+token+"/sendPhoto" {
+		if r.URL.Path != "/bot"+token+"/sendRichMessage" {
 			t.Errorf("path = %s", r.URL.Path)
 		}
 		if r.ContentLength <= 0 {
@@ -38,20 +38,26 @@ func TestSendPhotoMultipart(t *testing.T) {
 		if err := r.ParseMultipartForm(1 << 20); err != nil {
 			t.Fatal(err)
 		}
-		checks := map[string]string{"chat_id": "42", "caption": "<b>hi</b>", "parse_mode": "HTML", "disable_notification": "true"}
+		checks := map[string]string{"chat_id": "42", "disable_notification": "true"}
 		for k, want := range checks {
 			if got := r.FormValue(k); got != want {
 				t.Errorf("%s = %q, want %q", k, got, want)
 			}
 		}
-		var markup InlineKeyboardMarkup
-		if err := json.Unmarshal([]byte(r.FormValue("reply_markup")), &markup); err != nil || markup.InlineKeyboard[0][0].CallbackData != "p:1800" {
-			t.Errorf("reply_markup = %q", r.FormValue("reply_markup"))
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil ||
+			len(rich.Blocks) != 2 || !strings.Contains(string(rich.Blocks[0]), `"type":"photo"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"media":"attach://file"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"type":"bold"`) || !strings.Contains(string(rich.Blocks[0]), `"text":"hi"`) {
+			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
+		}
+		if !strings.Contains(r.FormValue("rich_message"), `"callback_data":"p:1800"`) {
+			t.Errorf("rich buttons = %q", r.FormValue("rich_message"))
 		}
 		if !strings.Contains(r.FormValue("reply_parameters"), `"message_id":5`) {
 			t.Errorf("reply_parameters = %q", r.FormValue("reply_parameters"))
 		}
-		f, h, err := r.FormFile("photo")
+		f, h, err := r.FormFile("file")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -59,7 +65,7 @@ func TestSendPhotoMultipart(t *testing.T) {
 		if h.Filename != "snapshot.jpg" || string(b) != "jpegdata" {
 			t.Errorf("file = %s %q", h.Filename, b)
 		}
-		okResult(w, `{"message_id":7,"chat":{"id":42},"photo":[{"file_id":"small"},{"file_id":"big"}]}`)
+		okResult(w, `{"message_id":7,"chat":{"id":42},"rich_message":{"blocks":[{"type":"photo","photo":[{"file_id":"small"},{"file_id":"big"}]}]}}`)
 	}))
 	defer srv.Close()
 
@@ -79,11 +85,11 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
-		if r.FormValue("supports_streaming") != "true" {
+		if !strings.Contains(r.FormValue("rich_message"), `"supports_streaming":true`) {
 			t.Error("supports_streaming missing")
 		}
 		if n == 1 {
-			f, _, err := r.FormFile("video")
+			f, _, err := r.FormFile("file")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,10 +97,10 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 			if string(b) != "mp4data" {
 				t.Errorf("content = %q", b)
 			}
-		} else if r.FormValue("video") != "vid-1" {
-			t.Errorf("file_id = %q", r.FormValue("video"))
+		} else if !strings.Contains(r.FormValue("rich_message"), `"media":"vid-1"`) {
+			t.Errorf("file_id = %q", r.FormValue("rich_message"))
 		}
-		okResult(w, `{"message_id":8,"chat":{"id":1},"video":{"file_id":"vid-1"}}`)
+		okResult(w, `{"message_id":8,"chat":{"id":1},"rich_message":{"blocks":[{"type":"video","video":{"file_id":"vid-1"}}]}}`)
 	}))
 	defer srv.Close()
 	path := filepath.Join(t.TempDir(), "clip.mp4")
@@ -106,6 +112,200 @@ func TestSendVideoFromPathThenFileID(t *testing.T) {
 		t.Fatalf("upload: %+v, %v", m, err)
 	}
 	if _, err := c.SendVideo(context.Background(), 2, InputFile{FileID: m.FileID()}, SendOptions{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSendRichMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bot"+token+"/sendRichMessage" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
+			t.Fatal(err)
+		}
+		if rich.HTML != "<b>Hello</b>" || r.FormValue("disable_notification") != "true" ||
+			!strings.Contains(r.FormValue("reply_parameters"), `"message_id":7`) {
+			t.Errorf("rich message = %+v, form = %v", rich, r.Form)
+		}
+		okResult(w, `{"message_id":9,"chat":{"id":42},"rich_message":{"blocks":[]}}`)
+	}))
+	defer srv.Close()
+
+	m, err := testClient(srv.URL).SendRichMessage(context.Background(), 42,
+		InputRichMessage{HTML: "<b>Hello</b>"}, SendOptions{Silent: true, ReplyTo: 7})
+	if err != nil || m.MessageID != 9 || m.RichMessage == nil {
+		t.Fatalf("send rich message: %+v, %v", m, err)
+	}
+}
+
+func TestSendRichMessageHTMLWithMarkupUsesButtonBlocks(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
+			t.Fatal(err)
+		}
+		if rich.HTML != "" || len(rich.Blocks) != 2 ||
+			!strings.Contains(string(rich.Blocks[0]), `"type":"paragraph"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"type":"bold"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"type":"buttons"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"action"`) ||
+			strings.Contains(string(rich.Blocks[1]), `"style"`) ||
+			r.FormValue("reply_markup") != "" {
+			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
+		}
+		okResult(w, `{"message_id":11,"chat":{"id":42},"rich_message":{"blocks":[]}}`)
+	}))
+	defer srv.Close()
+
+	if _, err := testClient(srv.URL).SendMessage(context.Background(), 42,
+		"<b>Alert</b>", SendOptions{Markup: &InlineKeyboardMarkup{
+			InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Action", CallbackData: "action"}}},
+		}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSendRichMessageRequiresOneContentForm(t *testing.T) {
+	if _, err := testClient("http://127.0.0.1:1").SendRichMessage(context.Background(), 42, InputRichMessage{}, SendOptions{}); err == nil {
+		t.Fatal("empty rich message should be rejected before the request")
+	}
+}
+
+func TestSendRichMediaMultipart(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bot"+token+"/sendRichMessage" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		var rich struct {
+			Blocks []struct {
+				Type  string `json:"type"`
+				Video struct {
+					Type  string `json:"type"`
+					Media string `json:"media"`
+				} `json:"video"`
+				Caption struct {
+					Text string `json:"text"`
+				} `json:"caption"`
+			} `json:"blocks"`
+		}
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
+			t.Fatal(err)
+		}
+		f, _, err := r.FormFile("file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := io.ReadAll(f)
+		if len(rich.Blocks) != 2 || rich.Blocks[0].Type != "video" || rich.Blocks[0].Video.Media != "attach://file" ||
+			rich.Blocks[0].Caption.Text != "clip" || string(data) != "mp4data" {
+			t.Errorf("rich=%+v data=%q", rich, data)
+		}
+		if !strings.Contains(string(r.FormValue("rich_message")), `"callback_data":"open"`) {
+			t.Errorf("rich buttons missing: %q", r.FormValue("rich_message"))
+		}
+		okResult(w, `{"message_id":10,"chat":{"id":42},"rich_message":{"blocks":[]}}`)
+	}))
+	defer srv.Close()
+
+	m, err := testClient(srv.URL).SendRichMedia(context.Background(), 42, "video",
+		InputFile{Name: "clip.mp4", Data: []byte("mp4data")}, "clip", SendOptions{ReplyTo: 7,
+			Markup: &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Open", CallbackData: "open"}}}}})
+	if err != nil || m.MessageID != 10 {
+		t.Fatalf("send rich media: %+v, %v", m, err)
+	}
+}
+
+func TestRichButtonBlocks(t *testing.T) {
+	blocks := richButtonBlocks(&InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{
+		{{Text: "Open", URL: "https://example.com"}, {Text: "Action", CallbackData: "action"}},
+		{{Text: "Next", CallbackData: "next"}},
+	}})
+	if len(blocks) != 2 || !strings.Contains(string(blocks[0]), `"url":"https://example.com"`) ||
+		!strings.Contains(string(blocks[0]), `"callback_data":"action"`) ||
+		!strings.Contains(string(blocks[1]), `"callback_data":"next"`) ||
+		strings.Contains(string(blocks[0]), `"style"`) || strings.Contains(string(blocks[0]), `"align"`) {
+		t.Fatalf("button blocks = %s", blocks)
+	}
+	var first, second richButtonsBlock
+	if err := json.Unmarshal(blocks[0], &first); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(blocks[1], &second); err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Buttons) != 2 || len(second.Buttons) != 1 {
+		t.Fatalf("row grouping = %d/%d, want 2/1", len(first.Buttons), len(second.Buttons))
+	}
+}
+
+func TestRichMessageFileID(t *testing.T) {
+	for _, tc := range []struct {
+		kind, payload, want string
+	}{
+		{"photo", `"photo":[{"file_id":"rich-photo"}]`, "rich-photo"},
+		{"video", `"video":{"file_id":"rich-video"}`, "rich-video"},
+		{"animation", `"animation":{"file_id":"rich-gif"}`, "rich-gif"},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			m := Message{RichMessage: &RichMessage{Blocks: []json.RawMessage{json.RawMessage(`{"type":"` + tc.kind + `",` + tc.payload + `}`)}}}
+			if got := m.FileID(); got != tc.want {
+				t.Fatalf("FileID() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRichCaptionTextPreservesFormatting(t *testing.T) {
+	var got any
+	if err := json.Unmarshal(richCaptionText(`<b>Person</b><br><a href="https://frigate.local">Open</a>`), &got); err != nil {
+		t.Fatal(err)
+	}
+	parts, ok := got.([]any)
+	if !ok || len(parts) != 3 {
+		t.Fatalf("caption = %#v, want three rich text parts", got)
+	}
+	if parts[0].(map[string]any)["type"] != "bold" || parts[1] != "\n" || parts[2].(map[string]any)["type"] != "url" {
+		t.Fatalf("caption parts = %#v", parts)
+	}
+}
+
+func TestRichCaptionTextDecodesEntitiesAndUnicode(t *testing.T) {
+	var got []any
+	if err := json.Unmarshal(richCaptionText(`<b>Привет 🚶</b> &amp; <i>мир</i>`), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[1] != " & " ||
+		got[0].(map[string]any)["text"] != "Привет 🚶" || got[2].(map[string]any)["text"] != "мир" {
+		t.Fatalf("rich caption text = %#v", got)
+	}
+}
+
+func TestEditMessageTextUsesRichMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bot"+token+"/editMessageText" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil ||
+			rich.HTML != "" || len(rich.Blocks) != 2 ||
+			!strings.Contains(string(rich.Blocks[1]), `"type":"buttons"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"x"`) ||
+			strings.Contains(string(rich.Blocks[1]), `"style"`) || strings.Contains(string(rich.Blocks[1]), `"align"`) {
+			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
+		}
+		if r.FormValue("text") != "" || r.FormValue("parse_mode") != "" || r.FormValue("reply_markup") != "" {
+			t.Errorf("legacy fields leaked: text=%q parse_mode=%q reply_markup=%q", r.FormValue("text"), r.FormValue("parse_mode"), r.FormValue("reply_markup"))
+		}
+		okResult(w, `true`)
+	}))
+	defer srv.Close()
+
+	if err := testClient(srv.URL).EditMessageText(context.Background(), 42, 7, "<b>updated</b>", &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{{Text: "x", CallbackData: "x"}}}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -138,14 +338,30 @@ func TestRetryOn5xx(t *testing.T) {
 			io.WriteString(w, `<html>bad gateway</html>`)
 			return
 		}
-		okResult(w, `{"message_id":1,"chat":{"id":1}}`)
+		okResult(w, `true`)
 	}))
 	defer srv.Close()
-	if _, err := testClient(srv.URL).SendMessage(context.Background(), 1, "hi", SendOptions{}); err != nil {
+	if err := testClient(srv.URL).EditMessageText(context.Background(), 1, 7, "hi", nil); err != nil {
 		t.Fatal(err)
 	}
 	if calls.Load() != 3 {
 		t.Errorf("calls = %d, want 3", calls.Load())
+	}
+}
+
+func TestUniqueSendNotRetriedOn5xx(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusBadGateway)
+		io.WriteString(w, `{"ok":false,"error_code":502,"description":"Bad Gateway"}`)
+	}))
+	defer srv.Close()
+	if _, err := testClient(srv.URL).SendMessage(context.Background(), 1, "hi", SendOptions{}); err == nil {
+		t.Fatal("want an error when the send result is uncertain")
+	}
+	if calls.Load() != 1 {
+		t.Errorf("calls = %d, want one attempt to avoid a duplicate message", calls.Load())
 	}
 }
 
@@ -165,7 +381,7 @@ func TestNoRetryOn400AndHook(t *testing.T) {
 	if !errors.As(err, &apiErr) || apiErr.Code != 400 {
 		t.Fatalf("err = %v", err)
 	}
-	if calls.Load() != 1 || hookMethod != "sendMessage" || hookCode != 400 {
+	if calls.Load() != 1 || hookMethod != "sendRichMessage" || hookCode != 400 {
 		t.Errorf("calls=%d hook=%s/%d", calls.Load(), hookMethod, hookCode)
 	}
 }
@@ -237,6 +453,55 @@ func TestEditMessageMedia(t *testing.T) {
 	}
 	if !strings.Contains(got[1]["media"], `"media":"VID"`) || got[1]["file"] != "" {
 		t.Errorf("file_id reuse: %v", got[1])
+	}
+}
+
+func TestEditRichMediaUsesRichMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/bot123:abc/editMessageText" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		if r.FormValue("chat_id") != "42" || r.FormValue("message_id") != "7" {
+			t.Errorf("target = chat %q message %q", r.FormValue("chat_id"), r.FormValue("message_id"))
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer file.Close()
+		data, err := io.ReadAll(file)
+		if err != nil || header.Filename != "clip.mp4" || string(data) != "mp4-bytes" {
+			t.Fatalf("uploaded %q %q, err=%v", header.Filename, data, err)
+		}
+		var rich InputRichMessage
+		if err := json.Unmarshal([]byte(r.FormValue("rich_message")), &rich); err != nil {
+			t.Fatal(err)
+		}
+		if len(rich.Blocks) != 2 || !strings.Contains(string(rich.Blocks[0]), `"type":"video"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"media":"attach://file"`) ||
+			!strings.Contains(string(rich.Blocks[0]), `"Person"`) ||
+			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"open"`) ||
+			r.FormValue("reply_markup") != "" {
+			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
+		}
+		okResult(w, `{"message_id":7,"rich_message":{"blocks":[{"type":"video","video":{"file_id":"NEWVID"}}]}}`)
+	}))
+	defer srv.Close()
+
+	m, err := New("123:abc", WithBaseURL(srv.URL), WithBackoff(0)).EditRichMedia(
+		context.Background(), 42, 7, "video", InputFile{Name: "clip.mp4", Data: []byte("mp4-bytes")}, "<b>Person</b>",
+		SendOptions{Markup: &InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Open", CallbackData: "open"}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.MessageID != 7 || m.FileID() != "NEWVID" {
+		t.Fatalf("edited message = %+v, file_id=%q", m, m.FileID())
 	}
 }
 

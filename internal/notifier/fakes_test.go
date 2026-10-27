@@ -209,9 +209,11 @@ type tgCall struct {
 }
 
 type fakeTelegram struct {
-	mu     sync.Mutex
-	calls  []tgCall
-	nextID int
+	mu                sync.Mutex
+	calls             []tgCall
+	nextID            int
+	editRichMediaHook func(chatID int64, kind string, file telegram.InputFile)
+	editRichMediaErr  error
 }
 
 func (f *fakeTelegram) add(c tgCall) int {
@@ -255,6 +257,27 @@ func (f *fakeTelegram) EditMessageCaption(_ context.Context, chatID int64, messa
 	return nil
 }
 
+func (f *fakeTelegram) EditRichMedia(_ context.Context, chatID int64, messageID int, kind string, file telegram.InputFile, caption string, _ telegram.SendOptions) (telegram.Message, error) {
+	if f.editRichMediaHook != nil {
+		f.editRichMediaHook(chatID, kind, file)
+	}
+	method := "editRichMedia:" + kind
+	id := f.add(tgCall{Method: method, ChatID: chatID, Target: messageID, Text: caption, FileID: file.FileID, Data: fileData(file)})
+	if f.editRichMediaErr != nil {
+		return telegram.Message{}, f.editRichMediaErr
+	}
+	m := telegram.Message{MessageID: id, RichMessage: &telegram.RichMessage{}}
+	switch kind {
+	case "photo":
+		m.Photo = []telegram.PhotoSize{{FileID: "photo-file"}}
+	case "video":
+		m.Video = &telegram.Video{FileID: "video-file"}
+	case "animation":
+		m.Animation = &telegram.Animation{FileID: "gif-file"}
+	}
+	return m, nil
+}
+
 func (f *fakeTelegram) EditMessageText(_ context.Context, chatID int64, messageID int, text string, _ *telegram.InlineKeyboardMarkup) error {
 	f.add(tgCall{Method: "editMessageText", ChatID: chatID, Target: messageID, Text: text})
 	return nil
@@ -267,7 +290,7 @@ func (f *fakeTelegram) EditMessageMedia(_ context.Context, chatID int64, message
 
 // videos returns the delivered clips, whether they replace the image or arrive as a reply.
 func (f *fakeTelegram) videos() []tgCall {
-	return append(f.byMethod("editMessageMedia:video"), f.byMethod("sendVideo")...)
+	return append(f.byMethod("editRichMedia:video"), f.byMethod("sendVideo")...)
 }
 
 func (f *fakeTelegram) byMethod(method string) []tgCall {

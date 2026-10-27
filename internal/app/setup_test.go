@@ -131,7 +131,7 @@ func TestSetupAnswersEachStartOnce(t *testing.T) {
 				"message": map[string]any{"message_id": 1, "text": "/start",
 					"from": map[string]any{"id": 42, "first_name": "Alice"}, "chat": map[string]any{"id": 42, "type": "private"}},
 			}}
-		case "sendMessage":
+		case "sendRichMessage":
 			mu.Lock()
 			sent = append(sent, r.FormValue("chat_id"))
 			mu.Unlock()

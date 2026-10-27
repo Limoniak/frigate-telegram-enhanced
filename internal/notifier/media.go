@@ -97,7 +97,9 @@ func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption s
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
 			return n.Telegram.SendPhoto(ctx, chatID, f, telegram.SendOptions{Caption: caption, Silent: silent(chat), Markup: markup})
 		},
-		func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID}) })
+		func(chat string, m telegram.Message) {
+			t.setMessage(chat, sentMsg{id: m.MessageID, kind: "photo", fileID: m.FileID()})
+		})
 }
 
 // sendFollowUp sends the clip ("video") or the GIF ("animation"). With inPlace, it
@@ -158,14 +160,32 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	}
 	n.deliver(ctx, chats, kind, telegram.InputFile{Name: name, Path: file},
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
+			unlock := t.lockMessage(chat)
+			defer unlock()
 			m := t.message(chat)
 			if inPlace && m.id != 0 && !m.text {
 				n.mu.Lock()
 				caption := n.captionFor(t, chat)
 				n.mu.Unlock()
-				edited, err := n.Telegram.EditMessageMedia(ctx, chatID, m.id, kind, f, caption, buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language))
+				edited, err := n.Telegram.EditRichMedia(ctx, chatID, m.id, kind, f, caption, telegram.SendOptions{Markup: buttons(t.camera, t.id, n.Config.HomeAssistantURL(), n.Config.Language)})
 				if err == nil {
+					t.setMessage(chat, sentMsg{id: m.id, kind: kind, fileID: edited.FileID()})
 					return edited, nil
+				}
+				var apiErr *telegram.APIError
+				if errors.As(err, &apiErr) && strings.Contains(strings.ToLower(apiErr.Description), "message is not modified") {
+					fileID := ""
+					if m.kind == kind {
+						fileID = m.fileID
+					}
+					t.setMessage(chat, sentMsg{id: m.id, kind: kind, fileID: fileID})
+					return telegram.Message{MessageID: m.id}, nil
+				}
+				if !errors.As(err, &apiErr) || apiErr.Code < 400 || apiErr.Code >= 500 || apiErr.Code == 429 {
+					// The edit may have succeeded; a reply here could duplicate the clip.
+					t.setMessage(chat, sentMsg{id: m.id, kind: kind})
+					n.Log.Warn("media replacement result is unknown; not sending a fallback", "kind", kind, "chat", chat, "err", err)
+					return telegram.Message{}, err
 				}
 				// Message deleted in the meantime, for example: fall back to a reply.
 				n.Log.Warn("replacing the image failed, sending as a reply", "kind", kind, "chat", chat, "err", err)
