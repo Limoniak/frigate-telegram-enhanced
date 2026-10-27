@@ -26,9 +26,9 @@ func TestBuildCaption(t *testing.T) {
 		Start: time.Date(2026, 9, 28, 14, 32, 5, 0, time.UTC),
 		Link:  "https://nvr.example/explore?event_id=abc",
 	}, paris(t), i18n.FR)
-	want := "<b>\U0001F6B6 Personne</b> — jardin\n🏷 Alice\n" +
-		"\U0001F4CD allee, portail\n\U0001F3AF 87 %\n" +
-		"\U0001F551 28/09 16:32:05\n" +
+	want := "<b>🚶 Personne</b> — jardin\n🏷 Alice\n" +
+		"📍 allee, portail · 87 %\n" +
+		"🕑 28/09 16:32:05\n" +
 		"🔗 <a href=\"https://nvr.example/explore?event_id=abc\">Ouvrir dans Frigate</a>"
 	if got != want {
 		t.Errorf("caption:\n%s\nwant:\n%s", got, want)
@@ -41,9 +41,9 @@ func TestBuildCaptionEnglish(t *testing.T) {
 		Start: time.Date(2026, 9, 28, 14, 32, 5, 0, time.UTC),
 		Link:  "https://nvr.example/x",
 	}, time.UTC, i18n.EN)
-	want := "<b>\U0001F697 Car</b> — garage\n" +
-		"\U0001F3AF 90%\n" +
-		"\U0001F551 Sep 28 14:32:05\n" +
+	want := "<b>🚗 Car</b> — garage\n" +
+		"90%\n" +
+		"🕑 Sep 28 14:32:05\n" +
 		"🔗 <a href=\"https://nvr.example/x\">Open in Frigate</a>"
 	if got != want {
 		t.Errorf("caption:\n%s\nwant:\n%s", got, want)
@@ -56,7 +56,7 @@ func TestBuildCaptionCameraChoices(t *testing.T) {
 		Label: "person", Camera: "vhod", Zones: []string{"vhod_zona"}, Score: 0.78, HasScore: true,
 		Start: time.Date(2026, 10, 20, 19, 27, 33, 0, time.UTC), Link: "https://nvr.example/x",
 	}, config.Notify{Emoji: "🚪", ShowScore: true})
-	want := "<b>\U0001F6B6 Person</b> — 🚪 vhod\n\U0001F3AF 78%\n\U0001F551 19:27:33"
+	want := "<b>🚶 Person</b> — 🚪 vhod\n78%\n🕑 19:27:33"
 	if got := buildCaption(d, time.UTC, i18n.EN); got != want {
 		t.Errorf("caption:\n%s\nwant:\n%s", got, want)
 	}
@@ -80,11 +80,11 @@ func TestBuildCaptionEscapesAndUnknownLabel(t *testing.T) {
 	}
 }
 
-func TestBuildCaptionTruncatesDescriptionAtRichMessageLimit(t *testing.T) {
+func TestBuildCaptionTruncatesDescription(t *testing.T) {
 	got := buildCaption(captionData{Label: "person", Camera: "jardin", Start: time.Unix(0, 0),
-		Description: strings.Repeat("é", 40000), Link: "https://nvr.example/x"}, time.UTC, i18n.FR)
-	if n := utf8.RuneCountInString(got); n > maxRichMessage {
-		t.Errorf("rich message of %d characters (max %d)", n, maxRichMessage)
+		Description: strings.Repeat("é", 2000), Link: "https://nvr.example/x"}, time.UTC, i18n.FR)
+	if n := utf8.RuneCountInString(got); n > 1024 {
+		t.Errorf("caption of %d characters (max 1024)", n)
 	}
 	if !strings.Contains(got, "…") || !strings.HasSuffix(got, "Ouvrir dans Frigate</a>") {
 		t.Errorf("wrong truncation: %q", got[len(got)-80:])

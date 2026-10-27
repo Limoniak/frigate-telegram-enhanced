@@ -460,14 +460,14 @@ func richButtonBlocks(markup *InlineKeyboardMarkup) []json.RawMessage {
 				if len(b.CallbackData) > 64 {
 					continue
 				}
-				buttons = append(buttons, richMessageButton{Text: b.Text, Style: "primary", CallbackData: b.CallbackData})
+				buttons = append(buttons, richMessageButton{Text: b.Text, CallbackData: b.CallbackData})
 			case b.URL != "":
-				buttons = append(buttons, richMessageButton{Text: b.Text, Style: "primary", URL: b.URL})
+				buttons = append(buttons, richMessageButton{Text: b.Text, URL: b.URL})
 			}
 		}
 		for start := 0; start < len(buttons); start += 8 {
 			end := min(start+8, len(buttons))
-			block := richButtonsBlock{Type: "buttons", Buttons: buttons[start:end], Align: "left"}
+			block := richButtonsBlock{Type: "buttons", Buttons: buttons[start:end]}
 			encoded, _ := json.Marshal(block)
 			blocks = append(blocks, encoded)
 		}

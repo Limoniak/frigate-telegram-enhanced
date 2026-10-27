@@ -34,7 +34,7 @@ func TestBurstIsGroupedIntoTheFirstMessage(t *testing.T) {
 	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
 		t.Fatalf("photos = %d: b must join a's message, not send a new one", n)
 	}
-	edits := h.tg.byMethod("editMessageCaption")
+	edits := h.tg.byMethod("editRichMedia:photo")
 	if len(edits) != 2 {
 		t.Fatalf("edits = %+v, want one per recipient", edits)
 	}

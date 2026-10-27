@@ -43,8 +43,6 @@ type Frigate interface {
 
 type Telegram interface {
 	SendMessage(ctx context.Context, chatID int64, text string, o telegram.SendOptions) (telegram.Message, error)
-	SendRichMessage(ctx context.Context, chatID int64, rich telegram.InputRichMessage, o telegram.SendOptions) (telegram.Message, error)
-	SendRichMedia(ctx context.Context, chatID int64, kind string, f telegram.InputFile, caption string, o telegram.SendOptions) (telegram.Message, error)
 	SendPhoto(ctx context.Context, chatID int64, f telegram.InputFile, o telegram.SendOptions) (telegram.Message, error)
 	SendVideo(ctx context.Context, chatID int64, f telegram.InputFile, o telegram.SendOptions) (telegram.Message, error)
 	SendAnimation(ctx context.Context, chatID int64, f telegram.InputFile, o telegram.SendOptions) (telegram.Message, error)

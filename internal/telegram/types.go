@@ -63,7 +63,6 @@ type InputRichMessageMedia struct {
 
 type richMessageButton struct {
 	Text         string `json:"text"`
-	Style        string `json:"style,omitempty"`
 	URL          string `json:"url,omitempty"`
 	CallbackData string `json:"callback_data,omitempty"`
 }

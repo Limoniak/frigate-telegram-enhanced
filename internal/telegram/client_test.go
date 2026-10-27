@@ -151,7 +151,7 @@ func TestSendRichMessageHTMLWithMarkupUsesButtonBlocks(t *testing.T) {
 			!strings.Contains(string(rich.Blocks[0]), `"type":"bold"`) ||
 			!strings.Contains(string(rich.Blocks[1]), `"type":"buttons"`) ||
 			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"action"`) ||
-			!strings.Contains(string(rich.Blocks[1]), `"align":"left"`) ||
+			strings.Contains(string(rich.Blocks[1]), `"style"`) ||
 			r.FormValue("reply_markup") != "" {
 			t.Errorf("rich=%q reply_markup=%q", r.FormValue("rich_message"), r.FormValue("reply_markup"))
 		}
@@ -159,8 +159,8 @@ func TestSendRichMessageHTMLWithMarkupUsesButtonBlocks(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := testClient(srv.URL).SendRichMessage(context.Background(), 42,
-		InputRichMessage{HTML: "<b>Alert</b>"}, SendOptions{Markup: &InlineKeyboardMarkup{
+	if _, err := testClient(srv.URL).SendMessage(context.Background(), 42,
+		"<b>Alert</b>", SendOptions{Markup: &InlineKeyboardMarkup{
 			InlineKeyboard: [][]InlineKeyboardButton{{{Text: "Action", CallbackData: "action"}}},
 		}}); err != nil {
 		t.Fatal(err)
@@ -221,14 +221,25 @@ func TestSendRichMediaMultipart(t *testing.T) {
 }
 
 func TestRichButtonBlocks(t *testing.T) {
-	blocks := richButtonBlocks(&InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{{
-		{Text: "Open", URL: "https://example.com"},
-		{Text: "Action", CallbackData: "action"},
-	}}})
-	if len(blocks) != 1 || !strings.Contains(string(blocks[0]), `"type":"buttons"`) ||
-		!strings.Contains(string(blocks[0]), `"url":"https://example.com"`) ||
-		!strings.Contains(string(blocks[0]), `"callback_data":"action"`) {
+	blocks := richButtonBlocks(&InlineKeyboardMarkup{InlineKeyboard: [][]InlineKeyboardButton{
+		{{Text: "Open", URL: "https://example.com"}, {Text: "Action", CallbackData: "action"}},
+		{{Text: "Next", CallbackData: "next"}},
+	}})
+	if len(blocks) != 2 || !strings.Contains(string(blocks[0]), `"url":"https://example.com"`) ||
+		!strings.Contains(string(blocks[0]), `"callback_data":"action"`) ||
+		!strings.Contains(string(blocks[1]), `"callback_data":"next"`) ||
+		strings.Contains(string(blocks[0]), `"style"`) || strings.Contains(string(blocks[0]), `"align"`) {
 		t.Fatalf("button blocks = %s", blocks)
+	}
+	var first, second richButtonsBlock
+	if err := json.Unmarshal(blocks[0], &first); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(blocks[1], &second); err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Buttons) != 2 || len(second.Buttons) != 1 {
+		t.Fatalf("row grouping = %d/%d, want 2/1", len(first.Buttons), len(second.Buttons))
 	}
 }
 
@@ -284,7 +295,7 @@ func TestEditMessageTextUsesRichMessage(t *testing.T) {
 			rich.HTML != "" || len(rich.Blocks) != 2 ||
 			!strings.Contains(string(rich.Blocks[1]), `"type":"buttons"`) ||
 			!strings.Contains(string(rich.Blocks[1]), `"callback_data":"x"`) ||
-			!strings.Contains(string(rich.Blocks[1]), `"align":"left"`) {
+			strings.Contains(string(rich.Blocks[1]), `"style"`) || strings.Contains(string(rich.Blocks[1]), `"align"`) {
 			t.Errorf("rich_message = %q", r.FormValue("rich_message"))
 		}
 		if r.FormValue("text") != "" || r.FormValue("parse_mode") != "" || r.FormValue("reply_markup") != "" {

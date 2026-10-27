@@ -235,7 +235,7 @@ func (b *Bot) cmdSnapshot(ctx context.Context, chat int64, args []string) {
 		if i%2 == 0 {
 			rows = append(rows, nil)
 		}
-		rows[len(rows)-1] = append(rows[len(rows)-1], telegram.InlineKeyboardButton{Text: cam, CallbackData: actions.SnapshotPicker(cam)})
+		rows[len(rows)-1] = append(rows[len(rows)-1], telegram.InlineKeyboardButton{Text: cam, CallbackData: actions.Snapshot(cam)})
 	}
 	if _, err := b.Telegram.SendMessage(ctx, chat, b.Config.Language.T("📷 Pick a camera:"),
 		telegram.SendOptions{Markup: &telegram.InlineKeyboardMarkup{InlineKeyboard: rows}}); err != nil {
@@ -315,7 +315,7 @@ func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 			return
 		}
 		b.answer(ctx, q.ID, l.T("⏸ Paused ")+b.untilText(until))
-	case actions.KindClip, actions.KindSnapshot, actions.KindSnapshotPicker:
+	case actions.KindClip, actions.KindSnapshot:
 		if chat == 0 {
 			b.answer(ctx, q.ID, l.T("⚠️ Message too old"))
 			return
@@ -330,9 +330,6 @@ func (b *Bot) handleCallback(ctx context.Context, q telegram.CallbackQuery) {
 			return
 		}
 		b.answer(ctx, q.ID, l.T("📷 Live image…"))
-		if a.Kind == actions.KindSnapshotPicker {
-			replyTo = 0
-		}
 		b.async(func() { b.sendLiveSnapshot(ctx, chat, replyTo, a.Camera) })
 	}
 }

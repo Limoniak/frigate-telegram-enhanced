@@ -1,10 +1,7 @@
 {
     "name": "Español",
     "messages": {
-        "⏸ 30 min": "⏸ 30 min",
-        "⏸ 1 h": "⏸ 1 h",
-        "⏸ 8 h": "⏸ 8 h",
-        "Tap a camera to pause notifications for 1 hour; tap it again to resume.": "Toca una cámara para pausar sus notificaciones durante 1 hora; tócala de nuevo para reanudarlas.",
+        "\n\nTap a camera to mute it for 1 h, or to turn it back on.": "\n\nToca una cámara para silenciarla 1 h o para volver a activarla.",
         "\n🎞 On a real event, an animated GIF will follow as a reply.": "\n🎞 En un evento real, seguirá un GIF animado como respuesta.",
         "\n🎬 On a real event, the video clip will follow as a reply.": "\n🎬 En un evento real, seguirá el clip de vídeo como respuesta.",
         "\n🏠 At home: ": "\n🏠 En casa: ",

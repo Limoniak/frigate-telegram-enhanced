@@ -87,7 +87,7 @@ func TestDescriptionEditsCaption(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/tracked_object_update", descriptionMsg(evID, "Un livreur dépose un colis."))
 
-	photos, edits := h.tg.byMethod("sendPhoto"), h.tg.byMethod("editMessageCaption")
+	photos, edits := h.tg.byMethod("sendPhoto"), h.tg.byMethod("editRichMedia:photo")
 	if len(edits) != 2 {
 		t.Fatalf("edits = %d, want 2", len(edits))
 	}
@@ -113,7 +113,7 @@ func TestDescriptionForReviewMatchesDetection(t *testing.T) {
 	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
 	h.send(t, "frigate/reviews", reviewMsg("new", revID, "garage", "alert", []string{"person"}, nil, []string{evID}))
 	h.send(t, "frigate/tracked_object_update", descriptionMsg(evID, "Quelqu'un sonne."))
-	if len(h.tg.byMethod("editMessageCaption")) != 2 {
+	if len(h.tg.byMethod("editRichMedia:photo")) != 2 {
 		t.Error("the description of a detection must update the review")
 	}
 }

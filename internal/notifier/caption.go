@@ -14,7 +14,7 @@ import (
 	"frigate-telegram-enhanced/internal/telegram"
 )
 
-const maxRichMessage = 32768
+const maxCaption = 1024
 
 // openInFrigate is the "open in Frigate" link of a caption.
 func openInFrigate(link string, lang i18n.Lang) string {
@@ -55,7 +55,7 @@ func cameraName(camera, emoji string) string {
 	return emoji + " " + camera
 }
 
-// buildCaption builds the HTML caption for a rich message (≤ 32768 characters).
+// buildCaption builds the HTML caption (≤ 1024 characters; the description is truncated if needed).
 func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	esc := html.EscapeString
 	var b strings.Builder
@@ -69,16 +69,16 @@ func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 		details = append(details, "📍 "+esc(strings.Join(d.Zones, ", ")))
 	}
 	if d.HasScore && d.Score > 0 && !d.NoScore {
-		details = append(details, "\U0001F3AF "+lang.Tf("%d%%", int(math.Round(d.Score*100))))
+		details = append(details, lang.Tf("%d%%", int(math.Round(d.Score*100))))
 	}
 	if len(details) > 0 {
-		b.WriteString("\n" + strings.Join(details, "\n"))
+		b.WriteString("\n" + strings.Join(details, " · "))
 	}
 	layout := lang.DateTime()
 	if d.NoDate {
 		layout = "15:04:05"
 	}
-	b.WriteString("\n\U0001F551 " + esc(d.Start.In(loc).Format(layout)))
+	b.WriteString("\n🕑 " + d.Start.In(loc).Format(layout))
 
 	footer := d.Group
 	if d.Link != "" {
@@ -89,7 +89,7 @@ func buildCaption(d captionData, loc *time.Location, lang i18n.Lang) string {
 	}
 	if d.Description != "" {
 		// Telegram counts the text outside tags: counting the whole HTML string is on the safe side.
-		room := maxRichMessage - utf8.RuneCountInString(b.String()) - utf8.RuneCountInString(footer) - len("\n\n<i></i>")
+		room := maxCaption - utf8.RuneCountInString(b.String()) - utf8.RuneCountInString(footer) - len("\n\n<i></i>")
 		if room > 20 {
 			b.WriteString("\n\n<i>" + esc(truncate(d.Description, room)) + "</i>")
 		}
@@ -123,11 +123,7 @@ func buttons(camera, id, haURL string, lang i18n.Lang) *telegram.InlineKeyboardM
 			rows = append(rows, r)
 		}
 	}
-	first := [][2]string{{lang.T("📷 Now"), actions.Snapshot(camera)}}
-	if id != "" {
-		first = append(first, [2]string{lang.T("🎬 Clip"), actions.Clip(id)})
-	}
-	row(first...)
+	row([2]string{lang.T("📷 Now"), actions.Snapshot(camera)}, [2]string{lang.T("🎬 Clip"), actions.Clip(id)})
 	row([2]string{"🔇 1 h", actions.Mute(camera, time.Hour)}, [2]string{"⏸ 30 min", actions.Pause(30 * time.Minute)})
 	if haURL != "" {
 		rows = append(rows, []telegram.InlineKeyboardButton{{Text: "🏠 Home Assistant", URL: haURL}})

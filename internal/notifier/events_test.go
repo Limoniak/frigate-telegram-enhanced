@@ -80,7 +80,7 @@ func TestEndReplacesSnapshotWithClip(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 
-	photos, edits := h.tg.byMethod("sendPhoto"), h.tg.byMethod("editMessageMedia:video")
+	photos, edits := h.tg.byMethod("sendPhoto"), h.tg.byMethod("editRichMedia:video")
 	if len(edits) != 2 || len(h.tg.byMethod("sendVideo")) != 0 {
 		t.Fatalf("replacements = %d, replies = %d; want 2 replacements", len(edits), len(h.tg.byMethod("sendVideo")))
 	}
@@ -112,7 +112,7 @@ func TestEndSendsClipAsReplyToSnapshot(t *testing.T) {
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
 
-	photos, videos := h.tg.photos(), h.tg.videos()
+	photos, videos := h.tg.byMethod("sendPhoto"), h.tg.videos()
 	if len(videos) != 2 {
 		t.Fatalf("videos = %d, want 2", len(videos))
 	}
@@ -184,7 +184,7 @@ func TestLateCaptionUpdateDoesNotOverwriteClipReplacement(t *testing.T) {
 	}
 
 	var chatOne []tgCall
-	for _, call := range h.tg.byMethod("editMessageMedia:video") {
+	for _, call := range h.tg.byMethod("editRichMedia:video") {
 		if call.ChatID == 1 {
 			chatOne = append(chatOne, call)
 		}
@@ -293,7 +293,7 @@ func TestClipTooLargeSendsLink(t *testing.T) {
 	h.fr.tooLarge[frigate.EventClipPath(evID)] = true
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
-	msgs := h.tg.byMethod("sendRichMessage")
+	msgs := h.tg.byMethod("sendMessage")
 	if len(msgs) != 2 || !strings.Contains(msgs[0].Text, "https://nvr.example/api/events/"+evID+"/clip.mp4") {
 		t.Fatalf("messages = %+v", msgs)
 	}
@@ -305,7 +305,7 @@ func TestClipTooLargeSendsLink(t *testing.T) {
 func TestMissingSnapshotFallsBackToText(t *testing.T) {
 	h := newHarness(t, "events")
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
-	msgs := h.tg.byMethod("sendRichMessage")
+	msgs := h.tg.byMethod("sendMessage")
 	if len(msgs) != 2 || !strings.Contains(msgs[0].Text, "Person") {
 		t.Fatalf("messages = %+v", msgs)
 	}
@@ -437,11 +437,11 @@ func TestClipRepliesToTextOnlyNotification(t *testing.T) {
 	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4") // no snapshot: falls back to text
 	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
 	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
-	if n := len(h.tg.byMethod("editMessageMedia:video")); n != 0 {
+	if n := len(h.tg.byMethod("editRichMedia:video")); n != 0 {
 		t.Errorf("replacements = %d, want 0", n)
 	}
 	replies := h.tg.byMethod("sendVideo")
-	texts := h.tg.byMethod("sendRichMessage")
+	texts := h.tg.byMethod("sendMessage")
 	if len(replies) != 2 {
 		t.Fatalf("video replies = %d, want 2", len(replies))
 	}
@@ -490,7 +490,7 @@ func TestLateSubLabelUpdatesCaption(t *testing.T) {
 	if n := len(h.tg.byMethod("sendPhoto")); n != 2 {
 		t.Fatalf("photos = %d: the label must not create a new message", n)
 	}
-	edits := h.tg.byMethod("editMessageCaption")
+	edits := h.tg.byMethod("editRichMedia:photo")
 	if len(edits) != 2 {
 		t.Fatalf("edits = %d, want one per recipient", len(edits))
 	}
@@ -504,7 +504,7 @@ func TestLateSubLabelUpdatesCaption(t *testing.T) {
 	}
 	// The same label repeated in the next updates does not edit again.
 	h.send(t, "frigate/events", withSubLabel(eventMsg("update", evID, "garage", "person", nil), "Océane"))
-	if n := len(h.tg.byMethod("editMessageCaption")); n != 2 {
+	if n := len(h.tg.byMethod("editRichMedia:photo")); n != 2 {
 		t.Errorf("edits = %d after an unchanged label", n)
 	}
 }

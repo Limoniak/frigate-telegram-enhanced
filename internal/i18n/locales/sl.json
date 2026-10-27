@@ -1,10 +1,7 @@
 {
     "name": "Slovenščina",
     "messages": {
-        "⏸ 30 min": "⏸ 30 min",
-        "⏸ 1 h": "⏸ 1 h",
-        "⏸ 8 h": "⏸ 8 h",
-        "Tap a camera to pause notifications for 1 hour; tap it again to resume.": "Tapnite kamero, da začasno ustavite obvestila za 1 uro; tapnite jo znova, da jih nadaljujete.",
+        "\n\nTap a camera to mute it for 1 h, or to turn it back on.": "\n\nTapnite kamero, da jo utišate za 1 h ali jo znova vklopite.",
         "\n🎞 On a real event, an animated GIF will follow as a reply.": "\n🎞 Ob pravem dogodku bo kot odgovor sledil animirani GIF.",
         "\n🎬 On a real event, the video clip will follow as a reply.": "\n🎬 Ob pravem dogodku bo kot odgovor sledil videoposnetek.",
         "\n🏠 At home: ": "\n🏠 Doma: ",
