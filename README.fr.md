@@ -35,7 +35,7 @@ tout régler en quelques clics et un pilotage depuis Telegram.
 - Commandes `/pause`, `/resume`, `/status`, `/cameras`, `/snapshot`, `/last`
 - **Regroupement des rafales** : les détections rapprochées s'ajoutent au premier message au lieu d'en envoyer de nouveaux
 - **Image recadrée** : le snapshot zoomé sur l'objet détecté, bien plus lisible sur un téléphone
-- En **anglais**, **français**, **allemand**, **espagnol**, **italien**, **portugais** ou **slovène** : messages Telegram (langue choisie sur la page d'installation) et interface web (sélecteur de langue) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
+- En **anglais**, **français**, **allemand**, **espagnol**, **italien**, **portugais**, **slovène** ou **russe** : messages Telegram (langue choisie sur la page d'installation) et interface web (sélecteur de langue) — d'autres langues s'ajoutent avec un seul fichier, voir [Traduire](#traduire)
 - **Présence** : pas de notification (ou sans son) quand quelqu'un est à la maison, via Home Assistant ou n'importe quel topic MQTT
 - **Réglages par destinataire** : par exemple, vous recevez tout, la famille seulement les personnes la nuit
 - Après une coupure MQTT, les détections manquées de la dernière heure sont rattrapées auprès de Frigate
