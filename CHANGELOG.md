@@ -10,7 +10,7 @@ never a breaking 3.0, while `:latest` follows `main`.
 ### Added
 
 - Russian localization for the web interface, setup flow, errors and Telegram messages,
-  including Russian date and time formatting.
+  including Russian date and time formatting. Contributed by @tribul8ion (#48).
 
 ### Changed
 
