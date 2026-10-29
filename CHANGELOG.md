@@ -7,6 +7,18 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-10-29
+
+### Added
+
+- Russian localization for the web interface, setup flow, errors and Telegram messages,
+  including Russian date and time formatting. Contributed by @tribul8ion (#48).
+
+### Changed
+
+- Telegram pause-menu buttons now use translated labels.
+- Native select option menus follow the selected light or dark theme more closely.
+
 ### Security
 
 - Built with Go 1.27.3, which distrusts compromised intermediate certificates in
@@ -286,7 +298,8 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.2...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.3...HEAD
+[2.2.3]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.1.0...v2.2.0
