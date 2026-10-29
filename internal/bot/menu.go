@@ -45,9 +45,9 @@ func (b *Bot) menu(ctx context.Context) (string, *telegram.InlineKeyboardMarkup)
 	var rows [][]telegram.InlineKeyboardButton
 	if st.PausedUntil.IsZero() {
 		rows = append(rows, []telegram.InlineKeyboardButton{
-			btn("⏸ 30 min", actions.Pause(30*time.Minute)),
-			btn("⏸ 1 h", actions.Pause(time.Hour)),
-			btn("⏸ 8 h", actions.Pause(8*time.Hour)),
+			btn(l.T("⏸ 30 min"), actions.Pause(30*time.Minute)),
+			btn(l.T("⏸ 1 h"), actions.Pause(time.Hour)),
+			btn(l.T("⏸ 8 h"), actions.Pause(8*time.Hour)),
 		})
 	} else {
 		rows = append(rows, []telegram.InlineKeyboardButton{btn(l.T("▶️ Resume"), actions.Resume())})

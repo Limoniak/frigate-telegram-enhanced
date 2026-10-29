@@ -302,7 +302,7 @@ func TestClassicRedirects(t *testing.T) {
 		t.Errorf("/i18n.js: status %d, type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
 	cat, _ := io.ReadAll(do(t, ts, "GET", "/i18n.js", "").Body)
-	for _, want := range []string{`const LANGUAGES = [{"code":"en","name":"English"},{"code":"de","name":"Deutsch"},{"code":"es","name":"Español"},{"code":"fr","name":"Français"},{"code":"it","name":"Italiano"},{"code":"pt","name":"Português"},{"code":"sl","name":"Slovenščina"}]`, `"Help":"Aide"`, `"person":{"emoji":"🚶","name":"Person"}`} {
+	for _, want := range []string{`const LANGUAGES = [{"code":"en","name":"English"},{"code":"de","name":"Deutsch"},{"code":"es","name":"Español"},{"code":"fr","name":"Français"},{"code":"it","name":"Italiano"},{"code":"pt","name":"Português"},{"code":"ru","name":"Русский"},{"code":"sl","name":"Slovenščina"}]`, `"Help":"Aide"`, `"person":{"emoji":"🚶","name":"Person"}`} {
 		if !strings.Contains(string(cat), want) {
 			t.Errorf("i18n.js does not contain %s", want)
 		}
