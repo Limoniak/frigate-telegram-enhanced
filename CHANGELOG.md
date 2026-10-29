@@ -7,6 +7,12 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clips no longer arrive squashed in Telegram (a 16:9 video shown as 4:3, for example)
+  or with a duration of 0:00: they are sent with their width, height and duration, read
+  from the MP4 instead of left for Telegram to guess.
+
 ## [2.2.3] - 2026-10-29
 
 ### Added

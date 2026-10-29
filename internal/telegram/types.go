@@ -81,6 +81,20 @@ type InputFile struct {
 	Name   string
 	Data   []byte
 	Path   string
+	// Width, Height and Duration (seconds) of a video, sent when not 0: without them
+	// Telegram guesses them from the upload.
+	Width, Height, Duration int
+}
+
+// videoFields returns the size and duration of a video that are known.
+func (f InputFile) videoFields() map[string]int {
+	out := map[string]int{}
+	for k, v := range map[string]int{"width": f.Width, "height": f.Height, "duration": f.Duration} {
+		if v > 0 {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // SendOptions gathers the common send options. Caption is ignored by SendMessage.

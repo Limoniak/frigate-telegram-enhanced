@@ -238,6 +238,44 @@ func TestEditMessageMedia(t *testing.T) {
 	if !strings.Contains(got[1]["media"], `"media":"VID"`) || got[1]["file"] != "" {
 		t.Errorf("file_id reuse: %v", got[1])
 	}
+	if strings.Contains(got[0]["media"], "width") || strings.Contains(got[0]["media"], "duration") {
+		t.Errorf("unknown size sent: %v", got[0]["media"])
+	}
+	sized := InputFile{Name: "clip.mp4", Data: []byte("mp4"), Width: 1920, Height: 1080, Duration: 12}
+	if _, err := c.EditMessageMedia(context.Background(), 44, 9, "video", sized, "x", nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{`"width":1920`, `"height":1080`, `"duration":12`} {
+		if !strings.Contains(got[2]["media"], f) {
+			t.Errorf("media %s lacks %s", got[2]["media"], f)
+		}
+	}
+}
+
+// TestSendVideoSize checks that a video's known size and duration are sent, and that
+// unknown ones are left for Telegram to guess.
+func TestSendVideoSize(t *testing.T) {
+	var got []map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, map[string]string{"width": r.FormValue("width"), "height": r.FormValue("height"), "duration": r.FormValue("duration")})
+		okResult(w, `{"message_id":8,"chat":{"id":1},"video":{"file_id":"vid-1"}}`)
+	}))
+	defer srv.Close()
+	c := testClient(srv.URL)
+	for _, f := range []InputFile{
+		{Name: "clip.mp4", Data: []byte("mp4"), Width: 1080, Height: 1920},
+		{Name: "clip.mp4", Data: []byte("mp4")},
+	} {
+		if _, err := c.SendVideo(context.Background(), 1, f, SendOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got[0]["width"] != "1080" || got[0]["height"] != "1920" || got[0]["duration"] != "" {
+		t.Errorf("known size: %v", got[0])
+	}
+	if got[1]["width"] != "" || got[1]["height"] != "" {
+		t.Errorf("unknown size sent: %v", got[1])
+	}
 }
 
 // dropAfterRead reads the request, then closes the connection without answering:

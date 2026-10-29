@@ -302,7 +302,11 @@ func (c *Client) SendPhoto(ctx context.Context, chatID int64, f InputFile, o Sen
 }
 
 func (c *Client) SendVideo(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
-	return c.sendMedia(ctx, "sendVideo", "video", chatID, f, o, map[string]string{"supports_streaming": "true"})
+	extra := map[string]string{"supports_streaming": "true"}
+	for k, v := range f.videoFields() {
+		extra[k] = strconv.Itoa(v)
+	}
+	return c.sendMedia(ctx, "sendVideo", "video", chatID, f, o, extra)
 }
 
 func (c *Client) SendAnimation(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
@@ -383,6 +387,9 @@ func (c *Client) EditMessageMedia(ctx context.Context, chatID int64, messageID i
 	media := map[string]any{"type": kind, "caption": caption, "parse_mode": "HTML"}
 	if kind == "video" {
 		media["supports_streaming"] = true
+		for k, v := range f.videoFields() {
+			media[k] = v
+		}
 	}
 	var file *fileParam
 	timeout := 30 * time.Second
