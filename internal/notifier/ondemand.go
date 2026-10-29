@@ -67,7 +67,7 @@ func (n *Notifier) sendClipFile(ctx context.Context, chatID int64, replyTo int, 
 	if cut {
 		o.Caption = n.cutText(path)
 	}
-	_, err = n.Telegram.SendVideo(ctx, chatID, telegram.InputFile{Name: "clip.mp4", Path: file}, o)
+	_, err = n.Telegram.SendVideo(ctx, chatID, n.clipFile(file), o)
 	if err == nil {
 		n.Metrics.NotificationsSent.WithLabelValues("video").Inc()
 	}

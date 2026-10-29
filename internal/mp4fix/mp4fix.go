@@ -211,30 +211,36 @@ func fixMoof(moof []byte, timescales map[uint32]uint32) int {
 	return fixed
 }
 
-// fixTrun brings the sample durations above limit (in ticks) back to the median.
-func fixTrun(b []byte, limit uint64) int {
+// trunLayout returns a trun's sample count, the offset of its first sample record and
+// the size of a record; durations tells whether each record starts with a duration.
+// n is 0 for a malformed trun.
+func trunLayout(b []byte) (n, off, per int, durations bool) {
 	if len(b) < 8 {
-		return 0
+		return 0, 0, 0, false
 	}
 	flags := uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
-	if flags&0x100 == 0 { // no per-sample duration
-		return 0
-	}
-	n := int(binary.BigEndian.Uint32(b[4:]))
-	off := 8
+	n, off = int(binary.BigEndian.Uint32(b[4:])), 8
 	if flags&0x1 != 0 { // data_offset
 		off += 4
 	}
 	if flags&0x4 != 0 { // first_sample_flags
 		off += 4
 	}
-	per := 0
 	for _, f := range []uint32{0x100, 0x200, 0x400, 0x800} {
 		if flags&f != 0 {
 			per += 4
 		}
 	}
 	if n <= 0 || off+n*per > len(b) {
+		return 0, 0, 0, false
+	}
+	return n, off, per, flags&0x100 != 0
+}
+
+// fixTrun brings the sample durations above limit (in ticks) back to the median.
+func fixTrun(b []byte, limit uint64) int {
+	n, off, per, durations := trunLayout(b)
+	if !durations {
 		return 0
 	}
 

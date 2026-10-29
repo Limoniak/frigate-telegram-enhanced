@@ -152,11 +152,11 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 		t.clipNote = note
 		n.mu.Unlock()
 	}
-	name := "clip.mp4"
+	media := n.clipFile(file)
 	if kind == "animation" {
-		name = "preview.gif"
+		media = telegram.InputFile{Name: "preview.gif", Path: file}
 	}
-	n.deliver(ctx, chats, kind, telegram.InputFile{Name: name, Path: file},
+	n.deliver(ctx, chats, kind, media,
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
 			m := t.message(chat)
 			if inPlace && m.id != 0 && !m.text {
@@ -319,6 +319,19 @@ func (n *Notifier) repairClip(file, path string) {
 	case fixed > 0:
 		n.Log.Info("clip timestamps repaired", "path", path, "samples", fixed)
 	}
+}
+
+// clipFile is a downloaded clip with its size and duration, so that Telegram shows it
+// in its shape: left to guess, it sometimes squashes Frigate's fragmented clips.
+func (n *Notifier) clipFile(file string) telegram.InputFile {
+	f := telegram.InputFile{Name: "clip.mp4", Path: file}
+	w, h, d, err := mp4fix.Info(file)
+	if err != nil {
+		n.Log.Debug("clip size unknown, Telegram will guess it", "err", err)
+		return f
+	}
+	f.Width, f.Height, f.Duration = w, h, d
+	return f
 }
 
 // keepCompletePart cuts a partly received MP4 clip after its last complete
