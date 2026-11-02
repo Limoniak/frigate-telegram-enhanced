@@ -13,8 +13,8 @@ never a breaking 3.0, while `:latest` follows `main`.
   or with a duration of 0:00: they are sent with their width, height and duration, read
   from the MP4 instead of left for Telegram to guess.
 - The pause buttons of the Overview screen (30 min, 1 h, 8 h) and the 🔇 1 h and
-  ⏸ 30 min buttons under each notification are translated: they were in English in
-  every language.
+  ⏸ 30 min buttons under each notification, and in the preview of the Style screen,
+  are translated: they were in English in every language.
 - Russian: corrected translations, among them the light theme, sounds that shared one
   name (scream and yelling, breaking and shattering), "muted", which meant no sound
   rather than no notifications, and off hours.
