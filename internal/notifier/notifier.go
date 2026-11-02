@@ -72,6 +72,8 @@ type Deps struct {
 	HistoryFile                  string        // recent activity kept across restarts; empty: in memory only
 	// Transcode re-encodes a clip under max bytes (default: transcode.Fit, ffmpeg).
 	Transcode func(ctx context.Context, in string, max int64) (string, error)
+	// Remux copies a clip into a plain MP4 (default: transcode.Remux, ffmpeg).
+	Remux func(ctx context.Context, in string) (string, error)
 }
 
 type Notifier struct {
@@ -185,6 +187,9 @@ func New(d Deps) *Notifier {
 	}
 	if d.Transcode == nil {
 		d.Transcode = transcode.Fit
+	}
+	if d.Remux == nil {
+		d.Remux = transcode.Remux
 	}
 	p := d.Config.MQTT.TopicPrefix
 	ctx, cancel := context.WithCancel(context.Background())

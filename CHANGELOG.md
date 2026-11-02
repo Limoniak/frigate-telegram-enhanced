@@ -12,6 +12,10 @@ never a breaking 3.0, while `:latest` follows `main`.
 - Clips no longer arrive squashed in Telegram (a 16:9 video shown as 4:3, for example)
   or with a duration of 0:00: they are sent with their width, height and duration, read
   from the MP4 instead of left for Telegram to guess.
+- Clips can be fast-forwarded and rewound in Telegram for Android, where seeking used
+  to start the video over, and show a preview image in the chat instead of a blank
+  frame: they are sent as a plain MP4 (remuxed with ffmpeg, not re-encoded) instead of
+  Frigate's fragmented one.
 
 ## [2.2.3] - 2026-10-29
 
