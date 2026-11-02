@@ -12,6 +12,9 @@ never a breaking 3.0, while `:latest` follows `main`.
 - Clips no longer arrive squashed in Telegram (a 16:9 video shown as 4:3, for example)
   or with a duration of 0:00: they are sent with their width, height and duration, read
   from the MP4 instead of left for Telegram to guess.
+- In the light theme, the chosen option of a group of choices (notification style,
+  zones, bursts…) could not be told from the others; in the dark theme it barely
+  showed. It now has a tint of the accent color in both.
 
 ## [2.2.3] - 2026-10-29
 
