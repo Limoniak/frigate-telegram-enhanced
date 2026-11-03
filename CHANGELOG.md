@@ -19,6 +19,9 @@ never a breaking 3.0, while `:latest` follows `main`.
 - Russian: corrected translations, among them the light theme, sounds that shared one
   name (scream and yelling, breaking and shattering), "muted", which meant no sound
   rather than no notifications, and off hours.
+- In the light theme, the chosen option of a group of choices (notification style,
+  zones, bursts…) could not be told from the others; in the dark theme it barely
+  showed. It now has a tint of the accent color in both.
 
 ## [2.2.4] - 2026-11-03
 
