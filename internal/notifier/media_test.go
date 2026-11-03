@@ -295,3 +295,23 @@ func TestClipIsRemuxed(t *testing.T) {
 		}
 	}
 }
+
+// TestClipHasThePhotoAsCover checks that the clip replacing the photo of a notification
+// keeps it as cover, with a thumbnail made from it, for every recipient.
+func TestClipHasThePhotoAsCover(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	videos := h.tg.videos()
+	if len(videos) == 0 {
+		t.Fatal("no video sent")
+	}
+	for _, v := range videos {
+		if v.Cover != "jpeg" || v.Thumb != "thumb of jpeg" {
+			t.Errorf("%s to %d: cover %q, thumbnail %q; want the notification's photo", v.Method, v.ChatID, v.Cover, v.Thumb)
+		}
+	}
+}

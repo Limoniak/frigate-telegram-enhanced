@@ -74,6 +74,8 @@ type Deps struct {
 	Transcode func(ctx context.Context, in string, max int64) (string, error)
 	// Remux copies a clip into a plain MP4 (default: transcode.Remux, ffmpeg).
 	Remux func(ctx context.Context, in string) (string, error)
+	// Thumbnail scales a snapshot down to a video thumbnail (default: transcode.Thumbnail, ffmpeg).
+	Thumbnail func(ctx context.Context, image []byte) ([]byte, error)
 }
 
 type Notifier struct {
@@ -123,6 +125,7 @@ type tracked struct {
 	endTS        float64  // end of the event in Frigate's time; 0 until it ends
 	eventIDs     []string // ids of the linked Frigate events (GenAI descriptions)
 	snapshotPath string
+	photo        []byte // the snapshot the notification was sent with: the clip's cover
 	clipPath     string
 	gifPath      string
 	link         string
@@ -190,6 +193,9 @@ func New(d Deps) *Notifier {
 	}
 	if d.Remux == nil {
 		d.Remux = transcode.Remux
+	}
+	if d.Thumbnail == nil {
+		d.Thumbnail = transcode.Thumbnail
 	}
 	p := d.Config.MQTT.TopicPrefix
 	ctx, cancel := context.WithCancel(context.Background())

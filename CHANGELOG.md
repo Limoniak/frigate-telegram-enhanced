@@ -10,9 +10,11 @@ never a breaking 3.0, while `:latest` follows `main`.
 ### Fixed
 
 - Clips can be fast-forwarded and rewound in Telegram for Android, where seeking used
-  to start the video over, and show a preview image in the chat instead of a blank
-  frame: they are sent as a plain MP4 (remuxed with ffmpeg, not re-encoded) instead of
-  Frigate's fragmented one.
+  to start the video over: they are sent as a plain MP4 (remuxed with ffmpeg, not
+  re-encoded) instead of Frigate's fragmented one.
+- A clip keeps the photo of its notification, the detection in its box, as cover, with
+  a thumbnail made from it: Telegram makes a thumbnail itself only for small files, so
+  a clip over about 10 MB showed as an empty frame until played.
 - The pause buttons of the Overview screen (30 min, 1 h, 8 h) and the 🔇 1 h and
   ⏸ 30 min buttons under each notification, and in the preview of the Style screen,
   are translated: they were in English in every language.

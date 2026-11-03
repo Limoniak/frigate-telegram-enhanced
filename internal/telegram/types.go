@@ -84,6 +84,22 @@ type InputFile struct {
 	// Width, Height and Duration (seconds) of a video, sent when not 0: without them
 	// Telegram guesses them from the upload.
 	Width, Height, Duration int
+	// Cover (a photo shown in the message until the video plays) and Thumbnail (a
+	// JPEG of at most 320 px) of a video, sent when set: Telegram makes a thumbnail
+	// itself only for a small file.
+	Cover, Thumbnail []byte
+}
+
+// videoImages returns the cover and the thumbnail of a video as files to attach.
+func (f InputFile) videoImages() []fileParam {
+	var out []fileParam
+	if f.Cover != nil {
+		out = append(out, fileParam{field: "cover", file: InputFile{Name: "cover.jpg", Data: f.Cover}})
+	}
+	if f.Thumbnail != nil {
+		out = append(out, fileParam{field: "thumbnail", file: InputFile{Name: "thumbnail.jpg", Data: f.Thumbnail}})
+	}
+	return out
 }
 
 // videoFields returns the size and duration of a video that are known.
