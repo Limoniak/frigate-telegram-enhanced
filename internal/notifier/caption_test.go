@@ -106,6 +106,10 @@ func TestButtons(t *testing.T) {
 	if fr := buttons("jardin", "abc", "", i18n.FR).InlineKeyboard[0][0].Text; fr != "📷 Maintenant" {
 		t.Errorf("French wording = %q", fr)
 	}
+	// the durations of the silence row follow the language too
+	if de := buttons("jardin", "abc", "", i18n.Lang("de")).InlineKeyboard[1]; de[0].Text != "🔇 1 Std." || de[1].Text != "⏸ 30 Min." {
+		t.Errorf("German silence row = %q, %q", de[0].Text, de[1].Text)
+	}
 	long := strings.Repeat("x", 70)
 	if row := buttons("jardin", long, "", i18n.EN).InlineKeyboard[0]; len(row) != 1 || row[0].Text != "📷 Now" {
 		t.Errorf("a callback_data > 64 bytes must be left out: %+v", row)
