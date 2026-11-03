@@ -7,6 +7,13 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clips can be fast-forwarded and rewound in Telegram for Android, where seeking used
+  to start the video over, and show a preview image in the chat instead of a blank
+  frame: they are sent as a plain MP4 (remuxed with ffmpeg, not re-encoded) instead of
+  Frigate's fragmented one.
+
 ## [2.2.4] - 2026-11-03
 
 ### Fixed

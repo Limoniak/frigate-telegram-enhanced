@@ -100,13 +100,33 @@ func args(in, out string, video int64) []string {
 }
 
 func encode(ctx context.Context, in string, video int64) (string, error) {
+	return toTemp(ctx, func(out string) []string { return args(in, out, video) })
+}
+
+// Remux copies in, without re-encoding, into a temporary plain MP4 whose moov comes
+// first, and returns its path; the caller must remove it. in is left as is. Telegram
+// for Android plays Frigate's fragmented clips, which have no sidx index, but cannot
+// seek in them: the video starts over.
+func Remux(ctx context.Context, in string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return toTemp(ctx, func(out string) []string {
+		return []string{
+			"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", in,
+			"-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-movflags", "+faststart", out,
+		}
+	})
+}
+
+// toTemp runs ffmpeg with the arguments a gives for a new temporary MP4 and returns it.
+func toTemp(ctx context.Context, a func(out string) []string) (string, error) {
 	f, err := os.CreateTemp("", "clip-*.mp4")
 	if err != nil {
 		return "", err
 	}
 	out := f.Name()
 	f.Close()
-	if err := run(ctx, args(in, out, video)...); err != nil {
+	if err := run(ctx, a(out)...); err != nil {
 		os.Remove(out)
 		return "", err
 	}
