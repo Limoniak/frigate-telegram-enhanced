@@ -9,13 +9,18 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ### Fixed
 
-- Clips no longer arrive squashed in Telegram (a 16:9 video shown as 4:3, for example)
-  or with a duration of 0:00: they are sent with their width, height and duration, read
-  from the MP4 instead of left for Telegram to guess.
 - Clips can be fast-forwarded and rewound in Telegram for Android, where seeking used
   to start the video over, and show a preview image in the chat instead of a blank
   frame: they are sent as a plain MP4 (remuxed with ffmpeg, not re-encoded) instead of
   Frigate's fragmented one.
+
+## [2.2.4] - 2026-11-03
+
+### Fixed
+
+- Clips no longer arrive squashed in Telegram (a 16:9 video shown as 4:3, for example)
+  or with a duration of 0:00: they are sent with their width, height and duration, read
+  from the MP4 instead of left for Telegram to guess. Contributed by @vlw (#53).
 
 ## [2.2.3] - 2026-10-29
 
@@ -308,7 +313,8 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.3...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.4...HEAD
+[2.2.4]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.0...v2.2.1
