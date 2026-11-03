@@ -13,6 +13,12 @@ never a breaking 3.0, while `:latest` follows `main`.
   to start the video over, and show a preview image in the chat instead of a blank
   frame: they are sent as a plain MP4 (remuxed with ffmpeg, not re-encoded) instead of
   Frigate's fragmented one.
+- The pause buttons of the Overview screen (30 min, 1 h, 8 h) and the 🔇 1 h and
+  ⏸ 30 min buttons under each notification, and in the preview of the Style screen,
+  are translated: they were in English in every language.
+- Russian: corrected translations, among them the light theme, sounds that shared one
+  name (scream and yelling, breaking and shattering), "muted", which meant no sound
+  rather than no notifications, and off hours.
 
 ## [2.2.4] - 2026-11-03
 
