@@ -224,6 +224,22 @@ func recordedUntil(recs []frigate.Recording) float64 {
 	return until
 }
 
+// plain turns a downloaded MP4 clip into a plain one (see transcode.Remux), so that
+// Telegram for Android can seek in it, and returns the file to send: the clip as it
+// came when that fails.
+func (n *Notifier) plain(ctx context.Context, file, path string) string {
+	if !isMP4(path) {
+		return file
+	}
+	out, err := n.Remux(ctx, file)
+	if err != nil {
+		n.Log.Warn("clip not remuxed, Telegram for Android may not seek in it", "path", path, "err", err)
+		return file
+	}
+	os.Remove(file)
+	return out
+}
+
 // fetchClip downloads a clip that Telegram accepts. A clip over the upload limit
 // gives frigate.ErrTooLarge with its beginning (or without a file: a link is sent
 // instead), unless compress_clips has it re-encoded under the limit.
@@ -232,6 +248,9 @@ func (n *Notifier) fetchClip(ctx context.Context, path string) (string, error) {
 		file, err := n.download(ctx, path, maxUploadSize)
 		if errors.Is(err, frigate.ErrTooLarge) {
 			n.Log.Warn("clip over the Telegram limit, sending its beginning", "path", path, "limit_mb", maxUploadSize>>20, "beginning", file != "")
+		}
+		if file != "" {
+			file = n.plain(ctx, file, path)
 		}
 		return file, err
 	}
@@ -246,8 +265,11 @@ func (n *Notifier) fetchClip(ctx context.Context, path string) (string, error) {
 		return "", err
 	}
 	st, err := os.Stat(file)
-	if err != nil || st.Size() <= maxUploadSize {
+	if err != nil {
 		return file, err
+	}
+	if st.Size() <= maxUploadSize {
+		return n.plain(ctx, file, path), nil
 	}
 	defer os.Remove(file)
 	select {

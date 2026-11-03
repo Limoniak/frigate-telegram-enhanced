@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -369,6 +370,8 @@ func newHarness(t *testing.T, mode string, opts ...func(*Deps)) *harness {
 		SnapshotRetryDelay: time.Millisecond,
 		RecordingPoll:      time.Millisecond,
 		RecordingWait:      10 * time.Millisecond,
+		// the fake clips are not MP4: they are sent as they came (see TestClipIsRemuxed)
+		Remux: func(context.Context, string) (string, error) { return "", errors.New("no ffmpeg in tests") },
 	}
 	for _, o := range opts {
 		o(&deps)
