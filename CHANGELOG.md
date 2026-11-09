@@ -7,23 +7,27 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+## [2.2.5] - 2026-11-09
+
 ### Fixed
 
 - Clips can be fast-forwarded and rewound in Telegram for Android, where seeking used
   to start the video over: they are sent as a plain MP4 (remuxed with ffmpeg, not
-  re-encoded) instead of Frigate's fragmented one.
+  re-encoded) instead of Frigate's fragmented one. Contributed by @vlw (#56).
 - A clip keeps the photo of its notification, the detection in its box, as cover, with
   a thumbnail made from it: Telegram makes a thumbnail itself only for small files, so
-  a clip over about 10 MB showed as an empty frame until played.
+  a clip over about 10 MB showed as an empty frame until played. Contributed by @vlw
+  (#61).
 - The pause buttons of the Overview screen (30 min, 1 h, 8 h) and the 🔇 1 h and
   ⏸ 30 min buttons under each notification, and in the preview of the Style screen,
-  are translated: they were in English in every language.
+  are translated: they were in English in every language. Contributed by @vlw (#57,
+  #58).
 - Russian: corrected translations, among them the light theme, sounds that shared one
   name (scream and yelling, breaking and shattering), "muted", which meant no sound
-  rather than no notifications, and off hours.
+  rather than no notifications, and off hours. Contributed by @vlw (#57).
 - In the light theme, the chosen option of a group of choices (notification style,
   zones, bursts…) could not be told from the others; in the dark theme it barely
-  showed. It now has a tint of the accent color in both.
+  showed. It now has a tint of the accent color in both. Contributed by @vlw (#58).
 
 ## [2.2.4] - 2026-11-03
 
@@ -324,7 +328,8 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.4...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.5...HEAD
+[2.2.5]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.4...v2.2.5
 [2.2.4]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.1...v2.2.2
