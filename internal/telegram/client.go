@@ -71,6 +71,7 @@ type request struct {
 	chatID  int64 // 0: no rate limiting
 	params  map[string]string
 	file    *fileParam
+	attach  []fileParam // small files sent along (cover, thumbnail), in memory
 	timeout time.Duration
 	noRetry bool
 	// unique: replaying the request would create a second message (send*). It is then
@@ -213,7 +214,8 @@ func (c *Client) redact(s string) string { return strings.ReplaceAll(s, c.token,
 
 // body builds the body: a plain form, or a multipart of known size (not chunked).
 func (r request) body() (io.ReadCloser, int64, string, error) {
-	if r.file == nil || r.file.file.FileID != "" {
+	upload := r.file != nil && r.file.file.FileID == ""
+	if !upload && len(r.attach) == 0 {
 		v := url.Values{}
 		for k, val := range r.params {
 			v.Set(k, val)
@@ -231,6 +233,27 @@ func (r request) body() (io.ReadCloser, int64, string, error) {
 		if err := mw.WriteField(k, r.params[k]); err != nil {
 			return nil, 0, "", err
 		}
+	}
+	// the small attachments in memory, then the main file streamed last
+	for _, a := range r.attach {
+		w, err := mw.CreateFormFile(a.field, a.file.Name)
+		if err == nil {
+			_, err = w.Write(a.file.Data)
+		}
+		if err != nil {
+			return nil, 0, "", err
+		}
+	}
+	if !upload {
+		if r.file != nil {
+			if err := mw.WriteField(r.file.field, r.file.file.FileID); err != nil {
+				return nil, 0, "", err
+			}
+		}
+		if err := mw.Close(); err != nil {
+			return nil, 0, "", err
+		}
+		return io.NopCloser(bytes.NewReader(buf.Bytes())), int64(buf.Len()), mw.FormDataContentType(), nil
 	}
 	if _, err := mw.CreateFormFile(r.file.field, r.file.file.Name); err != nil {
 		return nil, 0, "", err
@@ -298,7 +321,7 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, o S
 }
 
 func (c *Client) SendPhoto(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
-	return c.sendMedia(ctx, "sendPhoto", "photo", chatID, f, o, nil)
+	return c.sendMedia(ctx, "sendPhoto", "photo", chatID, f, o, nil, nil)
 }
 
 func (c *Client) SendVideo(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
@@ -306,14 +329,18 @@ func (c *Client) SendVideo(ctx context.Context, chatID int64, f InputFile, o Sen
 	for k, v := range f.videoFields() {
 		extra[k] = strconv.Itoa(v)
 	}
-	return c.sendMedia(ctx, "sendVideo", "video", chatID, f, o, extra)
+	attach := f.videoImages()
+	for _, a := range attach {
+		extra[a.field] = "attach://" + a.field
+	}
+	return c.sendMedia(ctx, "sendVideo", "video", chatID, f, o, extra, attach)
 }
 
 func (c *Client) SendAnimation(ctx context.Context, chatID int64, f InputFile, o SendOptions) (Message, error) {
-	return c.sendMedia(ctx, "sendAnimation", "animation", chatID, f, o, nil)
+	return c.sendMedia(ctx, "sendAnimation", "animation", chatID, f, o, nil, nil)
 }
 
-func (c *Client) sendMedia(ctx context.Context, method, field string, chatID int64, f InputFile, o SendOptions, extra map[string]string) (Message, error) {
+func (c *Client) sendMedia(ctx context.Context, method, field string, chatID int64, f InputFile, o SendOptions, extra map[string]string, attach []fileParam) (Message, error) {
 	p := map[string]string{"chat_id": chatParam(chatID)}
 	maps.Copy(p, extra)
 	o.apply(p)
@@ -322,7 +349,7 @@ func (c *Client) sendMedia(ctx context.Context, method, field string, chatID int
 		timeout = 5 * time.Minute // upload up to 50 MB
 	}
 	var m Message
-	err := c.call(ctx, request{method: method, chatID: chatID, params: p, file: &fileParam{field: field, file: f}, timeout: timeout, unique: true}, &m)
+	err := c.call(ctx, request{method: method, chatID: chatID, params: p, file: &fileParam{field: field, file: f}, attach: attach, timeout: timeout, unique: true}, &m)
 	return m, err
 }
 
@@ -385,10 +412,15 @@ func (c *Client) GetMe(ctx context.Context) (User, error) {
 // whose file_id serves to reuse the media for other chats.
 func (c *Client) EditMessageMedia(ctx context.Context, chatID int64, messageID int, kind string, f InputFile, caption string, markup *InlineKeyboardMarkup) (Message, error) {
 	media := map[string]any{"type": kind, "caption": caption, "parse_mode": "HTML"}
+	var attach []fileParam
 	if kind == "video" {
 		media["supports_streaming"] = true
 		for k, v := range f.videoFields() {
 			media[k] = v
+		}
+		attach = f.videoImages()
+		for _, a := range attach {
+			media[a.field] = "attach://" + a.field
 		}
 	}
 	var file *fileParam
@@ -410,6 +442,6 @@ func (c *Client) EditMessageMedia(ctx context.Context, chatID int64, messageID i
 		p["reply_markup"] = string(b)
 	}
 	var m Message
-	err = c.call(ctx, request{method: "editMessageMedia", chatID: chatID, params: p, file: file, timeout: timeout}, &m)
+	err = c.call(ctx, request{method: "editMessageMedia", chatID: chatID, params: p, file: file, attach: attach, timeout: timeout}, &m)
 	return m, err
 }

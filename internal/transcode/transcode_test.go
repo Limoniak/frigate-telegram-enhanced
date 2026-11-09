@@ -1,11 +1,15 @@
 package transcode
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
+	"image/jpeg"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -112,5 +116,76 @@ func TestFit(t *testing.T) {
 	}
 	if d, err := duration(context.Background(), out); err != nil || d < 19*time.Second {
 		t.Errorf("duration = %v, %v; want about 20 s", d, err)
+	}
+}
+
+func TestRemux(t *testing.T) {
+	if _, err := exec.LookPath(Binary); err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	in := filepath.Join(t.TempDir(), "in.mp4")
+	// fragmented like Frigate's clips
+	gen := exec.Command(Binary, "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=15",
+		"-f", "lavfi", "-i", "sine", "-t", "3", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
+		"-movflags", "+frag_keyframe+empty_moov+default_base_moof", in)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("generating the clip: %v: %s", err, out)
+	}
+	out, err := Remux(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(out)
+	if got := topBoxes(t, out); !slices.Contains(got, "moov") || slices.Contains(got, "moof") ||
+		slices.Index(got, "moov") > slices.Index(got, "mdat") {
+		t.Errorf("boxes = %v, want a plain MP4 with moov before mdat", got)
+	}
+	if d, err := duration(context.Background(), out); err != nil || d < 2900*time.Millisecond {
+		t.Errorf("duration = %v, %v; want about 3 s", d, err)
+	}
+	if _, err := os.Stat(in); err != nil {
+		t.Errorf("input removed: %v", err)
+	}
+}
+
+// topBoxes lists the types of the top-level boxes of an MP4 file.
+func topBoxes(t *testing.T, path string) []string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for len(data) >= 8 {
+		size := int(binary.BigEndian.Uint32(data))
+		out = append(out, string(data[4:8]))
+		if size < 8 || size > len(data) {
+			break
+		}
+		data = data[size:]
+	}
+	return out
+}
+
+func TestThumbnail(t *testing.T) {
+	if _, err := exec.LookPath(Binary); err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	// a 1280x720 snapshot, the size Frigate's detection gives
+	snapshot, err := exec.Command(Binary, "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720",
+		"-frames:v", "1", "-f", "image2", "-c:v", "mjpeg", "pipe:1").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	thumb, err := Thumbnail(context.Background(), snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := jpeg.DecodeConfig(bytes.NewReader(thumb))
+	if err != nil || c.Width != 320 || c.Height != 180 || len(thumb) >= maxThumbnail {
+		t.Errorf("thumbnail %dx%d, %d bytes, %v; want a 320x180 JPEG under 200 kB", c.Width, c.Height, len(thumb), err)
+	}
+	if _, err := Thumbnail(context.Background(), []byte("not an image")); err == nil {
+		t.Error("no error for a broken image")
 	}
 }

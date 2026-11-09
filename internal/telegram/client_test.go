@@ -339,3 +339,50 @@ func TestSendRetriedWhenNotDelivered(t *testing.T) {
 		t.Errorf("%d requests, want 2", n)
 	}
 }
+
+// TestVideoCoverAndThumbnail checks that a video's cover and thumbnail go along as
+// attachments, both on an upload and when the video's file_id is reused.
+func TestVideoCoverAndThumbnail(t *testing.T) {
+	type got struct{ fields, files map[string]string }
+	var calls []got
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatalf("%s: not multipart: %v", r.URL.Path, err)
+		}
+		g := got{map[string]string{}, map[string]string{}}
+		for k, v := range r.MultipartForm.Value {
+			g.fields[k] = v[0]
+		}
+		for k, v := range r.MultipartForm.File {
+			f, _ := v[0].Open()
+			b, _ := io.ReadAll(f)
+			g.files[k] = string(b)
+		}
+		calls = append(calls, g)
+		okResult(w, `{"message_id":8,"chat":{"id":1},"video":{"file_id":"vid-1"}}`)
+	}))
+	defer srv.Close()
+	c := testClient(srv.URL)
+	f := InputFile{Name: "clip.mp4", Data: []byte("mp4"), Cover: []byte("cover"), Thumbnail: []byte("thumb")}
+
+	if _, err := c.SendVideo(context.Background(), 1, f, SendOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if g := calls[0]; g.files["video"] != "mp4" || g.files["cover"] != "cover" || g.files["thumbnail"] != "thumb" ||
+		g.fields["cover"] != "attach://cover" || g.fields["thumbnail"] != "attach://thumbnail" {
+		t.Errorf("sendVideo sent %+v", g)
+	}
+
+	reused := f
+	reused.FileID, reused.Data = "vid-1", nil
+	if _, err := c.EditMessageMedia(context.Background(), 1, 8, "video", reused, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	g := calls[1]
+	var media map[string]any
+	json.Unmarshal([]byte(g.fields["media"]), &media)
+	if media["media"] != "vid-1" || media["cover"] != "attach://cover" || media["thumbnail"] != "attach://thumbnail" ||
+		g.files["cover"] != "cover" || g.files["thumbnail"] != "thumb" || g.files["file"] != "" {
+		t.Errorf("editMessageMedia with a file_id sent media %v, files %v", media, g.files)
+	}
+}

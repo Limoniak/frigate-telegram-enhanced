@@ -100,13 +100,57 @@ func args(in, out string, video int64) []string {
 }
 
 func encode(ctx context.Context, in string, video int64) (string, error) {
+	return toTemp(ctx, func(out string) []string { return args(in, out, video) })
+}
+
+// Remux copies in, without re-encoding, into a temporary plain MP4 whose moov comes
+// first, and returns its path; the caller must remove it. in is left as is. Telegram
+// for Android plays Frigate's fragmented clips, which have no sidx index, but cannot
+// seek in them: the video starts over.
+func Remux(ctx context.Context, in string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return toTemp(ctx, func(out string) []string {
+		return []string{
+			"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", in,
+			"-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-movflags", "+faststart", out,
+		}
+	})
+}
+
+// maxThumbnail is the largest thumbnail Telegram takes with a video.
+const maxThumbnail = 200 << 10
+
+// Thumbnail scales an image (a JPEG snapshot) down to the thumbnail Telegram takes with
+// a video, at most 320 px on each side, as sharp as that size allows.
+func Thumbnail(ctx context.Context, image []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, Binary, "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
+		"-vf", "scale=320:320:force_original_aspect_ratio=decrease:flags=lanczos,unsharp=3:3:0.6",
+		"-frames:v", "1", "-q:v", "2", "-f", "image2", "-c:v", "mjpeg", "pipe:1")
+	cmd.Stdin = bytes.NewReader(image)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ffmpeg: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	if len(out) == 0 || len(out) >= maxThumbnail {
+		return nil, fmt.Errorf("thumbnail of %d bytes", len(out))
+	}
+	return out, nil
+}
+
+// toTemp runs ffmpeg with the arguments a gives for a new temporary MP4 and returns it.
+func toTemp(ctx context.Context, a func(out string) []string) (string, error) {
 	f, err := os.CreateTemp("", "clip-*.mp4")
 	if err != nil {
 		return "", err
 	}
 	out := f.Name()
 	f.Close()
-	if err := run(ctx, args(in, out, video)...); err != nil {
+	if err := run(ctx, a(out)...); err != nil {
 		os.Remove(out)
 		return "", err
 	}

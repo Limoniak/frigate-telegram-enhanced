@@ -40,7 +40,8 @@ func (n *Notifier) deliver(ctx context.Context, chats []string, kind string, f t
 				continue // retry the upload with the next chat
 			}
 			if id := m.FileID(); id != "" {
-				f = telegram.InputFile{FileID: id}
+				// the others get the uploaded file, with its size, cover and thumbnail
+				f.FileID, f.Path, f.Data = id, "", nil
 			}
 			break
 		}
@@ -93,6 +94,9 @@ func (n *Notifier) sendSnapshot(ctx context.Context, t *tracked, path, caption s
 			func(chat string, m telegram.Message) { t.setMessage(chat, sentMsg{id: m.MessageID, text: true}) })
 		return
 	}
+	n.mu.Lock()
+	t.photo = photo
+	n.mu.Unlock()
 	n.deliver(ctx, chats, "photo", telegram.InputFile{Name: "snapshot.jpg", Data: photo},
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
 			return n.Telegram.SendPhoto(ctx, chatID, f, telegram.SendOptions{Caption: caption, Silent: silent(chat), Markup: markup})
@@ -155,6 +159,8 @@ func (n *Notifier) sendFollowUp(ctx context.Context, t *tracked, kind, path stri
 	media := n.clipFile(file)
 	if kind == "animation" {
 		media = telegram.InputFile{Name: "preview.gif", Path: file}
+	} else {
+		n.withCover(ctx, t, &media)
 	}
 	n.deliver(ctx, chats, kind, media,
 		func(ctx context.Context, chatID int64, chat string, f telegram.InputFile) (telegram.Message, error) {
@@ -224,6 +230,22 @@ func recordedUntil(recs []frigate.Recording) float64 {
 	return until
 }
 
+// plain turns a downloaded MP4 clip into a plain one (see transcode.Remux), so that
+// Telegram for Android can seek in it, and returns the file to send: the clip as it
+// came when that fails.
+func (n *Notifier) plain(ctx context.Context, file, path string) string {
+	if !isMP4(path) {
+		return file
+	}
+	out, err := n.Remux(ctx, file)
+	if err != nil {
+		n.Log.Warn("clip not remuxed, Telegram for Android may not seek in it", "path", path, "err", err)
+		return file
+	}
+	os.Remove(file)
+	return out
+}
+
 // fetchClip downloads a clip that Telegram accepts. A clip over the upload limit
 // gives frigate.ErrTooLarge with its beginning (or without a file: a link is sent
 // instead), unless compress_clips has it re-encoded under the limit.
@@ -232,6 +254,9 @@ func (n *Notifier) fetchClip(ctx context.Context, path string) (string, error) {
 		file, err := n.download(ctx, path, maxUploadSize)
 		if errors.Is(err, frigate.ErrTooLarge) {
 			n.Log.Warn("clip over the Telegram limit, sending its beginning", "path", path, "limit_mb", maxUploadSize>>20, "beginning", file != "")
+		}
+		if file != "" {
+			file = n.plain(ctx, file, path)
 		}
 		return file, err
 	}
@@ -246,8 +271,11 @@ func (n *Notifier) fetchClip(ctx context.Context, path string) (string, error) {
 		return "", err
 	}
 	st, err := os.Stat(file)
-	if err != nil || st.Size() <= maxUploadSize {
+	if err != nil {
 		return file, err
+	}
+	if st.Size() <= maxUploadSize {
+		return n.plain(ctx, file, path), nil
 	}
 	defer os.Remove(file)
 	select {
@@ -332,6 +360,25 @@ func (n *Notifier) clipFile(file string) telegram.InputFile {
 	}
 	f.Width, f.Height, f.Duration = w, h, d
 	return f
+}
+
+// withCover gives a clip the photo of its notification as cover, and a thumbnail
+// made from it: Telegram makes a thumbnail itself only for a small file, so a larger
+// clip showed as an empty frame until played. Without a photo, f is left as is.
+func (n *Notifier) withCover(ctx context.Context, t *tracked, f *telegram.InputFile) {
+	n.mu.Lock()
+	photo := t.photo
+	n.mu.Unlock()
+	if photo == nil {
+		return
+	}
+	f.Cover = photo
+	thumb, err := n.Thumbnail(ctx, photo)
+	if err != nil {
+		n.Log.Debug("no thumbnail for the clip", "err", err)
+		return
+	}
+	f.Thumbnail = thumb
 }
 
 // keepCompletePart cuts a partly received MP4 clip after its last complete

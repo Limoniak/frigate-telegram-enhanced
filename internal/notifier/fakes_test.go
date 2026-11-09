@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -204,6 +205,8 @@ type tgCall struct {
 	Text   string // text or caption
 	FileID string
 	Data   string // uploaded content
+	Cover  string // a video's cover and thumbnail
+	Thumb  string
 	Opts   telegram.SendOptions
 	Result int // message_id returned
 }
@@ -241,7 +244,7 @@ func (f *fakeTelegram) SendPhoto(_ context.Context, chatID int64, file telegram.
 }
 
 func (f *fakeTelegram) SendVideo(_ context.Context, chatID int64, file telegram.InputFile, o telegram.SendOptions) (telegram.Message, error) {
-	id := f.add(tgCall{Method: "sendVideo", ChatID: chatID, FileID: file.FileID, Data: fileData(file), Opts: o})
+	id := f.add(tgCall{Method: "sendVideo", ChatID: chatID, FileID: file.FileID, Data: fileData(file), Opts: o, Cover: string(file.Cover), Thumb: string(file.Thumbnail)})
 	return telegram.Message{MessageID: id, Video: &telegram.Video{FileID: "video-file"}}, nil
 }
 
@@ -261,7 +264,8 @@ func (f *fakeTelegram) EditMessageText(_ context.Context, chatID int64, messageI
 }
 
 func (f *fakeTelegram) EditMessageMedia(_ context.Context, chatID int64, messageID int, kind string, file telegram.InputFile, caption string, _ *telegram.InlineKeyboardMarkup) (telegram.Message, error) {
-	id := f.add(tgCall{Method: "editMessageMedia:" + kind, ChatID: chatID, Target: messageID, Text: caption, FileID: file.FileID, Data: fileData(file)})
+	id := f.add(tgCall{Method: "editMessageMedia:" + kind, ChatID: chatID, Target: messageID, Text: caption, FileID: file.FileID, Data: fileData(file),
+		Cover: string(file.Cover), Thumb: string(file.Thumbnail)})
 	return telegram.Message{MessageID: id, Video: &telegram.Video{FileID: "video-file"}}, nil
 }
 
@@ -369,6 +373,11 @@ func newHarness(t *testing.T, mode string, opts ...func(*Deps)) *harness {
 		SnapshotRetryDelay: time.Millisecond,
 		RecordingPoll:      time.Millisecond,
 		RecordingWait:      10 * time.Millisecond,
+		// the fake clips are not MP4: they are sent as they came (see TestClipIsRemuxed)
+		Remux: func(context.Context, string) (string, error) { return "", errors.New("no ffmpeg in tests") },
+		Thumbnail: func(_ context.Context, image []byte) ([]byte, error) {
+			return append([]byte("thumb of "), image...), nil
+		},
 	}
 	for _, o := range opts {
 		o(&deps)

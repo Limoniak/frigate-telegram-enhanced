@@ -259,3 +259,59 @@ func TestClipNotDelayedWhenRecordingsUnavailable(t *testing.T) {
 		t.Errorf("recordings asked %d times; the clip must be sent without waiting", n)
 	}
 }
+
+// TestClipIsRemuxed checks that a clip goes to Telegram as a plain MP4, in which
+// Telegram for Android can seek, and that the fragmented download is not left behind;
+// when remuxing fails, the clip is sent as it came (every other test).
+func TestClipIsRemuxed(t *testing.T) {
+	var fragmented []string
+	h := newHarness(t, "events", func(d *Deps) {
+		d.Remux = func(_ context.Context, in string) (string, error) {
+			fragmented = append(fragmented, in)
+			data, err := os.ReadFile(in)
+			if err != nil {
+				return "", err
+			}
+			f, err := os.CreateTemp("", "plain-*.mp4")
+			if err != nil {
+				return "", err
+			}
+			f.WriteString("plain " + string(data))
+			return f.Name(), f.Close()
+		}
+	})
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	videos := h.tg.videos()
+	if len(videos) == 0 || videos[0].Data != "plain mp4" {
+		t.Fatalf("videos = %+v, want the remuxed clip", videos)
+	}
+	for _, f := range fragmented {
+		if _, err := os.Stat(f); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("fragmented download %s left behind (%v)", f, err)
+		}
+	}
+}
+
+// TestClipHasThePhotoAsCover checks that the clip replacing the photo of a notification
+// keeps it as cover, with a thumbnail made from it, for every recipient.
+func TestClipHasThePhotoAsCover(t *testing.T) {
+	h := newHarness(t, "events")
+	h.fr.files[frigate.EventSnapshotPath(evID)] = []byte("jpeg")
+	h.fr.files[frigate.EventClipPath(evID)] = []byte("mp4")
+	h.send(t, "frigate/events", eventMsg("new", evID, "garage", "person", nil))
+	h.send(t, "frigate/events", eventMsg("end", evID, "garage", "person", nil))
+
+	videos := h.tg.videos()
+	if len(videos) == 0 {
+		t.Fatal("no video sent")
+	}
+	for _, v := range videos {
+		if v.Cover != "jpeg" || v.Thumb != "thumb of jpeg" {
+			t.Errorf("%s to %d: cover %q, thumbnail %q; want the notification's photo", v.Method, v.ChatID, v.Cover, v.Thumb)
+		}
+	}
+}

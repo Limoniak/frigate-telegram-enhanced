@@ -84,7 +84,7 @@
           <div class="flex flex-wrap items-center gap-2">
             <span class="flex-1">{T("Notifications active")}</span>
             <span class="text-[var(--muted)]">{T("Pause:")}</span>
-            {#each [["30 min", 30], ["1 h", 60], ["8 h", 480], [T("until resumed"), 0]] as [label, minutes] (minutes)}
+            {#each [[T("30 min"), 30], [T("1 h"), 60], [T("8 h"), 480], [T("until resumed"), 0]] as [label, minutes] (minutes)}
               <button type="button" class="btn" onclick={() => pause(minutes)}>{label}</button>
             {/each}
           </div>
