@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS TARGETARCH
-# Set by the CI (e.g. 2.2.5, or main-a9bed07): shown in the interface's footer.
+# Set by the CI (e.g. 2.2.5, or 2.2.5+dev.a9bed07): shown in the interface's footer.
 ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./

@@ -10,8 +10,9 @@ never a breaking 3.0, while `:latest` follows `main`.
 ### Added
 
 - The version of frigate-telegram-enhanced shows in the footer of the web interface,
-  in the startup log and with `-version` (e.g. `2.3.0` for a release, `main-a9bed07`
-  for an image built from `main`).
+  in the startup log and with `-version`: the release (e.g. `2.3.0`, `:latest`
+  included), followed by the commit for an image with changes since (e.g.
+  `2.3.0+dev.a9bed07` for `:dev`).
 
 ### Security
 
