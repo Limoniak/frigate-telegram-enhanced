@@ -7,6 +7,8 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-18
+
 ### Added
 
 - The version of frigate-telegram-enhanced shows in the footer of the web interface,
@@ -339,7 +341,8 @@ First release.
 - Persistent state, `/healthz`, Prometheus metrics (optionally password-protected).
 - Multi-arch distroless image (amd64, arm64) running as non-root, published as `:1`, `:1.0`, `:1.0.0`, `:latest` (main) and `:dev`.
 
-[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.5...HEAD
+[Unreleased]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.5...v2.3.0
 [2.2.5]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.4...v2.2.5
 [2.2.4]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/Limoniak/frigate-telegram-enhanced/compare/v2.2.2...v2.2.3
