@@ -26,6 +26,7 @@ import (
 	"frigate-telegram-enhanced/internal/labels"
 	"frigate-telegram-enhanced/internal/notifier"
 	"frigate-telegram-enhanced/internal/state"
+	"frigate-telegram-enhanced/internal/version"
 )
 
 // The login page, and dist/, the front end built from web/ (npm run build), committed so that go build needs no Node.
@@ -390,6 +391,8 @@ type settings struct {
 	FrigateURL string `json:"frigate_url"`
 	// SubLabels: labels Frigate knows, offered by the label filter.
 	SubLabels []string `json:"sub_labels"`
+	// Version of frigate-telegram-enhanced, shown in the footer.
+	Version string `json:"version"`
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -406,6 +409,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		CanConn:    h.setup != nil,
 		Auth:       h.cfg.Web.Password != "",
 		FrigateURL: h.cfg.Frigate.URL,
+		Version:    version.Version,
 	}
 	if _, err := os.Stat(h.path); err == nil {
 		s.Custom = true

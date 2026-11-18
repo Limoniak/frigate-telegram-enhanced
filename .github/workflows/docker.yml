@@ -84,6 +84,13 @@ jobs:
             type=ref,event=pr
             type=sha,format=short
           flavor: latest=false
+      # The version built into the binary: the release for a v* tag, otherwise the
+      # branch (or PR) and the commit.
+      - id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"
+          else v="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}-${GITHUB_SHA::7}"; v="${v//\//-}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -91,6 +98,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=${{ steps.version.outputs.version }}
           provenance: mode=max
           sbom: true
           cache-from: type=gha

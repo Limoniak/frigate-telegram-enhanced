@@ -7,6 +7,12 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Added
+
+- The version of frigate-telegram-enhanced shows in the footer of the web interface,
+  in the startup log and with `-version` (e.g. `2.3.0` for a release, `main-a9bed07`
+  for an image built from `main`).
+
 ## [2.2.5] - 2026-11-09
 
 ### Fixed
