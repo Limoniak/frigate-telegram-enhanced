@@ -27,6 +27,7 @@ import (
 	"frigate-telegram-enhanced/internal/server"
 	"frigate-telegram-enhanced/internal/state"
 	"frigate-telegram-enhanced/internal/telegram"
+	"frigate-telegram-enhanced/internal/version"
 	"frigate-telegram-enhanced/internal/web"
 )
 
@@ -211,7 +212,7 @@ func run(parent context.Context, cfg *config.Config, connectionPath string, tgOp
 		close(botDone)
 	}()
 	sub.Start()
-	log.Info("frigate-telegram-enhanced started", "configuration", cfg.Source, "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
+	log.Info("frigate-telegram-enhanced started", "version", version.Version, "configuration", cfg.Source, "mode", cfg.Mode, "broker", cfg.MQTT.Broker, "frigate", cfg.Frigate.URL)
 	if cfg.Web.Enabled {
 		log.Info("web interface available", "address", cfg.HTTPListen,
 			"authentication", cfg.Web.Password != "")

@@ -1,12 +1,14 @@
 # syntax=docker/dockerfile:1
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS TARGETARCH
+# Set by the CI (e.g. 2.2.5, or main-a9bed07): shown in the interface's footer.
+ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -tags timetzdata -ldflags="-s -w" -o /out/frigate-telegram-enhanced ./cmd/frigate-telegram-enhanced
+    go build -trimpath -tags timetzdata -ldflags="-s -w -X frigate-telegram-enhanced/internal/version.Version=${VERSION}" -o /out/frigate-telegram-enhanced ./cmd/frigate-telegram-enhanced
 # /data exists in the image and belongs to the container's user: a named volume
 # mounted on it inherits that, with no chown to do by hand.
 RUN mkdir -p /out/data
