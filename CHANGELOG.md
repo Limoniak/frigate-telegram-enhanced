@@ -7,6 +7,17 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Added
+
+- The version of frigate-telegram-enhanced shows in the footer of the web interface,
+  in the startup log and with `-version`: the release (e.g. `2.3.0`, `:latest`
+  included), followed by the commit for an image with changes since (e.g.
+  `2.3.0+dev.a9bed07` for `:dev`).
+
+### Security
+
+- Built with Go 1.27.4, which fixes GO-2026-6859 in the standard library's `net/http`.
+
 ## [2.2.5] - 2026-11-09
 
 ### Fixed

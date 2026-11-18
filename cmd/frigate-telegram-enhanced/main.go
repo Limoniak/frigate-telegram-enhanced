@@ -14,6 +14,7 @@ import (
 	"frigate-telegram-enhanced/internal/app"
 	"frigate-telegram-enhanced/internal/config"
 	"frigate-telegram-enhanced/internal/server"
+	"frigate-telegram-enhanced/internal/version"
 )
 
 func main() {
@@ -27,11 +28,16 @@ func run(args []string, stderr io.Writer) int {
 	configPath := flags.String("config", "/config/config.yml", "path of the configuration file")
 	connectionPath := flags.String("connection", config.DefaultConnectionPath, "path of the connection saved by the setup page")
 	healthcheck := flags.Bool("healthcheck", false, "query /healthz and exit with 0 if the service is healthy")
+	showVersion := flags.Bool("version", false, "print the version and exit")
 	healthURL := flags.String("healthcheck-url", "", "URL used by -healthcheck (default: derived from the configured port)")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
 
+	if *showVersion {
+		fmt.Println(version.Version)
+		return 0
+	}
 	if *healthcheck {
 		url := *healthURL
 		if url == "" {

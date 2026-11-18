@@ -25,6 +25,7 @@ import (
 	"frigate-telegram-enhanced/internal/i18n"
 	"frigate-telegram-enhanced/internal/notifier"
 	"frigate-telegram-enhanced/internal/state"
+	"frigate-telegram-enhanced/internal/version"
 )
 
 const testConfig = `
@@ -544,6 +545,17 @@ func TestOptionalFeaturesAreAdvertised(t *testing.T) {
 	}
 	if resp := do(t, ts, "POST", "/api/test", `{"camera":"garage"}`); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("test without a Tester: status = %d", resp.StatusCode)
+	}
+}
+
+func TestSettingsCarryTheVersion(t *testing.T) {
+	defer func(v string) { version.Version = v }(version.Version)
+	version.Version = "2.3.0"
+	_, _, ts := setup(t, "", fakeCameras{})
+	var s settings
+	json.NewDecoder(do(t, ts, "GET", "/api/settings", "").Body).Decode(&s)
+	if s.Version != "2.3.0" {
+		t.Errorf("version = %q, want 2.3.0", s.Version)
 	}
 }
 

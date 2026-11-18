@@ -50,6 +50,9 @@
     ["advanced", T("Advanced settings")],
   ];
 
+  // A release (2.3.0, 2.3.0+dev.a9bed07) reads v2.3.0…; "dev" (local build) as is.
+  const versionLabel = $derived(/^\d/.test(app.data?.version ?? "") ? "v" + app.data.version : app.data?.version);
+
   // A route to a screen that is not offered (no history) shows the overview.
   const current = $derived(screens().some(([id]) => id === route.screen) ? route.screen : "overview");
   async function logout() {
@@ -123,6 +126,7 @@
   {#if app.data}
     <span>{app.data.mode === "events" ? T("Notifications for Frigate's events") : T("Notifications for Frigate's alerts (reviews)")} · {Tf("time zone %s", app.data.timezone)}</span>
     <span class="flex-1"></span>
+    {#if app.data.version}<span id="version">frigate-telegram-enhanced {versionLabel}</span>{/if}
     {#if app.data.auth}<button type="button" class="btn-link" id="logout" onclick={logout}>{T("Log out")}</button>{/if}
   {/if}
 </footer>
