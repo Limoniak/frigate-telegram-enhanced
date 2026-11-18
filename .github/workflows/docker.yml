@@ -84,12 +84,20 @@ jobs:
             type=ref,event=pr
             type=sha,format=short
           flavor: latest=false
-      # The version built into the binary: the release for a v* tag, otherwise the
-      # branch (or PR) and the commit.
+      # The version built into the binary: the release for a v* tag; otherwise the
+      # latest release of CHANGELOG.md (the tag is pushed after main's build of the
+      # release commit), with the commit when Unreleased lists changes, and the
+      # branch outside main.
       - id: version
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"
-          else v="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}-${GITHUB_SHA::7}"; v="${v//\//-}"; fi
+          else
+            v=$(awk '/^## \[[0-9]/ { gsub(/^## \[|\].*$/, ""); print; exit }' CHANGELOG.md)
+            unreleased=$(awk '/^## \[Unreleased\]/ { f = 1; next } /^## \[/ { f = 0 } f && NF' CHANGELOG.md)
+            branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"; branch="${branch//[^a-zA-Z0-9]/-}"
+            if [ "$branch" != main ]; then v="$v+$branch.${GITHUB_SHA::7}"
+            elif [ -n "$unreleased" ]; then v="$v+${GITHUB_SHA::7}"; fi
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:

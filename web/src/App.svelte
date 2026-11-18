@@ -50,7 +50,7 @@
     ["advanced", T("Advanced settings")],
   ];
 
-  // A release (2.3.0) reads v2.3.0; a branch build (main-a9bed07) as is.
+  // A release (2.3.0, 2.3.0+dev.a9bed07) reads v2.3.0…; "dev" (local build) as is.
   const versionLabel = $derived(/^\d/.test(app.data?.version ?? "") ? "v" + app.data.version : app.data?.version);
 
   // A route to a screen that is not offered (no history) shows the overview.
