@@ -7,6 +7,10 @@ never a breaking 3.0, while `:latest` follows `main`.
 
 ## [Unreleased]
 
+### Security
+
+- Built with Go 1.27.4, which fixes GO-2026-6859 in the standard library's `net/http`.
+
 ## [2.2.5] - 2026-11-09
 
 ### Fixed
