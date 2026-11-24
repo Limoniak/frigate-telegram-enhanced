@@ -3,8 +3,8 @@ module frigate-telegram-enhanced
 go 1.27.4
 
 require (
-	github.com/chromedp/cdproto v0.159.2
-	github.com/chromedp/chromedp v0.23.0
+	github.com/chromedp/cdproto v0.160.7
+	github.com/chromedp/chromedp v0.24.0
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/mochi-mqtt/server/v2 v2.7.9
 	github.com/prometheus/client_golang v1.25.0
